@@ -1,20 +1,7 @@
 ## Repository Location
 
 ### Current local working path
-Current canonical local repo root at the time of writing:
 
-`C:\temp\ML_Slides\slideforge`
-
-This path is a working reference, not a permanent guarantee.
-If the repo is moved, update this section.
-
-### Repo identity rule
-When working on this project, treat the repository root as the directory containing:
-- `LLM_CONTEXT.md`
-- `README.md`
-- `src/`
-- `docs/`
-- `tests/`
 
 from __future__ import annotations
 
@@ -33,17 +20,37 @@ from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.util import Inches, Pt
 
 
+from slideforge.config.paths import BASE_DIR, BACKGROUND_DIR, OUTPUT_FILE, GENERATED_DIR, ensure_runtime_dirs
+from slideforge.config.constants import (
+    SLIDE_W,
+    SLIDE_H,
+    TITLE_FONT,
+    BODY_FONT,
+    FORMULA_FONT,
+    NAVY,
+    SLATE,
+    MUTED,
+    ACCENT,
+    WHITE,
+    OFFWHITE,
+    BOX_LINE,
+    LIGHT_BOX_FILL,
+    DARK_BOX_FILL,
+    TITLE_PANEL_FILL,
+    TITLE_PANEL_LINE,
+    GHOST_TEXT,
+)
+from slideforge.utils.units import inches, pt
+from slideforge.app.build_deck import create_presentation
+
 
 
 # ============================================================
 # Paths
 # ============================================================
 
-BASE_DIR = Path(__file__).resolve().parent
-BACKGROUND_DIR = BASE_DIR / "backgrounds"
-OUTPUT_FILE = BASE_DIR / "ML_Foundations_Auto.pptx"
-GENERATED_DIR = BASE_DIR / "_generated"
-GENERATED_DIR.mkdir(exist_ok=True)
+
+ensure_runtime_dirs()
 
 # ============================================================
 # Slide size
