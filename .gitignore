@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+_generated/
+*.pptx
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.webp
+.vscode/
+.idea/
