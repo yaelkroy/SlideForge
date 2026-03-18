@@ -5,24 +5,29 @@ from typing import Any
 from pptx import Presentation
 from pptx.enum.text import PP_ALIGN
 
+from slideforge.assets.mini_visuals import add_mini_visual
+from slideforge.builders.common import new_slide
 from slideforge.config.constants import (
-    TITLE_FONT,
     BODY_FONT,
-    WHITE,
     OFFWHITE,
+    TITLE_FONT,
     TITLE_PANEL_LINE,
+    WHITE,
 )
 from slideforge.io.backgrounds import choose_background
 from slideforge.render.primitives import (
-    add_textbox,
-    add_soft_connector,
     add_pill_tag,
+    add_soft_connector,
+    add_textbox,
     add_title_panel,
 )
-from slideforge.assets.mini_visuals import add_mini_visual
-from slideforge.builders.common import new_slide
 
-def build_title_composite_slide(prs: Presentation, spec: dict[str, Any], counters: dict[str, int]) -> None:
+
+def build_title_composite_slide(
+    prs: Presentation,
+    spec: dict[str, Any],
+    counters: dict[str, int],
+) -> None:
     bg = spec.get("background") or choose_background("title", counters)
     slide = new_slide(prs, bg)
 
@@ -30,8 +35,8 @@ def build_title_composite_slide(prs: Presentation, spec: dict[str, Any], counter
         slide,
         x=0.75,
         y=0.92,
-        w=11.8,
-        h=1.0,
+        w=11.80,
+        h=1.00,
         text=spec["title"],
         font_name=TITLE_FONT,
         font_size=24,
@@ -40,14 +45,14 @@ def build_title_composite_slide(prs: Presentation, spec: dict[str, Any], counter
         align=PP_ALIGN.CENTER,
     )
 
-    subtitle = spec.get("subtitle", "")
+    subtitle = spec.get("subtitle", "").strip()
     if subtitle:
         add_textbox(
             slide,
             x=1.15,
             y=2.02,
-            w=11.0,
-            h=0.4,
+            w=11.00,
+            h=0.40,
             text=subtitle,
             font_name=BODY_FONT,
             font_size=17,
@@ -59,9 +64,9 @@ def build_title_composite_slide(prs: Presentation, spec: dict[str, Any], counter
     if spec.get("show_author_line", True):
         add_textbox(
             slide,
-            x=3.6,
+            x=3.60,
             y=2.72,
-            w=6.1,
+            w=6.10,
             h=0.35,
             text=spec.get("author_line", "Dr. Yael Demedetskaya"),
             font_name=BODY_FONT,
@@ -84,14 +89,14 @@ def build_title_composite_slide(prs: Presentation, spec: dict[str, Any], counter
             title=panel["label"],
             embedded_label=panel.get("embedded_label", ""),
         )
-        
+
         add_mini_visual(
             slide,
             kind=panel.get("mini_visual", ""),
-            x=panel["x"] + 0.18,
-            y=panel["y"] + 0.30,
-            w=panel["w"] - 0.36,
-            h=panel.get("visual_h", 0.78),
+            x=panel["x"] + 0.14,
+            y=panel["y"] + 0.24,
+            w=panel["w"] - 0.28,
+            h=panel.get("visual_h", 0.96),
             suffix=f"_title_{idx}",
             variant="light_on_dark",
         )
@@ -112,15 +117,15 @@ def build_title_composite_slide(prs: Presentation, spec: dict[str, Any], counter
     bullets = spec.get("bullets", [])
     if len(bullets) >= 3:
         tag_y = 5.42
-        add_pill_tag(slide, 3.0, tag_y, 2.35, 0.34, bullets[0])
+        add_pill_tag(slide, 3.00, tag_y, 2.35, 0.34, bullets[0])
         add_pill_tag(slide, 5.52, tag_y, 2.28, 0.34, bullets[1])
         add_pill_tag(slide, 7.95, tag_y, 2.45, 0.34, bullets[2])
 
-    tiny_footer = spec.get("tiny_footer", "")
+    tiny_footer = spec.get("tiny_footer", "").strip()
     if tiny_footer:
         add_textbox(
             slide,
-            x=2.0,
+            x=2.00,
             y=6.36,
             w=9.35,
             h=0.22,

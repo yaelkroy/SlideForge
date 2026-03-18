@@ -42,7 +42,7 @@ def _pipeline_card(
         y=y + 0.10,
         w=w - 0.16,
         h=0.24,
-        text=step["title"],
+        text=step.get("title", ""),
         font_name=TITLE_FONT,
         font_size=14,
         color=NAVY,
@@ -53,10 +53,10 @@ def _pipeline_card(
     add_mini_visual(
         slide,
         kind=step.get("mini_visual", ""),
-        x=x + 0.18,
-        y=y + 0.38,
-        w=w - 0.36,
-        h=0.82,
+        x=x + 0.14,
+        y=y + 0.34,
+        w=w - 0.28,
+        h=1.00,
         suffix=f"_pipeline_{idx}",
         variant="dark_on_light",
     )
@@ -65,10 +65,10 @@ def _pipeline_card(
     if body:
         add_textbox(
             slide,
-            x=x + 0.14,
-            y=y + 1.24,
-            w=w - 0.28,
-            h=0.34,
+            x=x + 0.12,
+            y=y + 1.40,
+            w=w - 0.24,
+            h=0.28,
             text=body,
             font_name=BODY_FONT,
             font_size=11,
@@ -82,7 +82,7 @@ def _pipeline_card(
         add_textbox(
             slide,
             x=x + 0.12,
-            y=y + h - 0.30,
+            y=y + h - 0.28,
             w=w - 0.24,
             h=0.18,
             text=footer,
@@ -125,7 +125,7 @@ def build_pipeline_slide(
         add_textbox(
             slide,
             x=1.05,
-            y=layout.get("subtitle_y", 1.00),
+            y=layout.get("subtitle_y", 0.98),
             w=10.95,
             h=0.48,
             text=subtitle,
@@ -138,9 +138,9 @@ def build_pipeline_slide(
 
     region = layout.get(
         "pipeline_region",
-        {"x": 0.92, "y": 1.92, "w": 11.18, "h": 2.10},
+        {"x": 0.90, "y": 1.84, "w": 11.20, "h": 2.16},
     )
-    gap = layout.get("pipeline_gap", 0.16)
+    gap = layout.get("pipeline_gap", 0.15)
 
     count = max(1, len(steps))
     card_w = (region["w"] - gap * (count - 1)) / count
@@ -175,7 +175,7 @@ def build_pipeline_slide(
         add_textbox(
             slide,
             x=1.10,
-            y=layout.get("examples_y", 4.32),
+            y=layout.get("examples_y", 4.16),
             w=10.90,
             h=0.20,
             text="Running examples",
@@ -186,30 +186,37 @@ def build_pipeline_slide(
             align=PP_ALIGN.CENTER,
         )
 
-        ex_y = layout.get("examples_y", 4.32) + 0.25
-        ex_w = 4.55
-        ex_gap = 0.55
-        ex_x0 = 1.65
+        ex_y = layout.get("examples_y", 4.16) + 0.22
+        ex_w = 4.70
+        ex_gap = 0.40
+        ex_x0 = 1.25
 
         for idx, ex in enumerate(examples[:2]):
+            if isinstance(ex, dict):
+                ex_kind = ex.get("mini_visual", "")
+                ex_text = ex.get("text", "")
+            else:
+                ex_kind = ""
+                ex_text = str(ex)
+
             ex_x = ex_x0 + idx * (ex_w + ex_gap)
             add_visual_with_caption(
                 slide,
-                kind=ex.get("mini_visual", ""),
+                kind=ex_kind,
                 x=ex_x,
                 y=ex_y,
                 w=ex_w,
-                h=0.62,
-                caption=ex.get("text", ""),
+                h=0.88,
+                caption=ex_text,
                 suffix=f"_pipeline_example_{idx}",
                 variant="dark_on_light",
-                caption_font_size=10,
+                caption_font_size=11,
             )
 
     takeaway = spec.get("takeaway", "").strip()
     takeaway_box = layout.get(
         "takeaway_box",
-        {"x": 1.00, "y": 5.28, "w": 10.90, "h": 0.72},
+        {"x": 1.00, "y": 5.32, "w": 10.90, "h": 0.72},
     )
     if takeaway:
         add_rounded_box(

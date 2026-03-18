@@ -1,9 +1,3 @@
-
----
-
-## `LLM_CONTEXT.md`
-
-```md
 # LLM_CONTEXT.md
 
 ## Project Identity
@@ -110,11 +104,9 @@ Current build flow is:
 At the moment:
 
 - `src/slideforge_app.py` is the executable deck-building entrypoint
-- it imports `create_presentation()` from `slideforge.app.build_deck`
-- `slideforge.app.build_deck` should remain a compatibility wrapper
-- `slideforge.app.presentation_factory` should remain the single source of truth for presentation creation
-- slide content is still stored as Python dictionaries inside `projects/`
-- builders are still explicit functions, one per slide family
+- it imports presentation creation through the app layer
+- slide content is stored as Python dictionaries inside `projects/`
+- builders are explicit functions, one per slide family
 - coordinates are still mostly hand-authored
 - the system already produces useful slides and should be extended incrementally, not rewritten wholesale
 
@@ -210,6 +202,55 @@ Avoid:
 
 ---
 
+## File Size and Refactoring Rule
+
+This repository should avoid oversized Python source files.
+
+### Hard guideline
+
+- **Python files with code should stay under 500 lines whenever practical.**
+- If a Python file grows large or starts mixing multiple responsibilities, it should be **refactored into several smaller modules**.
+
+### Refactor triggers
+
+Refactor a Python file when one or more of these becomes true:
+
+- the file approaches or exceeds 500 lines
+- it contains multiple unrelated responsibilities
+- it contains several layout families or builder variants that can be split
+- it becomes hard to navigate in a single screen or small context window
+- an LLM would have difficulty understanding or modifying it safely in one pass
+
+### Preferred split patterns
+
+When refactoring, prefer splitting by:
+
+- responsibility
+- builder family
+- asset family
+- rendering primitive family
+- project deck / project spec
+- helper type
+
+Examples:
+
+- split a large builder into several builder-family files
+- split a large visual module into separate motif modules
+- split a long slide spec file by deck part or section
+- split rendering helpers by shape/text/layout domain
+
+### Anti-monolith rule
+
+Do not allow a Python file to become a dumping ground for:
+
+- unrelated helpers
+- multiple rendering systems
+- multiple deck definitions
+- several distinct builder families
+- ad hoc experiments that should become their own module
+
+---
+
 ## Architecture Principles
 
 ### 1. Separate concerns
@@ -241,6 +282,7 @@ over compact but opaque abstractions.
 Target:
 
 - most files under ~200 lines when practical
+- Python code files under 500 lines
 - many files in predictable directories
 - one concept or subsystem per file
 
@@ -291,7 +333,7 @@ Do not stop useful slide generation work for a massive framework rewrite.
 These are good cleanup targets because they improve clarity without destabilizing the repo:
 
 1. **Helper deduplication**
-   - keep one canonical `create_presentation()` implementation
+   - keep one canonical presentation-creation implementation
    - keep one canonical `new_slide()` helper location if possible
 
 2. **Builder family growth**
@@ -308,8 +350,12 @@ These are good cleanup targets because they improve clarity without destabilizin
    - split large slide lists if they become too long
 
 5. **Documentation coherence**
-   - README should match actual current repo behavior
+   - `README.md` should match actual current repo behavior
    - this file should reflect actual architectural direction
+
+6. **File-size governance**
+   - keep Python source files below 500 lines when practical
+   - refactor large modules before they become hard to reason about
 
 ---
 
@@ -325,6 +371,7 @@ When continuing work in this repo:
 - keep project-specific content in `projects/`
 - keep generated artifacts out of source directories
 - check whether `README.md` and `LLM_CONTEXT.md` need updates after any structural change
+- check whether any Python file is becoming too large and should be split
 
 If the user asks to continue slide generation, the default assumption should be:
 

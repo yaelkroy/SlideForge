@@ -12,7 +12,11 @@ from slideforge.io.backgrounds import choose_background
 from slideforge.render.primitives import add_footer, add_ghost_label, add_soft_connector, add_textbox
 
 
-def build_section_divider_slide(prs: Presentation, spec: dict[str, Any], counters: dict[str, int]) -> None:
+def build_section_divider_slide(
+    prs: Presentation,
+    spec: dict[str, Any],
+    counters: dict[str, int],
+) -> None:
     bg = spec.get("background") or choose_background("section", counters)
     slide = new_slide(prs, bg)
 
@@ -68,9 +72,9 @@ def build_section_divider_slide(prs: Presentation, spec: dict[str, Any], counter
         if element.get("label"):
             add_ghost_label(
                 slide,
-                x=element["x"] + 0.20,
-                y=element["y"] + element["h"] + 0.05,
-                w=max(1.3, element["w"] - 0.40),
+                x=element["x"] + 0.18,
+                y=element["y"] + element["h"] + 0.03,
+                w=max(1.35, element["w"] - 0.36),
                 text=element["label"],
                 font_size=10,
             )
@@ -78,12 +82,12 @@ def build_section_divider_slide(prs: Presentation, spec: dict[str, Any], counter
         if previous and spec.get("section_visual", {}).get("soft_connector_line", True):
             add_soft_connector(
                 slide,
-                x1=previous["x"] + previous["w"] + 0.12,
+                x1=previous["x"] + previous["w"] + 0.10,
                 y1=previous["y"] + previous["h"] / 2,
-                x2=element["x"] - 0.10,
+                x2=element["x"] - 0.08,
                 y2=element["y"] + element["h"] / 2,
                 color=GHOST_TEXT,
-                width_pt=1.0,
+                width_pt=1.1,
             )
 
         previous = element
