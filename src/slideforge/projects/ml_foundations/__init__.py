@@ -1,3 +1,3 @@
-from .slides_part1 import SLIDES
+from .slides_part1 import SLIDES as ML_FOUNDATIONS_PART1_SLIDES
 
-__all__ = ["SLIDES"]
+__all__ = ["ML_FOUNDATIONS_PART1_SLIDES"]

@@ -58,6 +58,32 @@ toward:
 
 ---
 
+## Current Repo Reality
+
+The repository already has a working modular split, but it is still mid-refactor.
+
+Current active modules include:
+
+- `src/slideforge_app.py`
+- `src/slideforge/config/constants.py`
+- `src/slideforge/config/paths.py`
+- `src/slideforge/io/backgrounds.py`
+- `src/slideforge/render/primitives.py`
+- `src/slideforge/assets/mini_visuals.py`
+- `src/slideforge/builders/basic.py`
+- `src/slideforge/builders/title_composite.py`
+- `src/slideforge/builders/section_divider.py`
+- `src/slideforge/builders/dependency_map.py`
+- `src/slideforge/builders/builder_registry.py`
+- `src/slideforge/projects/ml_foundations/intro_slides.py`
+
+The project is not yet fully migrated to typed schemas or a full layout engine.
+
+When editing this repo, prefer:
+- extending the existing modular structure
+- avoiding logic moving back into `slideforge_app.py`
+- keeping builders small and slide-type specific
+- keeping project slide specs inside `projects/`
 # 1. System Overview
 
 ## 1.1 Core pipeline

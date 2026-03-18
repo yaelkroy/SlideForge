@@ -10,7 +10,7 @@ The project currently generates PowerPoint presentations (`.pptx`) and is being 
 
 Current working local path at the time of writing:
 
-`C:\temp\ML_Slides\slideforge`
+`C:\Projects\SlideForge`
 
 This is a working reference, not a permanent guarantee.  
 If the repo is moved, update this README and `LLM_CONTEXT.md`.
@@ -91,18 +91,129 @@ This file should stay grounded in:
 - where to look next
 
 ---
+## Current Status
+
+SlideForge is currently a working Python PowerPoint generator under active refactor.
+
+Current entrypoint:
+
+```bash
+python src/slideforge_app.py
 
 ## Current repository structure
 
 This is the **current practical structure**, not the full target architecture:
 
 ```text
-slideforge/
-├─ README.md
-├─ LLM_CONTEXT.md
-├─ .gitignore
-├─ backgrounds/
-├─ docs/
-├─ src/
-├─ tests/
-└─ _generated/
+│   slideforge_app.py
+│
+├───slideforge
+│   │   __init__.py
+│   │
+│   ├───app
+│   │   │   build_deck.py
+│   │   │   presentation_factory.py
+│   │   │   slide_utils.py
+│   │   │   __init__.py
+│   │   │
+│   │   └───__pycache__
+│   │           build_deck.cpython-311.pyc
+│   │           build_deck.cpython-313.pyc
+│   │           presentation_factory.cpython-311.pyc
+│   │           slide_utils.cpython-311.pyc
+│   │           __init__.cpython-311.pyc
+│   │           __init__.cpython-313.pyc
+│   │
+│   ├───assets
+│   │   │   mini_visuals.py
+│   │   │   __init__.py
+│   │   │
+│   │   └───__pycache__
+│   │           mini_visuals.cpython-311.pyc
+│   │           __init__.cpython-311.pyc
+│   │
+│   ├───builders
+│   │   │   basic.py
+│   │   │   builder_registry.py
+│   │   │   common.py
+│   │   │   dependency_map.py
+│   │   │   section_divider.py
+│   │   │   title_composite.py
+│   │   │   __init__.py
+│   │   │
+│   │   └───__pycache__
+│   │           builder_registry.cpython-311.pyc
+│   │           builder_registry.cpython-313.pyc
+│   │           common.cpython-311.pyc
+│   │           dependency_map.cpython-311.pyc
+│   │           section_divider.cpython-311.pyc
+│   │           title_composite.cpython-311.pyc
+│   │           __init__.cpython-311.pyc
+│   │           __init__.cpython-313.pyc
+│   │
+│   ├───config
+│   │   │   constants.py
+│   │   │   paths.py
+│   │   │   __init__.py
+│   │   │
+│   │   └───__pycache__
+│   │           constants.cpython-311.pyc
+│   │           constants.cpython-313.pyc
+│   │           paths.cpython-311.pyc
+│   │           paths.cpython-313.pyc
+│   │           __init__.cpython-311.pyc
+│   │           __init__.cpython-313.pyc
+│   │
+│   ├───io
+│   │   │   backgrounds.py
+│   │   │   __init__.py
+│   │   │
+│   │   └───__pycache__
+│   │           backgrounds.cpython-311.pyc
+│   │           backgrounds.cpython-313.pyc
+│   │           __init__.cpython-311.pyc
+│   │           __init__.cpython-313.pyc
+│   │
+│   ├───projects
+│   │   │   __init__.py
+│   │   │
+│   │   ├───ml_foundations
+│   │   │   │   intro_slides.py
+│   │   │   │   slides_part1.py
+│   │   │   │   __init__.py
+│   │   │   │
+│   │   │   └───__pycache__
+│   │   │           slides_part1.cpython-311.pyc
+│   │   │           __init__.cpython-311.pyc
+│   │   │
+│   │   └───__pycache__
+│   │           __init__.cpython-311.pyc
+│   │
+│   ├───render
+│   │   │   primitives.py
+│   │   │   __init__.py
+│   │   │
+│   │   └───__pycache__
+│   │           primitives.cpython-311.pyc
+│   │           __init__.cpython-311.pyc
+│   │
+│   ├───utils
+│   │   │   units.py
+│   │   │   __init__.py
+│   │   │
+│   │   └───__pycache__
+│   │           units.cpython-311.pyc
+│   │           units.cpython-313.pyc
+│   │           __init__.cpython-311.pyc
+│   │           __init__.cpython-313.pyc
+│   │
+│   └───__pycache__
+│           __init__.cpython-311.pyc
+│           __init__.cpython-313.pyc
+│
+└───slideforge.egg-info
+        dependency_links.txt
+        PKG-INFO
+        requires.txt
+        SOURCES.txt
+        top_level.txt
