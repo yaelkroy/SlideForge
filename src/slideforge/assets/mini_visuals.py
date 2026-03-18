@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
-import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
 import numpy as np
 from pptx.enum.text import PP_ALIGN
 
@@ -53,7 +53,7 @@ def add_image(slide, image_path: Path, x: float, y: float, w: float, h: float) -
     )
 
 
-def _canvas(path: Path, figsize: tuple[float, float] = (3.6, 2.0)):
+def _canvas(path: Path, figsize: tuple[float, float] = (3.8, 2.1)):
     GENERATED_DIR.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(figsize=figsize)
     fig.patch.set_alpha(0.0)
@@ -109,7 +109,7 @@ def _movie_icon(ax, x: float, y: float, w: float, h: float, p) -> None:
     ax.add_patch(triangle)
 
 
-def _digit_card(ax, x: float, y: float, w: float, h: float, p, digit: str = "7") -> None:
+def _digit_card_shape(ax, x: float, y: float, w: float, h: float, p, digit: str = "7") -> None:
     body = mpatches.FancyBboxPatch(
         (x, y),
         w,
@@ -258,6 +258,18 @@ def _make_array_glyph(path: Path, p) -> Path:
     return _save(fig, path)
 
 
+def _make_movie_card(path: Path, p) -> Path:
+    fig, ax = _canvas(path)
+    _movie_icon(ax, 2.4, 1.35, 5.2, 3.25, p)
+    return _save(fig, path)
+
+
+def _make_digit_card(path: Path, p) -> Path:
+    fig, ax = _canvas(path)
+    _digit_card_shape(ax, 3.0, 1.2, 4.0, 3.6, p, digit="7")
+    return _save(fig, path)
+
+
 def _make_movie_to_vector(path: Path, p) -> Path:
     fig, ax = _canvas(path)
     _movie_icon(ax, 0.8, 1.4, 2.7, 3.1, p)
@@ -274,7 +286,7 @@ def _make_movie_to_vector(path: Path, p) -> Path:
 def _make_raw_object_pair(path: Path, p) -> Path:
     fig, ax = _canvas(path)
     _movie_icon(ax, 0.9, 1.4, 3.0, 3.0, p)
-    _digit_card(ax, 6.0, 1.4, 2.5, 3.0, p, digit="7")
+    _digit_card_shape(ax, 6.0, 1.4, 2.5, 3.0, p, digit="7")
     ax.plot([5.0, 5.0], [1.2, 4.8], color=p["ghost"], lw=1.1)
     return _save(fig, path)
 
@@ -289,7 +301,7 @@ def _make_feature_vector_pair(path: Path, p) -> Path:
 
 def _make_digit_to_label(path: Path, p) -> Path:
     fig, ax = _canvas(path)
-    _digit_card(ax, 0.9, 1.4, 2.6, 3.0, p, digit="7")
+    _digit_card_shape(ax, 0.9, 1.4, 2.6, 3.0, p, digit="7")
     ax.annotate(
         "",
         xy=(6.0, 3.0),
@@ -354,6 +366,8 @@ DRAWERS: dict[str, Callable[[Path, dict], Path]] = {
     "scatter_boundary": _make_scatter_boundary,
     "gaussian_curve": _make_gaussian,
     "array_glyph": _make_array_glyph,
+    "movie_card": _make_movie_card,
+    "digit_card": _make_digit_card,
     "movie_to_vector": _make_movie_to_vector,
     "raw_object_pair": _make_raw_object_pair,
     "feature_vector_pair": _make_feature_vector_pair,
@@ -372,6 +386,8 @@ ALIASES = {
     "decision_boundary": "scatter_boundary",
     "uncertainty_curve": "gaussian_curve",
     "feature_vector_strip": "feature_vector_pair",
+    "movie_icon": "movie_card",
+    "digit_image": "digit_card",
 }
 
 

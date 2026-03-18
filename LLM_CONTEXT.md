@@ -1,3 +1,6 @@
+## `LLM_CONTEXT.md`
+
+```md
 # LLM_CONTEXT.md
 
 ## Project Identity
@@ -104,7 +107,6 @@ Current build flow is:
 At the moment:
 
 - `src/slideforge_app.py` is the executable deck-building entrypoint
-- it imports presentation creation through the app layer
 - slide content is stored as Python dictionaries inside `projects/`
 - builders are explicit functions, one per slide family
 - coordinates are still mostly hand-authored
@@ -130,9 +132,17 @@ Important current modules include:
 - `src/slideforge/builders/section_divider.py`
 - `src/slideforge/builders/dependency_map.py`
 - `src/slideforge/builders/pipeline.py`
+- `src/slideforge/builders/prereq_grid.py`
+- `src/slideforge/builders/example_pipeline.py`
+- `src/slideforge/builders/card_grid.py`
+- `src/slideforge/builders/notation_panel.py`
+- `src/slideforge/builders/triple_role.py`
+- `src/slideforge/builders/integrated_bridge.py`
 - `src/slideforge/projects/ml_foundations/slides_part1.py`
 
-### Current builder model
+---
+
+## Current Builder Model
 
 The active architecture is builder-driven.
 
@@ -154,7 +164,7 @@ Do **not** move slide-specific rendering logic back into the top-level app entry
 
 ## Reusable Mini-Visual Layer
 
-A central current design direction is the reusable mini-visual system in:
+A central design direction is the reusable mini-visual system in:
 
 - `src/slideforge/assets/mini_visuals.py`
 
@@ -162,17 +172,18 @@ This layer exists to provide small technical illustrations that can be reused ac
 
 ### Why it exists
 
-Opening slides in technical lecture decks often fail when they rely only on text boxes and labels.
+Technical lecture slides fail when they rely only on text boxes and labels.
 
-This repo now explicitly supports the idea that slides should teach through **small explanatory diagrams**, including:
+This repo explicitly supports teaching through **small explanatory diagrams**, including:
 
 - vectors and points in space
-- line / plane / separator sketches
-- loss curves and optimization arrows
+- plane / separator sketches
+- loss curves and descent arrows
 - uncertainty curves
 - array / matrix glyphs
 - feature-vector examples
 - prediction vs truth mini-diagrams
+- simple object-to-representation visuals such as movie and digit examples
 
 ### Design rule
 
@@ -199,6 +210,51 @@ Avoid:
 - builder-local ad hoc drawing code when the same motif might be reused
 - heavy external visualization frameworks unless they clearly improve quality
 - decorative visuals that do not help explain the concept
+
+---
+
+## Large-Visual Lecture Rule
+
+The redesigned lecture structure now follows a stronger visual rule:
+
+### Core rule
+
+**One slide = one dominant idea + one dominant visual**
+
+That means:
+
+- concept slide -> one large explanatory diagram
+- example slide -> one large worked visual example
+- overview slide -> a small number of large visual elements, not many tiny ones
+- examples should get dedicated slides when they need visual space
+
+### Practical implications
+
+For lecture planning:
+
+- avoid dense “dashboard slides” early in the deck
+- split overview slides from example slides
+- prefer fewer cards per slide
+- keep diagrams readable from the back of a classroom
+- use text as support, not as the primary payload
+
+### Part I pattern
+
+The redesigned Part I uses this rhythm:
+
+1. opener / divider
+2. concept overview
+3. dependency overview
+4. large prerequisite visuals
+5. conceptual pipeline
+6. large example A
+7. large example B
+8. anchor example grid
+9. notation panel
+10. concept bridge
+11. large bridge example
+
+Future lecture parts should follow the same spirit.
 
 ---
 
@@ -229,15 +285,8 @@ When refactoring, prefer splitting by:
 - builder family
 - asset family
 - rendering primitive family
-- project deck / project spec
+- project deck or deck part
 - helper type
-
-Examples:
-
-- split a large builder into several builder-family files
-- split a large visual module into separate motif modules
-- split a long slide spec file by deck part or section
-- split rendering helpers by shape/text/layout domain
 
 ### Anti-monolith rule
 
@@ -261,7 +310,7 @@ Always separate:
 - **where** elements go
 - **how** elements are drawn
 - **which** assets or mini visuals they use
-- **which** style/theme is applied
+- **which** style or theme is applied
 - **which** output backend is used
 
 ### 2. Prefer explicit structure over cleverness
@@ -310,6 +359,7 @@ Use registries for:
 When a module path is already used by the app, prefer a small compatibility wrapper instead of breaking imports immediately.
 
 This is especially appropriate for:
+
 - renamed factory modules
 - extracted helpers
 - temporary migration layers
