@@ -9,3 +9,10 @@ _generated/
 *.webp
 .vscode/
 .idea/
+__pycache__/
+*.pyo
+*.pyd
+.python-version
+.venv/
+env/
+_generated/

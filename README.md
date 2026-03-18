@@ -105,115 +105,49 @@ python src/slideforge_app.py
 This is the **current practical structure**, not the full target architecture:
 
 ```text
-│   slideforge_app.py
-│
-├───slideforge
-│   │   __init__.py
-│   │
-│   ├───app
-│   │   │   build_deck.py
-│   │   │   presentation_factory.py
-│   │   │   slide_utils.py
-│   │   │   __init__.py
-│   │   │
-│   │   └───__pycache__
-│   │           build_deck.cpython-311.pyc
-│   │           build_deck.cpython-313.pyc
-│   │           presentation_factory.cpython-311.pyc
-│   │           slide_utils.cpython-311.pyc
-│   │           __init__.cpython-311.pyc
-│   │           __init__.cpython-313.pyc
-│   │
-│   ├───assets
-│   │   │   mini_visuals.py
-│   │   │   __init__.py
-│   │   │
-│   │   └───__pycache__
-│   │           mini_visuals.cpython-311.pyc
-│   │           __init__.cpython-311.pyc
-│   │
-│   ├───builders
-│   │   │   basic.py
-│   │   │   builder_registry.py
-│   │   │   common.py
-│   │   │   dependency_map.py
-│   │   │   section_divider.py
-│   │   │   title_composite.py
-│   │   │   __init__.py
-│   │   │
-│   │   └───__pycache__
-│   │           builder_registry.cpython-311.pyc
-│   │           builder_registry.cpython-313.pyc
-│   │           common.cpython-311.pyc
-│   │           dependency_map.cpython-311.pyc
-│   │           section_divider.cpython-311.pyc
-│   │           title_composite.cpython-311.pyc
-│   │           __init__.cpython-311.pyc
-│   │           __init__.cpython-313.pyc
-│   │
-│   ├───config
-│   │   │   constants.py
-│   │   │   paths.py
-│   │   │   __init__.py
-│   │   │
-│   │   └───__pycache__
-│   │           constants.cpython-311.pyc
-│   │           constants.cpython-313.pyc
-│   │           paths.cpython-311.pyc
-│   │           paths.cpython-313.pyc
-│   │           __init__.cpython-311.pyc
-│   │           __init__.cpython-313.pyc
-│   │
-│   ├───io
-│   │   │   backgrounds.py
-│   │   │   __init__.py
-│   │   │
-│   │   └───__pycache__
-│   │           backgrounds.cpython-311.pyc
-│   │           backgrounds.cpython-313.pyc
-│   │           __init__.cpython-311.pyc
-│   │           __init__.cpython-313.pyc
-│   │
-│   ├───projects
-│   │   │   __init__.py
-│   │   │
-│   │   ├───ml_foundations
-│   │   │   │   intro_slides.py
-│   │   │   │   slides_part1.py
-│   │   │   │   __init__.py
-│   │   │   │
-│   │   │   └───__pycache__
-│   │   │           slides_part1.cpython-311.pyc
-│   │   │           __init__.cpython-311.pyc
-│   │   │
-│   │   └───__pycache__
-│   │           __init__.cpython-311.pyc
-│   │
-│   ├───render
-│   │   │   primitives.py
-│   │   │   __init__.py
-│   │   │
-│   │   └───__pycache__
-│   │           primitives.cpython-311.pyc
-│   │           __init__.cpython-311.pyc
-│   │
-│   ├───utils
-│   │   │   units.py
-│   │   │   __init__.py
-│   │   │
-│   │   └───__pycache__
-│   │           units.cpython-311.pyc
-│   │           units.cpython-313.pyc
-│   │           __init__.cpython-311.pyc
-│   │           __init__.cpython-313.pyc
-│   │
-│   └───__pycache__
-│           __init__.cpython-311.pyc
-│           __init__.cpython-313.pyc
-│
-└───slideforge.egg-info
-        dependency_links.txt
-        PKG-INFO
-        requires.txt
-        SOURCES.txt
-        top_level.txt
+SlideForge/
+├─ README.md
+├─ LLM_CONTEXT.md
+├─ pyproject.toml
+├─ src/
+│  ├─ slideforge_app.py
+│  └─ slideforge/
+│     ├─ __init__.py
+│     ├─ app/
+│     │  ├─ __init__.py
+│     │  ├─ build_deck.py
+│     │  ├─ presentation_factory.py
+│     │  └─ slide_utils.py
+│     ├─ assets/
+│     │  ├─ __init__.py
+│     │  └─ mini_visuals.py
+│     ├─ builders/
+│     │  ├─ __init__.py
+│     │  ├─ basic.py
+│     │  ├─ builder_registry.py
+│     │  ├─ common.py
+│     │  ├─ dependency_map.py
+│     │  ├─ section_divider.py
+│     │  └─ title_composite.py
+│     ├─ config/
+│     │  ├─ __init__.py
+│     │  ├─ constants.py
+│     │  └─ paths.py
+│     ├─ io/
+│     │  ├─ __init__.py
+│     │  └─ backgrounds.py
+│     ├─ projects/
+│     │  ├─ __init__.py
+│     │  └─ ml_foundations/
+│     │     ├─ __init__.py
+│     │     └─ slides_part1.py
+│     ├─ render/
+│     │  ├─ __init__.py
+│     │  └─ primitives.py
+│     └─ utils/
+│        ├─ __init__.py
+│        └─ units.py
+├─ backgrounds/
+├─ _generated/
+├─ docs/
+└─ tests/

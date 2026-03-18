@@ -2,6 +2,9 @@
 
 ## Project Identity
 
+
+
+`LLM_CONTEXT.md` is the primary architecture and continuity guide for future development and for LLM-assisted work on this repository.
 **Project name:** SlideForge  
 **Project type:** Python presentation and media generation engine  
 **Primary domain:** Academic lecture slides for machine learning, mathematics, geometry, optimization, probability, statistics, programming, and technical education  
