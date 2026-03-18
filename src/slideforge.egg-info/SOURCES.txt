@@ -10,9 +10,12 @@ src/slideforge.egg-info/top_level.txt
 src/slideforge/app/__init__.py
 src/slideforge/app/build_deck.py
 src/slideforge/app/presentation_factory.py
+src/slideforge/app/slide_utils.py
 src/slideforge/assets/__init__.py
 src/slideforge/assets/mini_visuals.py
 src/slideforge/builders/__init__.py
+src/slideforge/builders/basic.py
+src/slideforge/builders/builder_registry.py
 src/slideforge/builders/common.py
 src/slideforge/builders/dependency_map.py
 src/slideforge/builders/section_divider.py

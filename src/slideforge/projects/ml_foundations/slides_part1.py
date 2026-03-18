@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 
-SLIDES: list[dict[str, Any]] = [
+ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
     {
         "kind": "title_composite",
         "theme": "title",
