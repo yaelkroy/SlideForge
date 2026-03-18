@@ -35,7 +35,7 @@ That means:
 - minimal giant files
 
 If something can be made more explicit for future LLM understanding, do it.
-
+Also preserve documentation coherence: if code structure changes, propose updates to `README.md` and `LLM_CONTEXT.md`.
 ---
 
 ## Current Strategy
@@ -60,6 +60,56 @@ toward:
 - many small files
 
 ---
+## Documentation Sync Rule
+
+This project must keep its documentation synchronized with the actual codebase.
+
+Whenever the code structure, module responsibilities, file layout, build flow, naming conventions, or project architecture changes in a way that affects understanding of the repository, the LLM should explicitly check whether the following files also need updates:
+
+- `README.md`
+- `LLM_CONTEXT.md`
+
+### Required LLM behavior
+
+When making or proposing meaningful repo changes, the LLM should also:
+
+1. determine whether the change affects user-facing or contributor-facing documentation
+2. determine whether the change affects architecture or repo understanding
+3. explicitly propose corresponding updates to `README.md`
+4. explicitly propose corresponding updates to `LLM_CONTEXT.md`
+5. mention documentation drift if code and docs no longer match
+
+### Practical rule
+
+- Update `README.md` when the change affects:
+  - how to run the project
+  - current folder structure
+  - current entrypoints
+  - current workflow
+  - current module locations
+  - current project status
+
+- Update `LLM_CONTEXT.md` when the change affects:
+  - architecture
+  - module responsibilities
+  - design rules
+  - refactoring direction
+  - project conventions
+  - future roadmap assumptions
+
+### Default assumption
+
+If a refactor changes repository structure or responsibilities across modules, documentation updates should be proposed automatically, even if the user did not explicitly ask for them.
+
+### Anti-drift rule
+
+The LLM should never assume documentation is still correct after a refactor. It should actively compare the intended architecture with the actual code organization and call out mismatches.
+
+### Priority rule
+
+If there is a conflict:
+- `README.md` should describe the repo as it currently exists
+- `LLM_CONTEXT.md` should describe the intended architecture, governing rules, and long-term structure
 
 ## Current Repo Reality
 
