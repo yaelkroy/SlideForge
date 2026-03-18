@@ -2,20 +2,24 @@
 
 ## Project Identity
 
+`LLM_CONTEXT.md` is the primary architecture and continuity guide for future
+development and for LLM-assisted work on this repository.
 
-
-`LLM_CONTEXT.md` is the primary architecture and continuity guide for future development and for LLM-assisted work on this repository.
 **Project name:** SlideForge  
-**Project type:** Python presentation and media generation engine  
-**Primary domain:** Academic lecture slides for machine learning, mathematics, geometry, optimization, probability, statistics, programming, and technical education  
+**Project type:** Python presentation generation engine  
+**Primary domain:** Academic lecture slides for machine learning, mathematics,
+geometry, optimization, probability, statistics, programming, and technical education  
 **Primary output today:** `.pptx`  
-**Planned outputs:** `.pptx`, `.pdf`, preview images, AI-generated images, diagrams, charts, videos, narration assets, subtitles, project manifests
+**Planned future outputs:** `.pptx`, `.pdf`, preview images, AI-generated images,
+diagrams, charts, and richer media assets
 
 ---
 
 ## One-Sentence Mission
 
-Build a **Python-native, spec-driven, modular presentation engine** that can generate polished academic slides and future AI-assisted media while staying easy for an LLM to understand, edit, and extend across long-running development.
+Build a **Python-native, spec-driven, modular presentation engine** that can
+generate polished academic slides while staying easy for an LLM to understand,
+edit, and extend across long-running development.
 
 ---
 
@@ -24,47 +28,28 @@ Build a **Python-native, spec-driven, modular presentation engine** that can gen
 This project must be designed for **small-context recovery**.
 
 That means:
+
 - many small modules
 - stable file names
 - one responsibility per file
-- explicit schemas
 - explicit registries
-- explicit manifests
+- explicit project specs
 - explicit docs
 - minimal hidden conventions
 - minimal giant files
 
 If something can be made more explicit for future LLM understanding, do it.
-Also preserve documentation coherence: if code structure changes, propose updates to `README.md` and `LLM_CONTEXT.md`.
----
-
-## Current Strategy
-
-The project is moving from:
-
-- one large script
-- hardcoded coordinates
-- mixed layout/render/content logic
-- duplicated helpers
-- slide-specific special cases
-
-toward:
-
-- schema-driven content
-- modular layout engine
-- reusable rendering primitives
-- asset pipeline
-- renderer backends
-- project manifests
-- machine-readable configs
-- many small files
 
 ---
+
 ## Documentation Sync Rule
 
 This project must keep its documentation synchronized with the actual codebase.
 
-Whenever the code structure, module responsibilities, file layout, build flow, naming conventions, or project architecture changes in a way that affects understanding of the repository, the LLM should explicitly check whether the following files also need updates:
+Whenever the code structure, module responsibilities, file layout, build flow,
+naming conventions, or project architecture changes in a way that affects repo
+understanding, the LLM should explicitly check whether the following files also
+need updates:
 
 - `README.md`
 - `LLM_CONTEXT.md`
@@ -81,41 +66,66 @@ When making or proposing meaningful repo changes, the LLM should also:
 
 ### Practical rule
 
-- Update `README.md` when the change affects:
-  - how to run the project
-  - current folder structure
-  - current entrypoints
-  - current workflow
-  - current module locations
-  - current project status
+Update `README.md` when the change affects:
 
-- Update `LLM_CONTEXT.md` when the change affects:
-  - architecture
-  - module responsibilities
-  - design rules
-  - refactoring direction
-  - project conventions
-  - future roadmap assumptions
+- how to run the project
+- current folder structure
+- current entrypoints
+- current workflow
+- current module locations
+- current project status
 
-### Default assumption
+Update `LLM_CONTEXT.md` when the change affects:
 
-If a refactor changes repository structure or responsibilities across modules, documentation updates should be proposed automatically, even if the user did not explicitly ask for them.
+- architecture
+- module responsibilities
+- design rules
+- refactoring direction
+- project conventions
+- future roadmap assumptions
 
 ### Anti-drift rule
 
-The LLM should never assume documentation is still correct after a refactor. It should actively compare the intended architecture with the actual code organization and call out mismatches.
+The LLM should never assume documentation is still correct after a refactor.
+It should actively compare the intended architecture with the actual code organization
+and call out mismatches.
 
 ### Priority rule
 
 If there is a conflict:
+
 - `README.md` should describe the repo as it currently exists
-- `LLM_CONTEXT.md` should describe the intended architecture, governing rules, and long-term structure
+- `LLM_CONTEXT.md` should describe the intended architecture, governing rules,
+  and long-term structure
+
+---
 
 ## Current Repo Reality
 
 The repository already has a working modular split, but it is still mid-refactor.
 
-Current active modules include:
+### Current practical build flow
+
+Current build flow is:
+
+**project slide specs -> builder registry -> slide builders -> pptx output**
+
+At the moment:
+
+- `src/slideforge_app.py` is the executable deck-building entrypoint
+- it imports `create_presentation()` from `slideforge.app.build_deck`
+- `slideforge.app.build_deck` should remain a compatibility wrapper
+- `slideforge.app.presentation_factory` should remain the single source of truth
+  for presentation creation
+- slide content is still stored as Python dictionaries inside `projects/`
+- builders are still explicit functions, one per slide family
+- coordinates are still mostly hand-authored
+- the system already produces useful slides and should be extended incrementally,
+  not rewritten wholesale
+
+### Current active modules
+
+Important current modules include:
 
 - `src/slideforge_app.py`
 - `src/slideforge/config/constants.py`
@@ -123,31 +133,162 @@ Current active modules include:
 - `src/slideforge/io/backgrounds.py`
 - `src/slideforge/render/primitives.py`
 - `src/slideforge/assets/mini_visuals.py`
+- `src/slideforge/app/build_deck.py`
+- `src/slideforge/app/presentation_factory.py`
+- `src/slideforge/app/slide_utils.py`
 - `src/slideforge/builders/basic.py`
+- `src/slideforge/builders/common.py`
+- `src/slideforge/builders/builder_registry.py`
 - `src/slideforge/builders/title_composite.py`
 - `src/slideforge/builders/section_divider.py`
 - `src/slideforge/builders/dependency_map.py`
-- `src/slideforge/builders/builder_registry.py`
-- `src/slideforge/projects/ml_foundations/intro_slides.py`
+- `src/slideforge/projects/ml_foundations/slides_part1.py`
 
-The project is not yet fully migrated to typed schemas or a full layout engine.
+### Current builder model
 
-When editing this repo, prefer:
-- extending the existing modular structure
-- avoiding logic moving back into `slideforge_app.py`
-- keeping builders small and slide-type specific
-- keeping project slide specs inside `projects/`
-# 1. System Overview
+The active architecture is builder-driven.
 
-## 1.1 Core pipeline
+The builder registry maps `kind` values from slide specs to builder functions.
+That is the preferred extension point.
+
+When extending the system, prefer:
+
+- adding a new small builder file for a new slide family
+- registering it in `builder_registry.py`
+- adding specs in `projects/...`
+- reusing rendering primitives
+- avoiding logic growth in `slideforge_app.py`
+
+Do **not** move slide-specific rendering logic back into the top-level app entrypoint.
+
+---
+
+## Architecture Principles
+
+### 1. Separate concerns
+
+Always separate:
+
+- **what** the slide says
+- **where** elements go
+- **how** they are drawn
+- **which** assets they use
+- **which** style/theme is applied
+- **which** output backend is used
+
+### 2. Prefer explicit structure over cleverness
+
+The repo should favor:
+
+- explicit modules
+- explicit registries
+- explicit project slide lists
+- explicit helper functions
+- explicit naming
+- explicit docs
+
+over compact but opaque abstractions.
+
+### 3. Prefer many small files
+
+Target:
+
+- most files under ~200 lines when practical
+- many files in predictable directories
+- one concept or subsystem per file
+
+Avoid:
+
+- giant utility files
+- giant builder files
+- giant config files
+- giant schema files
+
+### 4. Prefer registries over branching logic
+
+Use registries for:
+
+- slide builders
+- asset generators
+- visual generators
+- renderers
+- themes
+- validators
+- exporters
+
+### 5. Prefer compatibility shims during refactors
+
+When a module path is already used by the app, prefer a small compatibility wrapper
+instead of breaking imports immediately.
+
+This is especially appropriate for:
+- renamed factory modules
+- extracted helpers
+- temporary migration layers
+
+### 6. Prefer progressive hardening
+
+The next architectural improvements should usually be:
+
+- reduce helper duplication
+- make imports more consistent
+- extract reusable layout families
+- normalize repeated slide-spec patterns
+- add validation gradually
+
+Do not pause useful slide generation work for a massive framework rewrite.
+
+---
+
+## Current Known Cleanup Priorities
+
+These are good cleanup targets because they improve clarity without destabilizing the repo:
+
+1. **Helper deduplication**
+   - keep one canonical `create_presentation()` implementation
+   - keep one canonical `new_slide()` helper location if possible
+
+2. **Builder family growth**
+   - add new small builders when a slide pattern repeats
+   - avoid overloading a single builder with many unrelated layouts
+
+3. **Project spec organization**
+   - keep deck-specific slide specs inside `projects/`
+   - split large slide lists if they become too long
+
+4. **Documentation coherence**
+   - README should match actual current repo behavior
+   - this file should reflect actual architectural direction
+
+---
+
+## Extension Rules for Future LLM Sessions
+
+When continuing work in this repo:
+
+- first inspect current builders and project specs
+- extend the builder layer rather than bypassing it
+- reuse existing primitives before adding new drawing helpers
+- prefer introducing a new `kind` over making one builder excessively branchy
+- keep project-specific content in `projects/`
+- keep generated artifacts out of source directories
+- check whether `README.md` and `LLM_CONTEXT.md` need updates after any structural change
+
+If the user asks to continue slide generation, the default assumption should be:
+
+- keep the existing architecture
+- improve it only where it meaningfully reduces duplication or friction
+- avoid unnecessary churn
+
+---
+
+## Long-Term Target Architecture
 
 The long-term pipeline should be:
 
 **source content -> normalized content spec -> layout plan -> asset generation -> renderer output -> validation -> export**
 
-## 1.2 Main architectural layers
-
-The project should be split into these layers:
+### Long-term architectural layers
 
 1. **Domain**
 2. **Project Config**
@@ -160,339 +301,17 @@ The project should be split into these layers:
 9. **Validation System**
 10. **Orchestration**
 11. **Interfaces**
-12. **Documentation/Context Bundles**
+12. **Documentation / Context Bundles**
 
-Each layer should have many small modules rather than a few huge modules.
-
----
-
-# 2. Architecture Principles
-
-## 2.1 Separation of concerns
-
-Always separate:
-- **what** the slide says
-- **where** elements go
-- **how** they are drawn
-- **which** assets they use
-- **which** style/theme is applied
-- **which** output backend is used
-
-## 2.2 Prefer structure over cleverness
-
-The repo should favor:
-- explicit classes
-- explicit registries
-- explicit config files
-- explicit file maps
-- explicit naming
-- explicit manifests
-
-over compact but opaque code.
-
-## 2.3 Prefer many small files
-
-Target:
-- most files under ~200 lines
-- many files in predictable directories
-- one concept or subsystem per file
-
-Avoid:
-- giant utility files
-- giant builder files
-- giant config files
-- giant schema files
-
-## 2.4 Prefer registries over if/elif chains
-
-Use registries for:
-- slide builders
-- asset generators
-- visual generators
-- renderers
-- themes
-- validators
-- exporters
-
-## 2.5 Prefer typed schemas over free-form dictionaries
-
-Long-term the project should use structured models, ideally Pydantic, for all important objects.
+Not all of these need to exist yet. They are the north star, not a demand for premature abstraction.
 
 ---
 
-# 3. Repository Layout
+## Short Guidance for Contributors
 
-This is the intended long-term repository shape.
+If you are unsure what to do next, choose the smallest useful improvement that satisfies both:
 
-```text
-slideforge/
-├─ README.md
-├─ LLM_CONTEXT.md
-├─ CHANGELOG.md
-├─ ROADMAP.md
-├─ pyproject.toml
-├─ .gitignore
-├─ docs/
-│  ├─ architecture/
-│  │  ├─ overview.md
-│  │  ├─ pipeline.md
-│  │  ├─ registries.md
-│  │  ├─ layouts.md
-│  │  ├─ assets.md
-│  │  ├─ rendering.md
-│  │  ├─ validation.md
-│  │  └─ video.md
-│  ├─ schemas/
-│  │  ├─ deck_spec.md
-│  │  ├─ slide_spec.md
-│  │  ├─ layout_spec.md
-│  │  ├─ theme_spec.md
-│  │  ├─ asset_spec.md
-│  │  └─ project_manifest.md
-│  ├─ guides/
-│  │  ├─ adding_a_slide_type.md
-│  │  ├─ adding_a_theme.md
-│  │  ├─ adding_an_asset_generator.md
-│  │  ├─ rendering_pptx.md
-│  │  └─ context_bundle_workflow.md
-│  ├─ known_issues.md
-│  └─ design_decisions.md
-├─ src/
-│  └─ slideforge/
-│     ├─ __init__.py
-│     ├─ config/
-│     │  ├─ paths.py
-│     │  ├─ defaults.py
-│     │  ├─ constants.py
-│     │  └─ runtime.py
-│     ├─ domain/
-│     │  ├─ deck_spec.py
-│     │  ├─ slide_spec.py
-│     │  ├─ theme_spec.py
-│     │  ├─ layout_spec.py
-│     │  ├─ asset_spec.py
-│     │  ├─ media_spec.py
-│     │  ├─ project_manifest.py
-│     │  ├─ render_job.py
-│     │  └─ enums.py
-│     ├─ projects/
-│     │  ├─ loader.py
-│     │  ├─ saver.py
-│     │  ├─ resolver.py
-│     │  ├─ manifest_builder.py
-│     │  └─ project_index.py
-│     ├─ content/
-│     │  ├─ parsers/
-│     │  │  ├─ markdown_parser.py
-│     │  │  ├─ docx_parser.py
-│     │  │  ├─ pdf_outline_parser.py
-│     │  │  ├─ transcript_parser.py
-│     │  │  └─ json_outline_parser.py
-│     │  ├─ transformers/
-│     │  │  ├─ normalize_deck.py
-│     │  │  ├─ normalize_slide.py
-│     │  │  ├─ section_splitter.py
-│     │  │  ├─ notes_extractor.py
-│     │  │  ├─ formula_normalizer.py
-│     │  │  └─ example_card_builder.py
-│     │  ├─ enrichers/
-│     │  │  ├─ title_enricher.py
-│     │  │  ├─ bullet_enricher.py
-│     │  │  ├─ callout_enricher.py
-│     │  │  └─ diagram_hint_enricher.py
-│     │  └─ prompting/
-│     │     ├─ prompt_models.py
-│     │     ├─ prompt_templates.py
-│     │     ├─ image_prompt_templates.py
-│     │     └─ narration_prompt_templates.py
-│     ├─ themes/
-│     │  ├─ loader.py
-│     │  ├─ registry.py
-│     │  ├─ tokens/
-│     │  │  ├─ colors.py
-│     │  │  ├─ fonts.py
-│     │  │  ├─ spacing.py
-│     │  │  ├─ borders.py
-│     │  │  └─ shadows.py
-│     │  ├─ presets/
-│     │  │  ├─ academic_light.yaml
-│     │  │  ├─ academic_dark.yaml
-│     │  │  ├─ ml_foundations.yaml
-│     │  │  └─ lecture_minimal.yaml
-│     │  └─ resolvers/
-│     │     ├─ typography_resolver.py
-│     │     ├─ color_resolver.py
-│     │     └─ panel_style_resolver.py
-│     ├─ layout/
-│     │  ├─ engine.py
-│     │  ├─ layout_context.py
-│     │  ├─ region_model.py
-│     │  ├─ geometry.py
-│     │  ├─ collision.py
-│     │  ├─ measurements.py
-│     │  ├─ constraints.py
-│     │  ├─ auto_fit.py
-│     │  ├─ gutters.py
-│     │  ├─ anchors.py
-│     │  ├─ placements/
-│     │  │  ├─ title_placement.py
-│     │  │  ├─ subtitle_placement.py
-│     │  │  ├─ footer_placement.py
-│     │  │  ├─ panel_placement.py
-│     │  │  ├─ bullets_placement.py
-│     │  │  ├─ formula_placement.py
-│     │  │  └─ image_placement.py
-│     │  ├─ templates/
-│     │  │  ├─ title_composite_layout.py
-│     │  │  ├─ section_divider_layout.py
-│     │  │  ├─ dependency_map_layout.py
-│     │  │  ├─ formula_layout.py
-│     │  │  ├─ two_column_layout.py
-│     │  │  ├─ image_layout.py
-│     │  │  ├─ card_grid_layout.py
-│     │  │  ├─ timeline_layout.py
-│     │  │  └─ comparison_layout.py
-│     │  └─ registries/
-│     │     ├─ layout_template_registry.py
-│     │     └─ region_rule_registry.py
-│     ├─ assets/
-│     │  ├─ registry.py
-│     │  ├─ asset_store.py
-│     │  ├─ cache.py
-│     │  ├─ naming.py
-│     │  ├─ hash_utils.py
-│     │  ├─ images/
-│     │  │  ├─ background_selector.py
-│     │  │  ├─ background_manifest.py
-│     │  │  ├─ ai_image_adapter.py
-│     │  │  ├─ image_prompt_resolver.py
-│     │  │  ├─ image_postprocess.py
-│     │  │  └─ thumbnail_generator.py
-│     │  ├─ diagrams/
-│     │  │  ├─ registry.py
-│     │  │  ├─ dependency_map_diagram.py
-│     │  │  ├─ vector_diagram.py
-│     │  │  ├─ plane_diagram.py
-│     │  │  ├─ classifier_diagram.py
-│     │  │  ├─ timeline_diagram.py
-│     │  │  └─ svg_export.py
-│     │  ├─ charts/
-│     │  │  ├─ registry.py
-│     │  │  ├─ gaussian_chart.py
-│     │  │  ├─ loss_curve_chart.py
-│     │  │  ├─ scatter_separator_chart.py
-│     │  │  ├─ bar_chart.py
-│     │  │  ├─ line_chart.py
-│     │  │  └─ chart_export.py
-│     │  ├─ icons/
-│     │  │  ├─ icon_registry.py
-│     │  │  └─ icon_resolver.py
-│     │  ├─ audio/
-│     │  │  ├─ narration_script_builder.py
-│     │  │  ├─ tts_adapter.py
-│     │  │  └─ audio_manifest.py
-│     │  └─ video/
-│     │     ├─ storyboard_builder.py
-│     │     ├─ transition_plan.py
-│     │     ├─ frame_export.py
-│     │     └─ video_manifest.py
-│     ├─ visuals/
-│     │  ├─ registry.py
-│     │  ├─ primitives/
-│     │  │  ├─ boxes.py
-│     │  │  ├─ text.py
-│     │  │  ├─ connectors.py
-│     │  │  ├─ chips.py
-│     │  │  ├─ labels.py
-│     │  │  ├─ icons.py
-│     │  │  ├─ panels.py
-│     │  │  └─ overlays.py
-│     │  ├─ composites/
-│     │  │  ├─ title_banner.py
-│     │  │  ├─ ghost_geometry_band.py
-│     │  │  ├─ hub_spoke_map.py
-│     │  │  └─ concept_card_grid.py
-│     │  └─ adapters/
-│     │     ├─ matplotlib_adapter.py
-│     │     ├─ svg_adapter.py
-│     │     └─ image_adapter.py
-│     ├─ renderers/
-│     │  ├─ base_renderer.py
-│     │  ├─ render_context.py
-│     │  ├─ pptx/
-│     │  │  ├─ pptx_renderer.py
-│     │  │  ├─ pptx_slide_dispatcher.py
-│     │  │  ├─ pptx_text_renderer.py
-│     │  │  ├─ pptx_box_renderer.py
-│     │  │  ├─ pptx_image_renderer.py
-│     │  │  ├─ pptx_connector_renderer.py
-│     │  │  ├─ pptx_theme_adapter.py
-│     │  │  └─ pptx_shape_factory.py
-│     │  ├─ pdf/
-│     │  │  ├─ pdf_renderer.py
-│     │  │  └─ pdf_export_pipeline.py
-│     │  ├─ preview/
-│     │  │  ├─ preview_renderer.py
-│     │  │  ├─ thumbnail_sheet.py
-│     │  │  └─ preview_manifest.py
-│     │  ├─ html/
-│     │  │  ├─ html_renderer.py
-│     │  │  └─ html_preview_template.py
-│     │  └─ video/
-│     │     ├─ video_renderer.py
-│     │     ├─ ffmpeg_adapter.py
-│     │     ├─ timeline_renderer.py
-│     │     └─ subtitle_exporter.py
-│     ├─ validation/
-│     │  ├─ schema_validator.py
-│     │  ├─ layout_validator.py
-│     │  ├─ collision_validator.py
-│     │  ├─ asset_validator.py
-│     │  ├─ theme_validator.py
-│     │  ├─ deck_validator.py
-│     │  └─ report_builder.py
-│     ├─ orchestration/
-│     │  ├─ build_deck.py
-│     │  ├─ build_slide.py
-│     │  ├─ build_assets.py
-│     │  ├─ build_video.py
-│     │  ├─ incremental_rebuild.py
-│     │  ├─ dependency_tracker.py
-│     │  ├─ artifact_manifest.py
-│     │  └─ job_runner.py
-│     ├─ interfaces/
-│     │  ├─ cli/
-│     │  │  ├─ main.py
-│     │  │  ├─ build_commands.py
-│     │  │  ├─ validate_commands.py
-│     │  │  ├─ asset_commands.py
-│     │  │  └─ video_commands.py
-│     │  ├─ api/
-│     │  │  ├─ app.py
-│     │  │  ├─ deck_routes.py
-│     │  │  ├─ asset_routes.py
-│     │  │  ├─ render_routes.py
-│     │  │  └─ project_routes.py
-│     │  └─ ui/
-│     │     ├─ project_panel.py
-│     │     ├─ asset_panel.py
-│     │     └─ preview_panel.py
-│     └─ context/
-│        ├─ context_bundle.py
-│        ├─ repo_index.py
-│        ├─ module_summaries.py
-│        └─ export_context_bundle.py
-├─ tests/
-│  ├─ unit/
-│  ├─ integration/
-│  ├─ golden/
-│  └─ snapshots/
-├─ examples/
-│  ├─ minimal_deck/
-│  ├─ ml_foundations/
-│  └─ media_demo/
-└─ tools/
-   ├─ export_context_bundle.py
-   ├─ validate_repo_structure.py
-   ├─ check_large_files.py
-   └─ build_example_project.py
+- it helps generate the next slides
+- it leaves the repo easier to understand than before
+
+That is the correct default direction for SlideForge.

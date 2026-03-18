@@ -1,13 +1,17 @@
 from __future__ import annotations
 
-from pptx import Presentation
+"""
+Compatibility wrapper for presentation creation.
 
-from slideforge.config.constants import SLIDE_W, SLIDE_H
-from slideforge.utils.units import inches
+Why this file exists:
+- `src/slideforge_app.py` currently imports `create_presentation` from
+  `slideforge.app.build_deck`.
+- The actual implementation lives in `slideforge.app.presentation_factory`.
 
+Keeping this module as a thin re-export avoids breaking existing imports while
+making `presentation_factory.py` the single source of truth.
+"""
 
-def create_presentation() -> Presentation:
-    prs = Presentation()
-    prs.slide_width = inches(SLIDE_W)
-    prs.slide_height = inches(SLIDE_H)
-    return prs
+from slideforge.app.presentation_factory import create_presentation
+
+__all__ = ["create_presentation"]
