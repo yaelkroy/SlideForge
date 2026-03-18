@@ -20,8 +20,7 @@ from slideforge.render.primitives import (
     add_title_panel,
 )
 from slideforge.assets.mini_visuals import add_mini_visual
-from slideforge.builders.basic import new_slide
-
+from slideforge.builders.common import new_slide
 
 def build_title_composite_slide(prs: Presentation, spec: dict[str, Any], counters: dict[str, int]) -> None:
     bg = spec.get("background") or choose_background("title", counters)
@@ -85,15 +84,16 @@ def build_title_composite_slide(prs: Presentation, spec: dict[str, Any], counter
             title=panel["label"],
             embedded_label=panel.get("embedded_label", ""),
         )
-
+        
         add_mini_visual(
             slide,
             kind=panel.get("mini_visual", ""),
-            x=panel["x"] + 0.22,
-            y=panel["y"] + 0.28,
-            w=panel["w"] - 0.44,
-            h=0.66,
+            x=panel["x"] + 0.18,
+            y=panel["y"] + 0.30,
+            w=panel["w"] - 0.36,
+            h=panel.get("visual_h", 0.78),
             suffix=f"_title_{idx}",
+            variant="light_on_dark",
         )
 
     for conn in composite.get("connectors", []):

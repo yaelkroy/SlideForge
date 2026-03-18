@@ -9,6 +9,7 @@ from slideforge.builders.basic import (
 from slideforge.builders.title_composite import build_title_composite_slide
 from slideforge.builders.section_divider import build_section_divider_slide
 from slideforge.builders.dependency_map import build_dependency_map_slide
+from slideforge.builders.pipeline import build_pipeline_slide
 
 
 BUILDERS = {
@@ -21,4 +22,5 @@ BUILDERS = {
     "two_column": build_two_column_slide,
     "image": build_image_slide,
     "dependency_map": build_dependency_map_slide,
+    "pipeline": build_pipeline_slide,
 }

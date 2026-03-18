@@ -4,17 +4,9 @@ from typing import Any
 
 from pptx.enum.text import PP_ALIGN
 
-from slideforge.assets.mini_visuals import add_mini_visual
+from slideforge.assets.mini_visuals import add_visual_with_caption
 from slideforge.builders.common import new_slide
-from slideforge.config.constants import (
-    ACCENT,
-    BODY_FONT,
-    BOX_LINE,
-    LIGHT_BOX_FILL,
-    NAVY,
-    SLATE,
-    TITLE_FONT,
-)
+from slideforge.config.constants import ACCENT, BODY_FONT, BOX_LINE, LIGHT_BOX_FILL, NAVY, SLATE, TITLE_FONT
 from slideforge.io.backgrounds import choose_background
 from slideforge.render.primitives import (
     add_bullets_box,
@@ -35,20 +27,6 @@ def build_dependency_map_slide(prs, spec: dict[str, Any], counters: dict[str, in
 
     layout = spec.get("layout", {})
     title_y = layout.get("title_y", 0.42)
-
-    box_title_gap = layout.get("box_title_gap", 0.36)
-    box_title_h = layout.get("box_title_h", 0.24)
-    box_title_font_size = layout.get("box_title_font_size", 13)
-
-    box_inner_pad_x = layout.get("box_inner_pad_x", 0.16)
-    box_inner_pad_y = layout.get("box_inner_pad_y", 0.16)
-
-    note_text_font_size = layout.get("note_text_font_size", 13)
-    bullet_font_size = layout.get("bullet_font_size", 11)
-    bullet_sub_font_size = layout.get("bullet_sub_font_size", 10)
-    takeaway_font_size = layout.get("takeaway_font_size", 12)
-
-    connector_width_pt = layout.get("connector_width_pt", 1.3)
 
     add_textbox(
         slide,
@@ -80,15 +58,7 @@ def build_dependency_map_slide(prs, spec: dict[str, Any], counters: dict[str, in
             x2 = center["x"] + center["w"]
             y2 = center["y"] + center["h"] / 2
 
-        add_soft_connector(
-            slide,
-            x1=x1,
-            y1=y1,
-            x2=x2,
-            y2=y2,
-            color=ACCENT,
-            width_pt=connector_width_pt,
-        )
+        add_soft_connector(slide, x1=x1, y1=y1, x2=x2, y2=y2, color=ACCENT, width_pt=1.35)
 
     add_hub_box(
         slide,
@@ -99,7 +69,7 @@ def build_dependency_map_slide(prs, spec: dict[str, Any], counters: dict[str, in
         text=center["label"],
     )
 
-    for node in nodes:
+    for idx, node in enumerate(nodes):
         add_node_box(
             slide,
             x=node["x"],
@@ -115,21 +85,26 @@ def build_dependency_map_slide(prs, spec: dict[str, Any], counters: dict[str, in
         )
 
         mini_kind = node.get("mini_visual", "").strip()
+        callout = node.get("callout", "").strip()
+
         if mini_kind:
-            safe_suffix = (
-                node["label"]
-                .replace("\n", "_")
-                .replace("/", "_")
-                .replace(" ", "_")
-            )
-            add_mini_visual(
+            safe_suffix = f"_dep_{idx}"
+            if node["y"] < center["y"]:
+                visual_y = node["y"] - 0.60
+            else:
+                visual_y = node["y"] + node["h"] + 0.10
+
+            add_visual_with_caption(
                 slide,
                 kind=mini_kind,
-                x=node["x"] + 0.18,
-                y=node["y"] - 0.58,
-                w=node["w"] - 0.36,
-                h=0.42,
-                suffix=f"_dep_{safe_suffix}",
+                x=node["x"] + 0.10,
+                y=visual_y,
+                w=node["w"] - 0.20,
+                h=0.62,
+                caption=callout,
+                suffix=safe_suffix,
+                variant="dark_on_light",
+                caption_font_size=9,
             )
 
     exp = spec.get("explanation_box", {})
@@ -138,33 +113,27 @@ def build_dependency_map_slide(prs, spec: dict[str, Any], counters: dict[str, in
         add_textbox(
             slide,
             x=exp_box["x"] + 0.03,
-            y=exp_box["y"] - box_title_gap,
+            y=exp_box["y"] - layout.get("box_title_gap", 0.34),
             w=exp_box["w"] - 0.06,
-            h=box_title_h,
+            h=layout.get("box_title_h", 0.24),
             text=exp.get("title", "Core idea"),
             font_name=BODY_FONT,
-            font_size=box_title_font_size,
+            font_size=layout.get("box_title_font_size", 13),
             color=SLATE,
             bold=True,
         )
 
-        add_rounded_box(
-            slide,
-            exp_box["x"],
-            exp_box["y"],
-            exp_box["w"],
-            exp_box["h"],
-        )
+        add_rounded_box(slide, exp_box["x"], exp_box["y"], exp_box["w"], exp_box["h"])
 
         add_textbox(
             slide,
-            x=exp_box["x"] + box_inner_pad_x,
-            y=exp_box["y"] + box_inner_pad_y,
-            w=exp_box["w"] - 2 * box_inner_pad_x,
-            h=exp_box["h"] - 2 * box_inner_pad_y,
+            x=exp_box["x"] + layout.get("box_inner_pad_x", 0.16),
+            y=exp_box["y"] + layout.get("box_inner_pad_y", 0.16),
+            w=exp_box["w"] - 2 * layout.get("box_inner_pad_x", 0.16),
+            h=exp_box["h"] - 2 * layout.get("box_inner_pad_y", 0.16),
             text=exp["text"],
             font_name=BODY_FONT,
-            font_size=note_text_font_size,
+            font_size=layout.get("note_text_font_size", 13),
             color=SLATE,
             bold=False,
         )
@@ -175,47 +144,34 @@ def build_dependency_map_slide(prs, spec: dict[str, Any], counters: dict[str, in
         add_textbox(
             slide,
             x=bullets_box["x"] + 0.03,
-            y=bullets_box["y"] - box_title_gap,
+            y=bullets_box["y"] - layout.get("box_title_gap", 0.34),
             w=bullets_box["w"] - 0.06,
-            h=box_title_h,
+            h=layout.get("box_title_h", 0.24),
             text=spec.get("right_panel_title", "Why this matters"),
             font_name=BODY_FONT,
-            font_size=box_title_font_size,
+            font_size=layout.get("box_title_font_size", 13),
             color=SLATE,
             bold=True,
         )
 
-        add_rounded_box(
-            slide,
-            bullets_box["x"],
-            bullets_box["y"],
-            bullets_box["w"],
-            bullets_box["h"],
-        )
+        add_rounded_box(slide, bullets_box["x"], bullets_box["y"], bullets_box["w"], bullets_box["h"])
 
         add_bullets_box(
             slide,
-            x=bullets_box["x"] + box_inner_pad_x,
-            y=bullets_box["y"] + box_inner_pad_y,
-            w=bullets_box["w"] - 2 * box_inner_pad_x,
-            h=bullets_box["h"] - 2 * box_inner_pad_y,
+            x=bullets_box["x"] + layout.get("box_inner_pad_x", 0.16),
+            y=bullets_box["y"] + layout.get("box_inner_pad_y", 0.16),
+            w=bullets_box["w"] - 2 * layout.get("box_inner_pad_x", 0.16),
+            h=bullets_box["h"] - 2 * layout.get("box_inner_pad_y", 0.16),
             bullets=right_bullets,
             color=NAVY,
-            top_font_size=bullet_font_size,
-            sub_font_size=bullet_sub_font_size,
+            top_font_size=layout.get("bullet_font_size", 11),
+            sub_font_size=layout.get("bullet_sub_font_size", 10),
         )
 
     takeaway = spec.get("takeaway", "").strip()
     takeaway_box = layout.get("takeaway_box")
     if takeaway and takeaway_box:
-        add_rounded_box(
-            slide,
-            takeaway_box["x"],
-            takeaway_box["y"],
-            takeaway_box["w"],
-            takeaway_box["h"],
-        )
-
+        add_rounded_box(slide, takeaway_box["x"], takeaway_box["y"], takeaway_box["w"], takeaway_box["h"])
         add_textbox(
             slide,
             x=takeaway_box["x"] + 0.16,
@@ -224,7 +180,7 @@ def build_dependency_map_slide(prs, spec: dict[str, Any], counters: dict[str, in
             h=takeaway_box["h"] - 0.08,
             text=takeaway,
             font_name=BODY_FONT,
-            font_size=takeaway_font_size,
+            font_size=layout.get("takeaway_font_size", 12),
             color=SLATE,
             bold=False,
             align=PP_ALIGN.CENTER,

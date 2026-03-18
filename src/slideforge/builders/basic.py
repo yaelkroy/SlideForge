@@ -26,12 +26,8 @@ from slideforge.render.primitives import (
     add_rounded_box,
     add_box_title,
 )
+from slideforge.builders.common import new_slide
 
-
-def new_slide(prs: Presentation, background_name: str):
-    slide = prs.slides.add_slide(prs.slide_layouts[6])
-    add_background(slide, prs, background_name)
-    return slide
 
 
 def build_title_slide(prs: Presentation, spec: dict[str, Any], counters: dict[str, int]) -> None:

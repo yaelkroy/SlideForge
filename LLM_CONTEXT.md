@@ -1,25 +1,26 @@
+
+---
+
+## `LLM_CONTEXT.md`
+
+```md
 # LLM_CONTEXT.md
 
 ## Project Identity
 
-`LLM_CONTEXT.md` is the primary architecture and continuity guide for future
-development and for LLM-assisted work on this repository.
+`LLM_CONTEXT.md` is the primary architecture and continuity guide for future development and for LLM-assisted work on this repository.
 
 **Project name:** SlideForge  
 **Project type:** Python presentation generation engine  
-**Primary domain:** Academic lecture slides for machine learning, mathematics,
-geometry, optimization, probability, statistics, programming, and technical education  
+**Primary domain:** Academic lecture slides for machine learning, mathematics, geometry, optimization, probability, statistics, programming, and technical education  
 **Primary output today:** `.pptx`  
-**Planned future outputs:** `.pptx`, `.pdf`, preview images, AI-generated images,
-diagrams, charts, and richer media assets
+**Planned future outputs:** `.pptx`, `.pdf`, preview images, AI-generated images, diagrams, charts, and richer media assets
 
 ---
 
 ## One-Sentence Mission
 
-Build a **Python-native, spec-driven, modular presentation engine** that can
-generate polished academic slides while staying easy for an LLM to understand,
-edit, and extend across long-running development.
+Build a **Python-native, spec-driven, modular presentation engine** that can generate polished academic slides while staying easy for an LLM to understand, edit, and extend across long-running development.
 
 ---
 
@@ -46,10 +47,7 @@ If something can be made more explicit for future LLM understanding, do it.
 
 This project must keep its documentation synchronized with the actual codebase.
 
-Whenever the code structure, module responsibilities, file layout, build flow,
-naming conventions, or project architecture changes in a way that affects repo
-understanding, the LLM should explicitly check whether the following files also
-need updates:
+Whenever the code structure, module responsibilities, file layout, build flow, naming conventions, builder inventory, visual system, or project architecture changes in a way that affects repo understanding, the LLM should explicitly check whether the following files also need updates:
 
 - `README.md`
 - `LLM_CONTEXT.md`
@@ -73,6 +71,7 @@ Update `README.md` when the change affects:
 - current entrypoints
 - current workflow
 - current module locations
+- current builder inventory
 - current project status
 
 Update `LLM_CONTEXT.md` when the change affects:
@@ -87,16 +86,14 @@ Update `LLM_CONTEXT.md` when the change affects:
 ### Anti-drift rule
 
 The LLM should never assume documentation is still correct after a refactor.
-It should actively compare the intended architecture with the actual code organization
-and call out mismatches.
+It should actively compare intended architecture with actual code organization and call out mismatches.
 
 ### Priority rule
 
 If there is a conflict:
 
 - `README.md` should describe the repo as it currently exists
-- `LLM_CONTEXT.md` should describe the intended architecture, governing rules,
-  and long-term structure
+- `LLM_CONTEXT.md` should describe the intended architecture, governing rules, and long-term structure
 
 ---
 
@@ -108,20 +105,18 @@ The repository already has a working modular split, but it is still mid-refactor
 
 Current build flow is:
 
-**project slide specs -> builder registry -> slide builders -> pptx output**
+**project slide specs -> builder registry -> slide builders -> rendering primitives / mini visuals -> pptx output**
 
 At the moment:
 
 - `src/slideforge_app.py` is the executable deck-building entrypoint
 - it imports `create_presentation()` from `slideforge.app.build_deck`
 - `slideforge.app.build_deck` should remain a compatibility wrapper
-- `slideforge.app.presentation_factory` should remain the single source of truth
-  for presentation creation
+- `slideforge.app.presentation_factory` should remain the single source of truth for presentation creation
 - slide content is still stored as Python dictionaries inside `projects/`
 - builders are still explicit functions, one per slide family
 - coordinates are still mostly hand-authored
-- the system already produces useful slides and should be extended incrementally,
-  not rewritten wholesale
+- the system already produces useful slides and should be extended incrementally, not rewritten wholesale
 
 ### Current active modules
 
@@ -142,6 +137,7 @@ Important current modules include:
 - `src/slideforge/builders/title_composite.py`
 - `src/slideforge/builders/section_divider.py`
 - `src/slideforge/builders/dependency_map.py`
+- `src/slideforge/builders/pipeline.py`
 - `src/slideforge/projects/ml_foundations/slides_part1.py`
 
 ### Current builder model
@@ -157,9 +153,60 @@ When extending the system, prefer:
 - registering it in `builder_registry.py`
 - adding specs in `projects/...`
 - reusing rendering primitives
+- reusing mini-visual motifs
 - avoiding logic growth in `slideforge_app.py`
 
 Do **not** move slide-specific rendering logic back into the top-level app entrypoint.
+
+---
+
+## Reusable Mini-Visual Layer
+
+A central current design direction is the reusable mini-visual system in:
+
+- `src/slideforge/assets/mini_visuals.py`
+
+This layer exists to provide small technical illustrations that can be reused across multiple builders and multiple decks.
+
+### Why it exists
+
+Opening slides in technical lecture decks often fail when they rely only on text boxes and labels.
+
+This repo now explicitly supports the idea that slides should teach through **small explanatory diagrams**, including:
+
+- vectors and points in space
+- line / plane / separator sketches
+- loss curves and optimization arrows
+- uncertainty curves
+- array / matrix glyphs
+- feature-vector examples
+- prediction vs truth mini-diagrams
+
+### Design rule
+
+Mini visuals should be:
+
+- reusable
+- lightweight
+- transparent-background assets
+- style-consistent
+- technically explanatory
+- builder-agnostic when possible
+
+### Preferred implementation style
+
+Prefer:
+
+- Matplotlib for technical mini-diagrams
+- transparent PNG generation into `_generated/`
+- simple named motifs with aliases
+- embedding through `python-pptx`
+
+Avoid:
+
+- builder-local ad hoc drawing code when the same motif might be reused
+- heavy external visualization frameworks unless they clearly improve quality
+- decorative visuals that do not help explain the concept
 
 ---
 
@@ -171,8 +218,8 @@ Always separate:
 
 - **what** the slide says
 - **where** elements go
-- **how** they are drawn
-- **which** assets they use
+- **how** elements are drawn
+- **which** assets or mini visuals they use
 - **which** style/theme is applied
 - **which** output backend is used
 
@@ -210,7 +257,7 @@ Use registries for:
 
 - slide builders
 - asset generators
-- visual generators
+- mini visuals
 - renderers
 - themes
 - validators
@@ -218,8 +265,7 @@ Use registries for:
 
 ### 5. Prefer compatibility shims during refactors
 
-When a module path is already used by the app, prefer a small compatibility wrapper
-instead of breaking imports immediately.
+When a module path is already used by the app, prefer a small compatibility wrapper instead of breaking imports immediately.
 
 This is especially appropriate for:
 - renamed factory modules
@@ -236,7 +282,7 @@ The next architectural improvements should usually be:
 - normalize repeated slide-spec patterns
 - add validation gradually
 
-Do not pause useful slide generation work for a massive framework rewrite.
+Do not stop useful slide generation work for a massive framework rewrite.
 
 ---
 
@@ -252,11 +298,16 @@ These are good cleanup targets because they improve clarity without destabilizin
    - add new small builders when a slide pattern repeats
    - avoid overloading a single builder with many unrelated layouts
 
-3. **Project spec organization**
+3. **Mini-visual hardening**
+   - expand motifs only when they improve multiple slides
+   - keep naming stable and explicit
+   - avoid silently drifting visual semantics
+
+4. **Project spec organization**
    - keep deck-specific slide specs inside `projects/`
    - split large slide lists if they become too long
 
-4. **Documentation coherence**
+5. **Documentation coherence**
    - README should match actual current repo behavior
    - this file should reflect actual architectural direction
 
@@ -269,6 +320,7 @@ When continuing work in this repo:
 - first inspect current builders and project specs
 - extend the builder layer rather than bypassing it
 - reuse existing primitives before adding new drawing helpers
+- reuse existing mini-visual motifs before creating new ones
 - prefer introducing a new `kind` over making one builder excessively branchy
 - keep project-specific content in `projects/`
 - keep generated artifacts out of source directories

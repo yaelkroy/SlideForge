@@ -226,22 +226,22 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
         "show_footer_author": True,
         "layout": {
             "title_y": 0.42,
-            "box_title_gap": 0.34,
+            "box_title_gap": 0.30,
             "box_title_h": 0.24,
             "box_title_font_size": 13,
             "box_inner_pad_x": 0.16,
-            "box_inner_pad_y": 0.16,
-            "note_text_font_size": 13,
-            "bullet_font_size": 11,
-            "bullet_sub_font_size": 10,
+            "box_inner_pad_y": 0.14,
+            "note_text_font_size": 12,
+            "bullet_font_size": 10,
+            "bullet_sub_font_size": 9,
             "takeaway_font_size": 12,
-            "connector_width_pt": 1.3,
-            "diagram_region": {"x": 1.15, "y": 1.30, "w": 6.95, "h": 4.15},
-            "right_column_x": 8.52,
-            "right_column_w": 3.58,
-            "explanation_box": {"x": 8.52, "y": 1.46, "w": 3.58, "h": 0.86},
-            "bullets_box": {"x": 8.40, "y": 2.88, "w": 3.70, "h": 2.38},
-            "takeaway_box": {"x": 1.25, "y": 5.90, "w": 10.85, "h": 0.42},
+            "connector_width_pt": 1.35,
+            "diagram_region": {"x": 1.10, "y": 1.20, "w": 7.15, "h": 4.35},
+            "right_column_x": 8.50,
+            "right_column_w": 3.60,
+            "explanation_box": {"x": 8.50, "y": 1.42, "w": 3.60, "h": 0.86},
+            "bullets_box": {"x": 8.40, "y": 2.82, "w": 3.72, "h": 2.20},
+            "takeaway_box": {"x": 1.20, "y": 5.84, "w": 10.90, "h": 0.44},
         },
         "diagram": {
             "type": "hub_and_spokes",
@@ -256,51 +256,51 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
                 "font_size": 18,
             },
             "input_nodes": [
-                {
-                    "label": "Linear Algebra /\nGeometry",
-                    "x": 1.50,
-                    "y": 1.45,
-                    "w": 2.15,
-                    "h": 0.82,
-                    "style": "input_node",
-                    "font_size": 14,
-                    "mini_visual": "",
-                    "callout": "",
-                },
-                {
-                    "label": "Calculus /\nOptimization",
-                    "x": 1.50,
-                    "y": 3.72,
-                    "w": 2.15,
-                    "h": 0.82,
-                    "style": "input_node",
-                    "font_size": 14,
-                    "mini_visual": "",
-                    "callout": "",
-                },
-                {
-                    "label": "Probability /\nUncertainty",
-                    "x": 5.90,
-                    "y": 1.45,
-                    "w": 1.95,
-                    "h": 0.82,
-                    "style": "input_node",
-                    "font_size": 14,
-                    "mini_visual": "",
-                    "callout": "",
-                },
-                {
-                    "label": "Computation /\nNumPy",
-                    "x": 5.90,
-                    "y": 3.72,
-                    "w": 1.95,
-                    "h": 0.82,
-                    "style": "input_node",
-                    "font_size": 14,
-                    "mini_visual": "",
-                    "callout": "",
-                },
-            ],
+            {
+                "label": "Linear Algebra /\nGeometry",
+                "x": 1.50,
+                "y": 1.45,
+                "w": 2.15,
+                "h": 0.82,
+                "style": "input_node",
+                "font_size": 14,
+                "mini_visual": "line_to_boundary",
+                "callout": "line / plane → classifier boundary",
+            },
+            {
+                "label": "Calculus /\nOptimization",
+                "x": 1.50,
+                "y": 3.72,
+                "w": 2.15,
+                "h": 0.82,
+                "style": "input_node",
+                "font_size": 14,
+                "mini_visual": "loss_curve",
+                "callout": "bowl surface → optimization",
+            },
+            {
+                "label": "Probability /\nUncertainty",
+                "x": 5.90,
+                "y": 1.45,
+                "w": 1.95,
+                "h": 0.82,
+                "style": "input_node",
+                "font_size": 14,
+                "mini_visual": "gaussian_curve",
+                "callout": "Gaussian curve → uncertainty",
+            },
+            {
+                "label": "Computation /\nNumPy",
+                "x": 5.90,
+                "y": 3.72,
+                "w": 1.95,
+                "h": 0.82,
+                "style": "input_node",
+                "font_size": 14,
+                "mini_visual": "movie_to_vector",
+                "callout": "movie → feature vector",
+            },
+        ],
             "arrows": [
                 {"from": "Linear Algebra /\nGeometry", "to": "Machine\nLearning", "style": "clean_connector"},
                 {"from": "Calculus /\nOptimization", "to": "Machine\nLearning", "style": "clean_connector"},
@@ -335,4 +335,110 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
             "Diagram stays left; notes stay right; takeaway stays below.",
         ],
     },
+ {
+    "kind": "pipeline",
+    "theme": "concept",
+    "background": "Background 10.png",
+    "slide_number": 4,
+    "slide_title": "The Big Story: From Data to Decisions",
+    "purpose": (
+        "Give the conceptual storyline of the whole deck, showing how machine learning "
+        "moves from raw objects to numerical representation, geometry, prediction, and error."
+    ),
+    "visual": (
+        "Horizontal pipeline with five blocks and embedded mini-illustrations: "
+        "raw object, feature vector, point in space, decision boundary/model, prediction/error. "
+        "Also show two running examples in parallel underneath."
+    ),
+    "text_explanation": (
+        "Machine learning turns real-world objects into numerical representations, "
+        "places them in a geometric space, and learns rules that predict labels or values."
+    ),
+    "bullets": [
+        "Real objects become features",
+        "Features become vectors",
+        "Vectors live in geometric spaces",
+        "Models divide or score those spaces",
+        "Learning compares prediction to truth and reduces error",
+    ],
+    "formulas": [
+        "raw input → x ∈ R^d → h(x)",
+        "h(x) = sign(θ · x + θ₀)",
+    ],
+    "concrete_example_anchor": (
+        "Use two tiny running examples in parallel: "
+        "movie → 5-feature binary vector → like/dislike; "
+        "handwritten digit → brightness/width features → class label."
+    ),
+    "speaker_intent": (
+        "This is the whole arc of the deck: representation, geometry, learning, prediction."
+    ),
+    "title": "The Big Story: From Data to Decisions",
+    "subtitle": (
+        "Machine learning turns real-world objects into numerical representations, "
+        "places them in a geometric space, and learns rules that predict labels or values."
+    ),
+    "pipeline": {
+        "steps": [
+            {
+                "title": "Raw Object",
+                "mini_visual": "raw_object_pair",
+                "body": "movie\nhandwritten digit",
+                "footer": "raw input",
+            },
+            {
+                "title": "Feature Vector",
+                "mini_visual": "feature_vector_pair",
+                "body": "encoded measurable\nproperties",
+                "footer": "x ∈ R^d",
+            },
+            {
+                "title": "Point in Space",
+                "mini_visual": "point_in_space",
+                "body": "vector becomes a\nlocation in geometry",
+                "footer": "point / vector",
+            },
+            {
+                "title": "Model / Boundary",
+                "mini_visual": "decision_boundary",
+                "body": "separate or score\nregions of the space",
+                "footer": "θ · x + θ₀",
+            },
+            {
+                "title": "Prediction / Error",
+                "mini_visual": "prediction_error",
+                "body": "predict, compare,\nmeasure error",
+                "footer": "h(x), L(θ)",
+            },
+        ]
+    },
+    "examples": [
+        {
+            "mini_visual": "movie_to_vector",
+            "text": "movie → [1,0,1,1,0] → like / dislike",
+        },
+        {
+            "mini_visual": "digit_to_label",
+            "text": "digit → [brightness, width] → class label",
+        },
+    ],
+    "takeaway": (
+        "Takeaway: machine learning first turns objects into vectors, "
+        "then learns decision rules in geometric space."
+    ),
+    "layout": {
+        "title_y": 0.42,
+        "subtitle_y": 1.00,
+        "pipeline_region": {"x": 0.92, "y": 1.92, "w": 11.18, "h": 2.10},
+        "pipeline_gap": 0.16,
+        "examples_y": 4.32,
+        "takeaway_box": {"x": 1.00, "y": 5.28, "w": 10.90, "h": 0.72},
+    },
+    "design_notes": [
+        "This slide should teach through diagrams, not mostly through text.",
+        "Each pipeline card should contain a mini-illustration.",
+        "The running examples should be visible enough to read from a lecture room.",
+        "Keep the composition clean, horizontal, and academically polished.",
+    ],
+},
 ]
