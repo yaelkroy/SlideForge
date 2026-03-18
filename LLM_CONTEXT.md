@@ -44,10 +44,11 @@ If something can be made more explicit for future LLM understanding, do it.
 
 This project must keep its documentation synchronized with the actual codebase.
 
-Whenever the code structure, module responsibilities, file layout, build flow, naming conventions, builder inventory, visual system, or project architecture changes in a way that affects repo understanding, the LLM should explicitly check whether the following files also need updates:
+Whenever the code structure, module responsibilities, file layout, build flow, naming conventions, builder inventory, visual system, slide-spec rules, or project architecture changes in a way that affects repo understanding, the LLM should explicitly check whether the following files also need updates:
 
 - `README.md`
 - `LLM_CONTEXT.md`
+- `SLIDE_SPEC_RULES.md`
 
 ### Required LLM behavior
 
@@ -57,7 +58,8 @@ When making or proposing meaningful repo changes, the LLM should also:
 2. determine whether the change affects architecture or repo understanding
 3. explicitly propose corresponding updates to `README.md`
 4. explicitly propose corresponding updates to `LLM_CONTEXT.md`
-5. mention documentation drift if code and docs no longer match
+5. explicitly propose corresponding updates to `SLIDE_SPEC_RULES.md` when slide-spec writing or visual design rules changed
+6. mention documentation drift if code and docs no longer match
 
 ### Practical rule
 
@@ -80,6 +82,14 @@ Update `LLM_CONTEXT.md` when the change affects:
 - project conventions
 - future roadmap assumptions
 
+Update `SLIDE_SPEC_RULES.md` when the change affects:
+
+- how slide spec files should be written
+- visual density expectations
+- readability rules
+- builder selection rules
+- anti-patterns in lecture-slide structure
+
 ### Anti-drift rule
 
 The LLM should never assume documentation is still correct after a refactor.
@@ -91,6 +101,7 @@ If there is a conflict:
 
 - `README.md` should describe the repo as it currently exists
 - `LLM_CONTEXT.md` should describe the intended architecture, governing rules, and long-term structure
+- `SLIDE_SPEC_RULES.md` should describe how slide spec files should be authored for the current visual system
 
 ---
 
@@ -138,7 +149,9 @@ Important current modules include:
 - `src/slideforge/builders/notation_panel.py`
 - `src/slideforge/builders/triple_role.py`
 - `src/slideforge/builders/integrated_bridge.py`
+- `src/slideforge/builders/concept_poster.py`
 - `src/slideforge/projects/ml_foundations/slides_part1.py`
+- `SLIDE_SPEC_RULES.md`
 
 ---
 
@@ -215,7 +228,7 @@ Avoid:
 
 ## Large-Visual Lecture Rule
 
-The redesigned lecture structure now follows a stronger visual rule:
+The redesigned lecture structure follows a stronger visual rule:
 
 ### Core rule
 
@@ -232,7 +245,7 @@ That means:
 
 For lecture planning:
 
-- avoid dense “dashboard slides” early in the deck
+- avoid dense dashboard slides early in the deck
 - split overview slides from example slides
 - prefer fewer cards per slide
 - keep diagrams readable from the back of a classroom
@@ -245,16 +258,33 @@ The redesigned Part I uses this rhythm:
 1. opener / divider
 2. concept overview
 3. dependency overview
-4. large prerequisite visuals
+4. separate large prerequisite concept slides
 5. conceptual pipeline
 6. large example A
 7. large example B
-8. anchor example grid
-9. notation panel
+8. anchor examples
+9. split notation
 10. concept bridge
 11. large bridge example
 
 Future lecture parts should follow the same spirit.
+
+---
+
+## Slide Spec Rules File
+
+The repo uses `SLIDE_SPEC_RULES.md` as the operational rulebook for writing project slide spec files such as `slides_part1.py`.
+
+That file is the source of truth for:
+
+- slide density rules
+- minimum readability expectations
+- builder selection guidance
+- anti-patterns
+- splitting rules for dense slides
+- spec-writing template expectations
+
+When writing or revising slide specs, follow that file directly.
 
 ---
 
@@ -402,6 +432,7 @@ These are good cleanup targets because they improve clarity without destabilizin
 5. **Documentation coherence**
    - `README.md` should match actual current repo behavior
    - this file should reflect actual architectural direction
+   - `SLIDE_SPEC_RULES.md` should reflect current slide-authoring expectations
 
 6. **File-size governance**
    - keep Python source files below 500 lines when practical
@@ -420,7 +451,7 @@ When continuing work in this repo:
 - prefer introducing a new `kind` over making one builder excessively branchy
 - keep project-specific content in `projects/`
 - keep generated artifacts out of source directories
-- check whether `README.md` and `LLM_CONTEXT.md` need updates after any structural change
+- check whether `README.md`, `LLM_CONTEXT.md`, and `SLIDE_SPEC_RULES.md` need updates after any structural change
 - check whether any Python file is becoming too large and should be split
 
 If the user asks to continue slide generation, the default assumption should be:
