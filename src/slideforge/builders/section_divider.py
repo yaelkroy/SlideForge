@@ -7,9 +7,10 @@ from pptx.enum.text import PP_ALIGN
 
 from slideforge.assets.mini_visuals import add_mini_visual
 from slideforge.builders.common import new_slide
-from slideforge.config.constants import BODY_FONT, GHOST_TEXT, OFFWHITE, TITLE_FONT, WHITE
+from slideforge.config.constants import BODY_FONT, OFFWHITE, TITLE_FONT
 from slideforge.io.backgrounds import choose_background
-from slideforge.render.primitives import add_footer, add_ghost_label, add_soft_connector, add_textbox
+from slideforge.render.primitives import add_footer, add_textbox
+from slideforge.utils.text_layout import fit_text_to_box
 
 
 def build_section_divider_slide(
@@ -17,79 +18,90 @@ def build_section_divider_slide(
     spec: dict[str, Any],
     counters: dict[str, int],
 ) -> None:
-    bg = spec.get("background") or choose_background("section", counters)
+    theme = spec.get("theme", "section")
+    bg = spec.get("background") or choose_background(theme, counters)
     slide = new_slide(prs, bg)
 
     layout = spec.get("layout", {})
     title_region = layout.get("title_region", {"x": 1.0, "y": 2.0, "w": 11.0, "h": 0.9})
-    subtitle_region = layout.get("subtitle_region", {"x": 1.45, "y": 2.88, "w": 10.1, "h": 0.40})
+    subtitle_region = layout.get("subtitle_region", {"x": 1.2, "y": 2.9, "w": 10.6, "h": 0.40})
 
+    title_fit = fit_text_to_box(
+        text=spec.get("title", ""),
+        width_in=title_region["w"],
+        height_in=title_region["h"],
+        min_font_size=28,
+        max_font_size=34,
+        max_lines=2,
+    )
     add_textbox(
         slide,
         x=title_region["x"],
         y=title_region["y"],
         w=title_region["w"],
         h=title_region["h"],
-        text=spec["title"],
+        text=title_fit.text,
         font_name=TITLE_FONT,
-        font_size=26,
-        color=WHITE,
+        font_size=title_fit.font_size,
+        color=OFFWHITE,
         bold=True,
         align=PP_ALIGN.CENTER,
     )
 
     subtitle = spec.get("subtitle", "").strip()
     if subtitle:
+        sub_fit = fit_text_to_box(
+            text=subtitle,
+            width_in=subtitle_region["w"],
+            height_in=subtitle_region["h"],
+            min_font_size=15,
+            max_font_size=18,
+            max_lines=2,
+        )
         add_textbox(
             slide,
             x=subtitle_region["x"],
             y=subtitle_region["y"],
             w=subtitle_region["w"],
             h=subtitle_region["h"],
-            text=subtitle,
+            text=sub_fit.text,
             font_name=BODY_FONT,
-            font_size=15,
+            font_size=sub_fit.font_size,
             color=OFFWHITE,
             bold=False,
             align=PP_ALIGN.CENTER,
         )
 
-    elements = spec.get("section_visual", {}).get("elements", [])
-    previous = None
+    section_visual = spec.get("section_visual", {})
+    elements = section_visual.get("elements", [])
 
     for idx, element in enumerate(elements):
         add_mini_visual(
             slide,
-            kind=element["kind"],
+            kind=element.get("kind", ""),
             x=element["x"],
             y=element["y"],
             w=element["w"],
             h=element["h"],
-            suffix=f"_section_{idx}",
+            suffix=f"_section_divider_{idx}",
             variant="light_on_dark",
         )
 
-        if element.get("label"):
-            add_ghost_label(
+        label = element.get("label", "").strip()
+        if label:
+            label_y = element["y"] + element["h"] + 0.06
+            add_textbox(
                 slide,
-                x=element["x"] + 0.18,
-                y=element["y"] + element["h"] + 0.03,
-                w=max(1.35, element["w"] - 0.36),
-                text=element["label"],
-                font_size=10,
+                x=element["x"],
+                y=label_y,
+                w=element["w"],
+                h=0.18,
+                text=label,
+                font_name=BODY_FONT,
+                font_size=12,
+                color=OFFWHITE,
+                bold=False,
+                align=PP_ALIGN.CENTER,
             )
-
-        if previous and spec.get("section_visual", {}).get("soft_connector_line", True):
-            add_soft_connector(
-                slide,
-                x1=previous["x"] + previous["w"] + 0.10,
-                y1=previous["y"] + previous["h"] / 2,
-                x2=element["x"] - 0.08,
-                y2=element["y"] + element["h"] / 2,
-                color=GHOST_TEXT,
-                width_pt=1.1,
-            )
-
-        previous = element
 
     add_footer(slide, dark=True)

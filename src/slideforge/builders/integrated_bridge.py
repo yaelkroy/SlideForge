@@ -9,13 +9,8 @@ from slideforge.assets.mini_visuals import add_mini_visual
 from slideforge.builders.common import new_slide
 from slideforge.config.constants import ACCENT, BODY_FONT, FORMULA_FONT, NAVY, SLATE, TITLE_FONT
 from slideforge.io.backgrounds import choose_background
-from slideforge.render.primitives import (
-    add_divider_line,
-    add_footer,
-    add_rounded_box,
-    add_soft_connector,
-    add_textbox,
-)
+from slideforge.render.primitives import add_divider_line, add_footer, add_rounded_box, add_soft_connector, add_textbox
+from slideforge.utils.text_layout import fit_joined_items_to_box, fit_text_to_box
 
 
 def _add_role_box(
@@ -29,15 +24,40 @@ def _add_role_box(
 ) -> None:
     add_rounded_box(slide, x, y, w, h)
 
+    inner_x = x + 0.12
+    inner_y = y + 0.10
+    inner_w = w - 0.24
+    inner_h = h - 0.20
+
+    title_fit = fit_text_to_box(
+        text=role.get("title", ""),
+        width_in=inner_w,
+        height_in=0.24,
+        min_font_size=13,
+        max_font_size=15,
+        max_lines=2,
+    )
+    caption_fit = fit_text_to_box(
+        text=role.get("caption", ""),
+        width_in=inner_w,
+        height_in=0.28,
+        min_font_size=11,
+        max_font_size=13,
+        max_lines=2,
+    )
+
+    visual_h = max(1.20, inner_h - title_fit.height_in - caption_fit.height_in - 0.12)
+    visual_y = inner_y + title_fit.height_in + 0.04
+
     add_textbox(
         slide,
-        x=x + 0.10,
-        y=y + 0.10,
-        w=w - 0.20,
-        h=0.22,
-        text=role.get("title", ""),
+        x=inner_x,
+        y=inner_y,
+        w=inner_w,
+        h=title_fit.height_in + 0.02,
+        text=title_fit.text,
         font_name=TITLE_FONT,
-        font_size=14,
+        font_size=title_fit.font_size,
         color=NAVY,
         bold=True,
         align=PP_ALIGN.CENTER,
@@ -46,23 +66,23 @@ def _add_role_box(
     add_mini_visual(
         slide,
         kind=role.get("mini_visual", ""),
-        x=x + 0.16,
-        y=y + 0.40,
-        w=w - 0.32,
-        h=1.00,
+        x=inner_x + 0.04,
+        y=visual_y,
+        w=inner_w - 0.08,
+        h=visual_h,
         suffix=suffix,
         variant="dark_on_light",
     )
 
     add_textbox(
         slide,
-        x=x + 0.10,
-        y=y + 1.50,
-        w=w - 0.20,
-        h=0.28,
-        text=role.get("caption", ""),
+        x=inner_x,
+        y=visual_y + visual_h + 0.04,
+        w=inner_w,
+        h=caption_fit.height_in + 0.02,
+        text=caption_fit.text,
         font_name=BODY_FONT,
-        font_size=10,
+        font_size=caption_fit.font_size,
         color=SLATE,
         bold=False,
         align=PP_ALIGN.CENTER,
@@ -93,7 +113,7 @@ def build_integrated_bridge_slide(
         h=0.50,
         text=spec["title"],
         font_name=TITLE_FONT,
-        font_size=24,
+        font_size=25,
         color=NAVY,
         bold=True,
     )
@@ -101,15 +121,23 @@ def build_integrated_bridge_slide(
 
     subtitle = spec.get("subtitle", "").strip()
     if subtitle:
+        fit = fit_text_to_box(
+            text=subtitle,
+            width_in=11.0,
+            height_in=0.34,
+            min_font_size=14,
+            max_font_size=16,
+            max_lines=2,
+        )
         add_textbox(
             slide,
-            x=1.10,
+            x=1.00,
             y=layout.get("subtitle_y", 0.98),
-            w=10.90,
+            w=11.00,
             h=0.34,
-            text=subtitle,
+            text=fit.text,
             font_name=BODY_FONT,
-            font_size=14,
+            font_size=fit.font_size,
             color=SLATE,
             bold=False,
             align=PP_ALIGN.CENTER,
@@ -117,26 +145,34 @@ def build_integrated_bridge_slide(
 
     base_object = visual.get("base_object", "").strip()
     if base_object:
+        fit = fit_text_to_box(
+            text=base_object,
+            width_in=4.80,
+            height_in=0.22,
+            min_font_size=13,
+            max_font_size=15,
+            max_lines=1,
+        )
         add_textbox(
             slide,
-            x=4.30,
-            y=1.38,
-            w=4.70,
+            x=4.20,
+            y=1.40,
+            w=4.80,
             h=0.22,
-            text=base_object,
+            text=fit.text,
             font_name=FORMULA_FONT,
-            font_size=13,
+            font_size=fit.font_size,
             color=NAVY,
             bold=True,
             align=PP_ALIGN.CENTER,
         )
 
-    y = layout.get("visual_y", 1.78)
-    w = 3.15
-    h = 2.05
-    left_x = 0.90
-    center_x = 5.08
-    right_x = 9.26
+    y = layout.get("visual_y", 1.80)
+    w = 3.12
+    h = 2.26
+    left_x = 0.95
+    center_x = 4.94
+    right_x = 8.93
 
     _add_role_box(slide, left, left_x, y, w, h, "_bridge_left")
     _add_role_box(slide, center, center_x, y, w, h, "_bridge_center")
@@ -149,7 +185,7 @@ def build_integrated_bridge_slide(
         x2=center_x,
         y2=y + h / 2,
         color=ACCENT,
-        width_pt=1.5,
+        width_pt=1.6,
     )
     add_soft_connector(
         slide,
@@ -158,26 +194,34 @@ def build_integrated_bridge_slide(
         x2=right_x,
         y2=y + h / 2,
         color=ACCENT,
-        width_pt=1.5,
+        width_pt=1.6,
     )
 
     if bridge_labels:
         positions = [
-            (3.92, y + 0.18),
-            (7.98, y + 0.18),
-            (5.30, y + h + 0.10),
+            (3.58, y + 0.06, 1.80),
+            (7.56, y + 0.06, 1.80),
+            (4.75, y + h + 0.02, 3.00),
         ]
         for idx, label in enumerate(bridge_labels[:3]):
-            lx, ly = positions[idx]
+            lx, ly, lw = positions[idx]
+            fit = fit_text_to_box(
+                text=label,
+                width_in=lw,
+                height_in=0.18,
+                min_font_size=10,
+                max_font_size=11,
+                max_lines=1,
+            )
             add_textbox(
                 slide,
                 x=lx,
                 y=ly,
-                w=1.90 if idx < 2 else 2.80,
+                w=lw,
                 h=0.18,
-                text=label,
+                text=fit.text,
                 font_name=BODY_FONT,
-                font_size=9,
+                font_size=fit.font_size,
                 color=SLATE,
                 bold=False,
                 align=PP_ALIGN.CENTER,
@@ -185,15 +229,23 @@ def build_integrated_bridge_slide(
 
     formulas = spec.get("formulas", [])
     if formulas:
+        fit = fit_joined_items_to_box(
+            items=formulas,
+            width_in=10.9,
+            height_in=0.22,
+            min_font_size=12,
+            max_font_size=13,
+            max_lines=2,
+        )
         add_textbox(
             slide,
             x=1.10,
-            y=layout.get("formula_y", 4.55),
+            y=layout.get("formula_y", 4.72),
             w=10.90,
-            h=0.20,
-            text="   •   ".join(formulas),
+            h=0.22,
+            text=fit.text,
             font_name=FORMULA_FONT,
-            font_size=10,
+            font_size=fit.font_size,
             color=NAVY,
             bold=False,
             align=PP_ALIGN.CENTER,
@@ -201,17 +253,25 @@ def build_integrated_bridge_slide(
 
     takeaway = spec.get("takeaway", "").strip()
     if takeaway:
+        fit = fit_text_to_box(
+            text=takeaway,
+            width_in=10.9,
+            height_in=0.34,
+            min_font_size=12,
+            max_font_size=14,
+            max_lines=2,
+        )
         add_textbox(
             slide,
             x=1.10,
-            y=layout.get("takeaway_y", 5.22),
+            y=layout.get("takeaway_y", 5.34),
             w=10.90,
-            h=0.36,
-            text=takeaway,
+            h=0.34,
+            text=fit.text,
             font_name=BODY_FONT,
-            font_size=12,
+            font_size=fit.font_size,
             color=SLATE,
-            bold=False,
+            bold=True,
             align=PP_ALIGN.CENTER,
         )
 
