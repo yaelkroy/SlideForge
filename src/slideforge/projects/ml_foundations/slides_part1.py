@@ -3,6 +3,12 @@ from __future__ import annotations
 from typing import Any
 
 
+def _merged_layout(base: dict[str, Any], **overrides: Any) -> dict[str, Any]:
+    merged = dict(base)
+    merged.update(overrides)
+    return merged
+
+
 TITLE_DARK_HERO_STYLE: dict[str, Any] = {
     "preset": "dark_hero",
     "panel_fill_color": "DARK_BOX_FILL",
@@ -12,23 +18,24 @@ TITLE_DARK_HERO_STYLE: dict[str, Any] = {
 
 LONG_HEADER_LAYOUT_GRID: dict[str, Any] = {
     "title_y": 0.42,
-    "title_h": 0.82,
+    "title_h": 0.88,
     "title_max_lines": 2,
-    "title_max_font": 26,
-    "subtitle_h": 0.42,
+    "title_max_font": 25,
+    "subtitle_h": 0.46,
     "subtitle_max_lines": 2,
     "content_to_grid_gap": 0.14,
 }
 
 LONG_HEADER_LAYOUT_TABLE: dict[str, Any] = {
     "title_y": 0.42,
-    "title_h": 0.82,
+    "title_h": 0.88,
     "title_max_lines": 2,
-    "title_max_font": 26,
-    "subtitle_h": 0.46,
+    "title_max_font": 25,
+    "subtitle_h": 0.48,
     "subtitle_max_lines": 2,
     "content_to_table_gap": 0.12,
 }
+
 
 ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
     {
@@ -46,9 +53,7 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
             "A single hero composition in the lower half of the slide showing a point/vector, "
             "a separator, a loss curve with downhill arrow, and a classifier boundary."
         ),
-        "text_explanation": (
-            "From vectors and planes to loss functions, feature vectors, and classifiers"
-        ),
+        "text_explanation": "From vectors and planes to loss functions, feature vectors, and classifiers",
         "bullets": [
             "Geometry gives us representation",
             "Optimization gives us learning",
@@ -473,9 +478,7 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
         "visual": "A three-stage storyboard from movie object to encoded properties to a feature vector.",
         "text_explanation": "A real object becomes a machine-readable representation.",
         "bullets": ["object", "encoding", "vector"],
-        "formulas": [
-            "x=[1,0,1,1,0]",
-        ],
+        "formulas": ["x=[1,0,1,1,0]"],
         "concrete_example_anchor": "movie → encoded properties → 5-feature vector",
         "speaker_intent": "The first step in machine learning is to turn an object into numbers.",
         "title": "Example A — From Movie Object to Feature Vector",
@@ -520,9 +523,7 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
         "visual": "A three-stage storyboard from feature vector to point in space to prediction.",
         "text_explanation": "Once represented numerically, the object can enter a geometric model and produce a prediction.",
         "bullets": ["vector", "space", "prediction"],
-        "formulas": [
-            "h(x)=sign(θ · x+θ₀)",
-        ],
+        "formulas": ["h(x)=sign(θ · x+θ₀)"],
         "concrete_example_anchor": "5-feature vector → point in feature space → like/dislike",
         "speaker_intent": "After representation, the model can score the vector and make a decision.",
         "title": "Example A — From Feature Vector to Prediction",
@@ -567,9 +568,7 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
         "visual": "A three-stage storyboard from digit image to simple measurements to feature vector.",
         "text_explanation": "A handwritten image can also be converted into a numerical representation.",
         "bullets": ["image", "measurement", "vector"],
-        "formulas": [
-            "x=[brightness,width]",
-        ],
+        "formulas": ["x=[brightness,width]"],
         "concrete_example_anchor": "digit → brightness/width features → vector",
         "speaker_intent": "Different kinds of raw objects can still become feature vectors.",
         "title": "Example B — From Digit Image to Features",
@@ -614,9 +613,7 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
         "visual": "A three-stage storyboard from feature vector to class region to output label.",
         "text_explanation": "Once represented numerically, the image can be placed in space and classified.",
         "bullets": ["vector", "boundary", "class"],
-        "formulas": [
-            "h(x)=7",
-        ],
+        "formulas": ["h(x)=7"],
         "concrete_example_anchor": "features → point in low-dimensional space → class label",
         "speaker_intent": "The raw object changes, but the mathematical pipeline stays the same.",
         "title": "Example B — From Features to Class Label",
@@ -688,19 +685,19 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
                     "formula": "f(x)=⅓x³−x²−3x+10",
                     "caption": "optimization anchor",
                 },
-            ]
+            ],
         },
         "takeaway": "geometry and optimization examples we will reuse often",
-        "layout": {
-            **LONG_HEADER_LAYOUT_GRID,
-            "grid_x": 0.90,
-            "grid_y": 1.96,
-            "grid_w": 11.20,
-            "grid_h": 3.72,
-            "gap_x": 0.28,
-            "gap_y": 0.0,
-            "takeaway_y": 5.98,
-        },
+        "layout": _merged_layout(
+            LONG_HEADER_LAYOUT_GRID,
+            grid_x=0.90,
+            grid_y=1.96,
+            grid_w=11.20,
+            grid_h=3.72,
+            gap_x=0.28,
+            gap_y=0.0,
+            takeaway_y=5.98,
+        ),
     },
     {
         "kind": "card_grid",
@@ -739,19 +736,19 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
                     "formula": "5-feature vector + label ±1",
                     "caption": "supervised-learning anchor",
                 },
-            ]
+            ],
         },
         "takeaway": "probability, computation, and supervised-learning anchors",
-        "layout": {
-            **LONG_HEADER_LAYOUT_GRID,
-            "grid_x": 0.90,
-            "grid_y": 1.98,
-            "grid_w": 11.20,
-            "grid_h": 3.70,
-            "gap_x": 0.28,
-            "gap_y": 0.0,
-            "takeaway_y": 5.98,
-        },
+        "layout": _merged_layout(
+            LONG_HEADER_LAYOUT_GRID,
+            grid_x=0.90,
+            grid_y=1.98,
+            grid_w=11.20,
+            grid_h=3.70,
+            gap_x=0.28,
+            gap_y=0.0,
+            takeaway_y=5.98,
+        ),
     },
     {
         "kind": "notation_panel",
@@ -783,14 +780,14 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
             {"symbol": "A", "meaning": "matrix", "example": "A x"},
             {"symbol": "y", "meaning": "label", "example": "y=+1"},
         ],
-        "layout": {
-            **LONG_HEADER_LAYOUT_TABLE,
-            "table_x": 0.88,
-            "table_y": 1.98,
-            "table_w": 11.20,
-            "table_h": 4.40,
-            "formula_y": 6.55,
-        },
+        "layout": _merged_layout(
+            LONG_HEADER_LAYOUT_TABLE,
+            table_x=0.88,
+            table_y=1.98,
+            table_w=11.20,
+            table_h=4.40,
+            formula_y=6.55,
+        ),
     },
     {
         "kind": "notation_panel",
@@ -823,14 +820,14 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
             {"symbol": "h", "meaning": "classifier / prediction rule", "example": "h(x)=sign(θ·x+θ₀)"},
             {"symbol": "L", "meaning": "loss", "example": "L(θ)"},
         ],
-        "layout": {
-            **LONG_HEADER_LAYOUT_TABLE,
-            "table_x": 0.88,
-            "table_y": 1.98,
-            "table_w": 11.20,
-            "table_h": 4.40,
-            "formula_y": 6.55,
-        },
+        "layout": _merged_layout(
+            LONG_HEADER_LAYOUT_TABLE,
+            table_x=0.88,
+            table_y=1.98,
+            table_w=11.20,
+            table_h=4.40,
+            formula_y=6.55,
+        ),
     },
     {
         "kind": "triple_role",
@@ -838,10 +835,10 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
         "background": "Background 10.png",
         "slide_number": 17,
         "slide_title": "Point, Vector, Feature Vector: Same Shape, Different Role",
-        "purpose": "Bridge geometry to machine-learning representation.",
+        "purpose": "Bridge geometry to machine-learning representation in one unified slide.",
         "visual": (
             "Three large side-by-side panels using the same object: point in coordinate space, "
-            "arrow from origin, feature vector representing an example."
+            "arrow from origin, and feature vector representing an example."
         ),
         "text_explanation": (
             "Mathematically, these can look identical. Conceptually, they play different roles."
@@ -860,10 +857,10 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
             "Use x=(3,2,2) for point/vector and a movie feature vector for ML representation."
         ),
         "speaker_intent": (
-            "This is one of the most important conceptual bridges in the whole deck."
+            "The coordinates did not change. The interpretation changed."
         ),
         "title": "Point, Vector, Feature Vector: Same Shape, Different Role",
-        "subtitle": "",
+        "subtitle": "The coordinates did not change. The interpretation changed.",
         "panels": [
             {
                 "title": "Point",
@@ -884,67 +881,20 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
                 "formula": "x↦feature vector",
             },
         ],
+        "takeaway": "same coordinates • different role • context changes meaning",
         "layout": {
             "title_y": 0.42,
-            "panel_region": {"x": 0.88, "y": 1.78, "w": 11.24, "h": 3.05},
+            "title_h": 0.84,
+            "title_max_lines": 2,
+            "title_max_font": 25,
+            "subtitle_h": 0.40,
+            "subtitle_max_lines": 1,
+            "panel_region": {"x": 0.88, "y": 1.96, "w": 11.24, "h": 2.86},
             "panel_gap": 0.24,
-            "bullets_y": 5.16,
-            "formula_y": 5.56,
-        },
-    },
-    {
-        "kind": "integrated_bridge",
-        "theme": "concept",
-        "background": "Background 10.png",
-        "slide_number": 18,
-        "slide_title": "One Object, Three Interpretations",
-        "purpose": "Give a full large visual example immediately after the concept slide.",
-        "visual": (
-            "One integrated visual with the same coordinate triple, the same arrow, the same "
-            "feature-vector table, and visible annotation arrows explaining the role change."
-        ),
-        "text_explanation": "The coordinates did not change. The interpretation changed.",
-        "bullets": [],
-        "formulas": [
-            "x=(3,2,2)",
-            "movie → x",
-        ],
-        "concrete_example_anchor": "Make the movie example explicit here.",
-        "speaker_intent": (
-            "The mathematical object stays the same shape, but its meaning depends on context."
-        ),
-        "title": "One Object, Three Interpretations",
-        "subtitle": "The coordinates did not change. The interpretation changed.",
-        "integrated_visual": {
-            "base_object": "x=(3,2,2)",
-            "left_role": {
-                "title": "Point",
-                "mini_visual": "point_in_space",
-                "caption": "same coordinates, location in space",
-            },
-            "center_role": {
-                "title": "Vector",
-                "mini_visual": "vector_arrow",
-                "caption": "same coordinates, displacement from origin",
-            },
-            "right_role": {
-                "title": "Feature Vector",
-                "mini_visual": "movie_to_vector",
-                "caption": "same shape, encoded movie example",
-            },
-            "bridge_labels": [
-                "same coordinates",
-                "different role",
-                "context changes meaning",
-            ],
-        },
-        "takeaway": "The shape of the mathematical object stays the same; only the interpretation changes.",
-        "layout": {
-            "title_y": 0.42,
-            "subtitle_y": 0.98,
-            "visual_y": 1.80,
-            "formula_y": 4.60,
-            "takeaway_y": 5.28,
+            "bullets_y": 5.08,
+            "formula_y": 5.44,
+            "takeaway_y": 5.84,
+            "takeaway_h": 0.24,
         },
     },
 ]

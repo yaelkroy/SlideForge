@@ -39,9 +39,9 @@ If something can be made more explicit for future LLM understanding, do it.
 
 ## Documentation Sync Rule
 
-This project must keep its documentation synchronized with the actual codebase.
+This project must keep documentation synchronized with the actual codebase.
 
-Whenever the code structure, module responsibilities, file layout, build flow, naming conventions, builder inventory, visual system, layout/autofit rules, slide-spec rules, or project architecture changes in a way that affects repo understanding, the LLM should explicitly check whether the following files also need updates:
+Whenever the code structure, module responsibilities, file layout, build flow, naming conventions, builder inventory, theme system, header/layout behavior, slide-spec rules, or project architecture changes in a way that affects repo understanding, the LLM should explicitly check whether the following files also need updates:
 
 - `README.md`
 - `LLM_CONTEXT.md`
@@ -86,6 +86,7 @@ Update `SLIDE_SPEC_RULES.md` when the change affects:
 - readability rules
 - builder selection rules
 - anti-patterns in lecture-slide structure
+- how metadata/guidance fields should behave
 
 ### Anti-drift rule
 
@@ -104,17 +105,13 @@ If there is a conflict:
 
 ## Current Repo Reality
 
-The repository already has a working modular split, but it is still mid-refactor.
+The repository is working, modular, and mid-refactor.
 
 ### Current practical build flow
 
 Current build flow is:
 
-**project slide specs -> builder registry -> slide builders -> rendering primitives / mini visuals -> pptx output**
-
-The emerging hardening layer is:
-
-**project slide specs -> builder registry -> slide builders -> layout/autofit helpers -> rendering primitives / mini visuals -> pptx output**
+**project slide specs -> builder registry -> slide builders -> layout/header/theme helpers -> rendering primitives / mini visuals -> pptx output**
 
 At the moment:
 
@@ -123,6 +120,7 @@ At the moment:
 - builders are explicit functions, one per slide family
 - the system already produces useful slides and should be extended incrementally, not rewritten wholesale
 - layout is increasingly being treated as a measurable geometry problem rather than repeated manual tweaking
+- visual styling is increasingly being treated as a theme/token problem rather than hardcoded builder-local colors
 
 ### Current active modules
 
@@ -131,8 +129,10 @@ Important current modules include:
 - `src/slideforge_app.py`
 - `src/slideforge/config/constants.py`
 - `src/slideforge/config/paths.py`
+- `src/slideforge/config/themes.py`
 - `src/slideforge/io/backgrounds.py`
 - `src/slideforge/render/primitives.py`
+- `src/slideforge/render/header.py`
 - `src/slideforge/assets/mini_visuals.py`
 - `src/slideforge/layout/__init__.py`
 - `src/slideforge/layout/autofit.py`
@@ -174,6 +174,7 @@ When extending the system, prefer:
 - reusing rendering primitives
 - reusing mini-visual motifs
 - reusing layout/autofit helpers
+- reusing theme/header helpers
 - avoiding logic growth in `slideforge_app.py`
 
 Do **not** move slide-specific rendering logic back into the top-level app entrypoint.
@@ -200,20 +201,135 @@ The builder registry is expected to include:
 - `integrated_bridge`
 - `concept_poster`
 
+### Important note on `integrated_bridge`
+
+`integrated_bridge` is now a **questioned / likely deprecated** slide family.
+
+Use it only if it is genuinely needed by an active deck.  
+If no active slide spec uses `kind: "integrated_bridge"`, the preferred cleanup is:
+
+1. remove it from active project slide specs
+2. remove it from `builder_registry.py`
+3. then delete `integrated_bridge.py`
+
+Do **not** delete the file before registry cleanup, or imports will break.
+
+### Builder rule
+
 When a new slide pattern repeats, prefer adding a new builder rather than overloading one builder with many unrelated branches.
+
+---
+
+## Theme System
+
+A major new design direction is the theme layer in:
+
+- `src/slideforge/config/themes.py`
+
+This layer exists because many prior builder issues came from **hardcoded colors, fills, text colors, divider colors, and dark/light assumptions** scattered across builders.
+
+### Design rule
+
+Builders should increasingly consume a **theme object** or theme-derived style map rather than hardcoding colors directly.
+
+### Theme responsibilities
+
+The theme layer should define and normalize:
+
+- title color
+- subtitle color
+- body color
+- muted/footer color
+- divider color
+- connector color
+- box fill and line colors
+- panel fill and line colors
+- pill/callout/ghost label colors
+- dark/light footer behavior
+- mini-visual variant defaults such as:
+  - `dark_on_light`
+  - `light_on_dark`
+
+### Default theme behavior
+
+A slide’s `theme` should map to a named preset, for example:
+
+- `title` -> dark-hero behavior
+- `section` -> dark-section behavior
+- `concept` -> light academic behavior
+- `content` -> light academic behavior
+
+### Preferred usage
+
+Builders should prefer:
+
+- `get_theme(...)`
+- theme-level defaults
+- spec-level style overrides
+
+Avoid:
+
+- builder-local raw RGB values
+- hidden assumptions that all cards are light
+- hidden assumptions that all text is dark navy
+- repeating identical style maps across many builders
+
+---
+
+## Shared Header Layer
+
+A major new design direction is the shared header layer in:
+
+- `src/slideforge/render/header.py`
+
+This layer exists because many lecture-slide failures are not content failures.  
+They are header geometry failures.
+
+Examples:
+
+- title collides with divider
+- divider crosses subtitle
+- long title wraps into the content area
+- one builder uses a safe header stack while another reintroduces overlap
+- subtitle placement differs unpredictably across builders
+
+### Design rule
+
+Header layout should be **computed once and reused**, not manually reimplemented in every builder.
+
+### What the shared header should handle
+
+The header layer should increasingly support:
+
+- title text fitting
+- subtitle text fitting
+- divider placement below actual title height
+- safe `content_top_y`
+- theme-aware title/subtitle/divider colors
+- long-title handling for 2-line headers
+- consistent spacing across builders
+
+### Preferred usage
+
+Builders that have a standard lecture header should prefer:
+
+- `render_header_from_spec(...)`
+
+Avoid:
+
+- manually drawing title, divider, subtitle in each builder
+- fixed divider Y values unrelated to actual title height
+- repeated title-box logic across many builder files
 
 ---
 
 ## Layout / Autofit Layer
 
-A major new design direction is the layout/autofit layer in:
+A major design direction is the layout/autofit layer in:
 
 - `src/slideforge/layout/autofit.py`
 
-This layer exists because many lecture-slide failures are not content failures.  
-They are geometry failures.
-
-Examples:
+This layer exists because many lecture-slide failures are geometry failures:
 
 - notes are too small even though there is enough free space
 - a single diagram is stuck in the top half of a large box
@@ -324,7 +440,7 @@ That split should happen before the file becomes difficult to reason about safel
 
 ## Large-Visual Lecture Rule
 
-The redesigned lecture structure follows a stronger visual rule:
+The lecture structure should follow a stronger visual rule:
 
 ### Core rule
 
@@ -347,23 +463,111 @@ For lecture planning:
 - keep diagrams readable from the back of a classroom
 - use text as support, not as the primary payload
 
-### Part I pattern
+### Additional anti-duplication rule
 
-The redesigned Part I should follow this spirit:
+Avoid near-duplicate slides that restate the same conceptual idea with only minor visual differences.
 
-1. opener / divider
-2. concept overview
-3. dependency overview
-4. separate large prerequisite concept slides
-5. conceptual pipeline
-6. large example A
-7. large example B
-8. anchor examples split when needed
-9. notation split when needed
-10. concept bridge
-11. large bridge example
+If two consecutive slides teach the same bridge, prefer:
 
-Future lecture parts should follow the same spirit.
+- one stronger slide
+- one larger visual
+- one clearer takeaway
+
+Do not keep both just because both are decent individually.
+
+Example of preferred cleanup logic:
+
+- if slide 17 and slide 18 teach the same concept, merge into one stronger slide instead of keeping two similar slides
+
+---
+
+## Slide Metadata vs Visible Content Rule
+
+This is now an important repo convention.
+
+Some slide-spec fields are **content**.  
+Some are **guidance**.  
+They must not be treated the same.
+
+### By default, these should be treated as design guidance / metadata
+
+Examples:
+
+- `purpose`
+- `visual`
+- `speaker_intent`
+- `concrete_example_anchor`
+
+These fields are usually for:
+
+- the human author
+- the LLM
+- future editing continuity
+- design guidance
+
+They should **not automatically become visible slide text**.
+
+### Visible-content rule
+
+A guidance field should only be rendered when explicitly intended.
+
+Preferred explicit mechanisms:
+
+- `visible_anchor_text`
+- `show_anchor_text: True`
+
+### Default behavior
+
+Unless explicitly enabled:
+
+- `concrete_example_anchor` should be hidden
+- guidance text like “Use a visible bowl surface...” should not appear on the slide
+- notes for the designer/LLM should not leak into final presentation output
+
+This rule is especially important for:
+
+- `section_divider.py`
+- `concept_poster.py`
+- any future builder that might confuse deck metadata with visible slide text
+
+---
+
+## Current Project-Spec Reality
+
+Slide content is currently stored as Python dictionaries in `projects/...`.
+
+That is acceptable and still the active model.
+
+### Current practical rule for project specs
+
+Project spec files should contain:
+
+- declarative slide content
+- builder `kind`
+- explicit layout overrides only where needed
+- explicit theme/style overrides only where needed
+
+They should avoid becoming huge mixed architecture files.
+
+### Current status for `slides_part1.py`
+
+For now, `slides_part1.py` may remain a single file if the user explicitly wants that.
+
+However, the preferred long-term direction is still:
+
+- split giant spec files when they grow too large
+- separate shared layout/style constants from slide dictionaries
+- keep deck content easier to scan in small context
+
+### Practical compromise
+
+If a user explicitly says “do not split it,” respect that.  
+But still keep:
+
+- shared constants near the top
+- repeated layout fragments minimized
+- no avoidable duplication
+- no dead slides that are no longer conceptually needed
 
 ---
 
@@ -386,12 +590,12 @@ When writing or revising slide specs, follow that file directly.
 
 ## File Size and Refactoring Rule
 
-This repository should avoid oversized Python source files.
+This repository should avoid oversized Python source files and oversized documentation files where practical.
 
 ### Hard guideline
 
 - **Python files with code should stay under 500 lines whenever practical.**
-- If a Python file grows large or starts mixing multiple responsibilities, it should be **refactored into several smaller modules**.
+- If a Python file grows large or starts mixing multiple responsibilities, it should be refactored into several smaller modules.
 
 ### Refactor triggers
 
@@ -509,35 +713,49 @@ Do not stop useful slide generation work for a massive framework rewrite.
 
 These are good cleanup targets because they improve clarity without destabilizing the repo:
 
-1. **Helper deduplication**
+1. **Remove dead or weak slide families**
+   - if `integrated_bridge` is no longer used by active specs, remove it cleanly
+   - avoid keeping a builder family alive only because it once existed
+
+2. **Helper deduplication**
    - keep one canonical presentation-creation implementation
    - keep one canonical `new_slide()` helper location if possible
 
-2. **Builder family growth**
-   - add new small builders when a slide pattern repeats
-   - avoid overloading a single builder with many unrelated layouts
+3. **Theme hardening**
+   - move style decisions into `config/themes.py`
+   - reduce hardcoded builder-local colors
+   - normalize dark/light behavior
 
-3. **Mini-visual hardening**
+4. **Header hardening**
+   - centralize standard lecture headers in `render/header.py`
+   - eliminate repeated divider/subtitle collision logic
+   - compute `content_top_y` rather than guessing it per builder
+
+5. **Mini-visual hardening**
    - expand motifs only when they improve multiple slides
    - keep naming stable and explicit
    - strengthen semantics so visuals are understandable before captions
    - avoid silently drifting visual meaning
 
-4. **Layout hardening**
+6. **Layout hardening**
    - move fragile manual spacing into `layout/autofit.py`
    - compute note height, table font size, and vertical stacks instead of guessing
    - make visual centering the default behavior for card-like builders
 
-5. **Project spec organization**
+7. **Project spec organization**
    - keep deck-specific slide specs inside `projects/`
-   - split large slide lists if they become too long
+   - split large slide lists if they become too long, unless the user explicitly prefers one file
 
-6. **Documentation coherence**
+8. **Metadata visibility governance**
+   - stop rendering guidance fields by default
+   - require explicit visible-content fields for anything that should appear on the slide
+
+9. **Documentation coherence**
    - `README.md` should match actual current repo behavior
    - this file should reflect actual architectural direction
    - `SLIDE_SPEC_RULES.md` should reflect current slide-authoring expectations
 
-7. **File-size governance**
+10. **File-size governance**
    - keep Python source files below 500 lines when practical
    - refactor large modules before they become hard to reason about
 
@@ -552,6 +770,8 @@ When continuing work in this repo:
 - reuse existing primitives before adding new drawing helpers
 - reuse existing mini-visual motifs before creating new ones
 - reuse existing layout/autofit helpers before hardcoding new placement guesses
+- reuse `render/header.py` before reimplementing a title/divider/subtitle stack
+- reuse `config/themes.py` before inventing new builder-local color systems
 - prefer introducing a new `kind` over making one builder excessively branchy
 - keep project-specific content in `projects/`
 - keep generated artifacts out of source directories
@@ -561,7 +781,7 @@ When continuing work in this repo:
 If the user asks to continue slide generation, the default assumption should be:
 
 - keep the existing architecture
-- improve it only where it meaningfully reduces duplication or friction
+- improve it only where it meaningfully reduces duplication or fragility
 - avoid unnecessary churn
 
 ---

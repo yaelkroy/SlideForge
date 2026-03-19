@@ -1,8 +1,15 @@
 # SlideForge
 
-SlideForge is a Python-based presentation engine for generating polished academic lecture slides, especially for machine learning, mathematics, optimization, probability, statistics, and technical teaching.
+SlideForge is a Python-native presentation engine for generating polished academic lecture slides, especially for:
 
-The project currently generates PowerPoint presentations (`.pptx`) from structured Python slide specs and is being refined into a more reusable, builder-driven, spec-first architecture.
+- machine learning
+- mathematics
+- geometry
+- optimization
+- probability and statistics
+- programming and technical education
+
+The project currently generates PowerPoint presentations (`.pptx`) from structured Python slide specs and is evolving toward a more reusable, builder-driven, theme-aware, layout-aware architecture.
 
 ---
 
@@ -12,11 +19,12 @@ Current reality:
 
 - builds a PowerPoint deck from Python slide specs
 - uses a builder registry keyed by slide `kind`
-- stores deck and project slide definitions under `src/slideforge/projects/`
-- renders reusable text, boxes, lines, connectors, and panels through shared primitives
+- stores project slide definitions under `src/slideforge/projects/`
+- renders reusable text, boxes, lines, connectors, cards, and panels through shared primitives
 - renders reusable technical mini-illustrations through `mini_visuals.py`
 - supports larger poster-style concept slides through dedicated builder families
-- is being extended with layout autofit utilities so diagrams, notes, captions, and tables can be sized and placed mathematically rather than by guesswork
+- uses shared theme and header layers so color systems and title/subtitle/divider layout do not have to be hardcoded in each builder
+- increasingly uses layout/autofit helpers so diagrams, notes, captions, formulas, and tables can be sized and placed mathematically rather than by guesswork
 - writes the generated deck to the repo root as `ML_Foundations_Auto.pptx`
 
 This is a working slide generator, not just a prototype.

@@ -12,11 +12,7 @@ from slideforge.config.themes import SlideTheme, get_theme, resolve_color
 from slideforge.io.backgrounds import choose_background
 from slideforge.layout.autofit import Box, layout_concept_poster
 from slideforge.render.header import render_header_from_spec
-from slideforge.render.primitives import (
-    add_footer,
-    add_rounded_box,
-    add_textbox,
-)
+from slideforge.render.primitives import add_footer, add_rounded_box, add_textbox
 
 
 def _join_items(items: list[str]) -> str:
@@ -76,17 +72,50 @@ def _resolve_poster_style(
         box_fill_default = OFFWHITE
 
     return {
-        "poster_fill_color": resolve_color(poster_style.get("poster_fill_color"), box_fill_default),
-        "poster_line_color": resolve_color(poster_style.get("poster_line_color"), theme_obj.box_line_color),
-        "poster_line_width_pt": float(poster_style.get("poster_line_width_pt", 1.25)),
-        "visual_variant": str(poster_style.get("visual_variant", theme_obj.panel_visual_variant)),
-        "explanation_color": resolve_color(poster_style.get("explanation_color"), theme_obj.subtitle_color),
-        "bullets_color": resolve_color(poster_style.get("bullets_color"), theme_obj.subtitle_color),
-        "formulas_color": resolve_color(poster_style.get("formulas_color"), theme_obj.body_color),
-        "note_color": resolve_color(poster_style.get("note_color"), theme_obj.subtitle_color),
-        "takeaway_color": resolve_color(poster_style.get("takeaway_color"), theme_obj.subtitle_color),
-        "footer_color": resolve_color(poster_style.get("footer_color"), theme_obj.footer_color),
-        "footer_dark": bool(poster_style.get("footer_dark", theme_obj.footer_dark)),
+        "poster_fill_color": resolve_color(
+            poster_style.get("poster_fill_color"),
+            box_fill_default,
+        ),
+        "poster_line_color": resolve_color(
+            poster_style.get("poster_line_color"),
+            theme_obj.box_line_color,
+        ),
+        "poster_line_width_pt": float(
+            poster_style.get("poster_line_width_pt", 1.25)
+        ),
+        "visual_variant": str(
+            poster_style.get("visual_variant", theme_obj.panel_visual_variant)
+        ),
+        "explanation_color": resolve_color(
+            poster_style.get("explanation_color"),
+            theme_obj.subtitle_color,
+        ),
+        "bullets_color": resolve_color(
+            poster_style.get("bullets_color"),
+            theme_obj.subtitle_color,
+        ),
+        "formulas_color": resolve_color(
+            poster_style.get("formulas_color"),
+            theme_obj.body_color,
+        ),
+        "note_color": resolve_color(
+            poster_style.get("note_color"),
+            theme_obj.subtitle_color,
+        ),
+        "takeaway_color": resolve_color(
+            poster_style.get("takeaway_color"),
+            theme_obj.subtitle_color,
+        ),
+        "footer_color": resolve_color(
+            poster_style.get("footer_color"),
+            theme_obj.footer_color,
+        ),
+        "footer_dark": bool(
+            poster_style.get("footer_dark", theme_obj.footer_dark)
+        ),
+        "show_anchor_text": bool(
+            poster_style.get("show_anchor_text", False)
+        ),
     }
 
 
@@ -110,13 +139,23 @@ def build_concept_poster_slide(
         str(spec.get("text_explanation", "")).strip()
         or str(spec.get("explanation", "")).strip()
     )
+
     bullets = list(spec.get("bullets", []) or [])
     bullets_text = _join_items(bullets)
 
     formulas = list(spec.get("formulas", []) or [])
     formulas_text = _join_items(formulas)
 
-    note_text = str(spec.get("concrete_example_anchor", "")).strip()
+    # IMPORTANT:
+    # concrete_example_anchor is treated as design guidance by default
+    # and is NOT rendered unless explicitly enabled.
+    anchor_text = str(spec.get("concrete_example_anchor", "")).strip()
+    visible_anchor_text = str(spec.get("visible_anchor_text", "")).strip()
+    show_anchor_text = bool(
+        spec.get("show_anchor_text", poster_style["show_anchor_text"])
+    )
+    note_text = visible_anchor_text or (anchor_text if show_anchor_text else "")
+
     takeaway = str(spec.get("takeaway", "")).strip()
 
     header_result = render_header_from_spec(
@@ -127,7 +166,12 @@ def build_concept_poster_slide(
 
     fallback_outer_box = Box(
         float(layout.get("poster_x", 0.96)),
-        float(layout.get("poster_y", header_result.content_top_y + float(layout.get("content_to_poster_gap", 0.12)))),
+        float(
+            layout.get(
+                "poster_y",
+                header_result.content_top_y + float(layout.get("content_to_poster_gap", 0.12)),
+            )
+        ),
         float(layout.get("poster_w", 11.10)),
         float(layout.get("poster_h", 4.98)),
     )
@@ -192,7 +236,10 @@ def build_concept_poster_slide(
             box=boxes["explanation"],
             text=explanation,
             font_name=BODY_FONT,
-            font_size=max(int(layout.get("explanation_min_font", 15)), fits["explanation"].font_size),
+            font_size=max(
+                int(layout.get("explanation_min_font", 15)),
+                fits["explanation"].font_size,
+            ),
             color=poster_style["explanation_color"],
             bold=False,
             align=layout.get("explanation_align", PP_ALIGN.CENTER),
@@ -204,7 +251,10 @@ def build_concept_poster_slide(
             box=boxes["bullets"],
             text=bullets_text,
             font_name=BODY_FONT,
-            font_size=max(int(layout.get("bullets_min_font", 13)), fits["bullets"].font_size),
+            font_size=max(
+                int(layout.get("bullets_min_font", 13)),
+                fits["bullets"].font_size,
+            ),
             color=poster_style["bullets_color"],
             bold=bool(layout.get("bullets_bold", False)),
             align=layout.get("bullets_align", PP_ALIGN.CENTER),
@@ -216,7 +266,10 @@ def build_concept_poster_slide(
             box=boxes["formulas"],
             text=formulas_text,
             font_name=FORMULA_FONT,
-            font_size=max(int(layout.get("formulas_min_font", 13)), fits["formulas"].font_size),
+            font_size=max(
+                int(layout.get("formulas_min_font", 13)),
+                fits["formulas"].font_size,
+            ),
             color=poster_style["formulas_color"],
             bold=False,
             align=layout.get("formulas_align", PP_ALIGN.CENTER),
@@ -228,7 +281,10 @@ def build_concept_poster_slide(
             box=boxes["note"],
             text=note_text,
             font_name=BODY_FONT,
-            font_size=max(int(layout.get("note_min_font", 12)), fits["note"].font_size),
+            font_size=max(
+                int(layout.get("note_min_font", 12)),
+                fits["note"].font_size,
+            ),
             color=poster_style["note_color"],
             bold=bool(layout.get("note_bold", False)),
             align=layout.get("note_align", PP_ALIGN.CENTER),
@@ -240,7 +296,10 @@ def build_concept_poster_slide(
             box=boxes["takeaway"],
             text=takeaway,
             font_name=BODY_FONT,
-            font_size=max(int(layout.get("takeaway_min_font", 13)), fits["takeaway"].font_size),
+            font_size=max(
+                int(layout.get("takeaway_min_font", 13)),
+                fits["takeaway"].font_size,
+            ),
             color=poster_style["takeaway_color"],
             bold=True,
             align=layout.get("takeaway_align", PP_ALIGN.CENTER),
