@@ -21,9 +21,11 @@ def _fit_text_size(
     min_font: int,
     max_font: int,
     max_lines: int,
+    prefer_single_line: bool = False,
 ) -> int:
     if not text.strip() or box.w <= 0 or box.h <= 0:
         return max_font
+
     fitted = fit_text(
         text,
         box.w,
@@ -31,6 +33,7 @@ def _fit_text_size(
         min_font_size=min_font,
         max_font_size=max_font,
         max_lines=max_lines,
+        prefer_single_line=prefer_single_line,
     )
     return max(min_font, fitted.font_size)
 
@@ -76,8 +79,19 @@ def _box_from_dict(raw: Mapping[str, Any], fallback: Box) -> Box:
 def _looks_formula_like(text: str) -> bool:
     if not text:
         return False
-    formula_chars = set("=⋅∈()[]{}₀₁₂₃₄₅₆₇₈₉±→←↦θγμσ^·/")
+    formula_chars = set("=⋅∈()[]{}₀₁₂₃₄₅₆₇₈₉±→←↦θγμσ^·/√Σ∥⊥παβδλ")
     return any(ch in formula_chars for ch in text)
+
+
+def _normalize_formula_like_text(text: str) -> str:
+    """
+    Small typography cleanup to reduce ugly wrapping in notation/example cells.
+    """
+    cleaned = (text or "").strip()
+    cleaned = cleaned.replace("^T", "ᵀ")
+    cleaned = cleaned.replace("->", "→")
+    cleaned = cleaned.replace("<-", "←")
+    return cleaned
 
 
 def _resolve_notation_style(
@@ -94,17 +108,48 @@ def _resolve_notation_style(
         table_fill_default = theme_obj.box_body_color
 
     return {
-        "table_fill_color": resolve_color(notation_style.get("table_fill_color"), table_fill_default),
-        "table_line_color": resolve_color(notation_style.get("table_line_color"), theme_obj.box_line_color),
-        "header_color": resolve_color(notation_style.get("header_color"), theme_obj.box_title_color),
-        "symbol_color": resolve_color(notation_style.get("symbol_color"), theme_obj.body_color),
-        "meaning_color": resolve_color(notation_style.get("meaning_color"), theme_obj.subtitle_color),
-        "example_formula_color": resolve_color(notation_style.get("example_formula_color"), theme_obj.body_color),
-        "example_text_color": resolve_color(notation_style.get("example_text_color"), theme_obj.subtitle_color),
-        "formulas_color": resolve_color(notation_style.get("formulas_color"), theme_obj.body_color),
-        "footer_color": resolve_color(notation_style.get("footer_color"), theme_obj.footer_color),
-        "footer_dark": bool(notation_style.get("footer_dark", theme_obj.footer_dark)),
-        "table_line_width_pt": float(notation_style.get("table_line_width_pt", 1.25)),
+        "table_fill_color": resolve_color(
+            notation_style.get("table_fill_color"),
+            table_fill_default,
+        ),
+        "table_line_color": resolve_color(
+            notation_style.get("table_line_color"),
+            theme_obj.box_line_color,
+        ),
+        "header_color": resolve_color(
+            notation_style.get("header_color"),
+            theme_obj.box_title_color,
+        ),
+        "symbol_color": resolve_color(
+            notation_style.get("symbol_color"),
+            theme_obj.body_color,
+        ),
+        "meaning_color": resolve_color(
+            notation_style.get("meaning_color"),
+            theme_obj.subtitle_color,
+        ),
+        "example_formula_color": resolve_color(
+            notation_style.get("example_formula_color"),
+            theme_obj.body_color,
+        ),
+        "example_text_color": resolve_color(
+            notation_style.get("example_text_color"),
+            theme_obj.subtitle_color,
+        ),
+        "formulas_color": resolve_color(
+            notation_style.get("formulas_color"),
+            theme_obj.body_color,
+        ),
+        "footer_color": resolve_color(
+            notation_style.get("footer_color"),
+            theme_obj.footer_color,
+        ),
+        "footer_dark": bool(
+            notation_style.get("footer_dark", theme_obj.footer_dark)
+        ),
+        "table_line_width_pt": float(
+            notation_style.get("table_line_width_pt", 1.25)
+        ),
     }
 
 
@@ -134,16 +179,22 @@ def build_notation_panel_slide(
 
     fallback_table_box = Box(
         float(layout.get("table_x", 0.88)),
-        float(layout.get("table_y", header_result.content_top_y + float(layout.get("content_to_table_gap", 0.10)))),
+        float(
+            layout.get(
+                "table_y",
+                header_result.content_top_y + float(layout.get("content_to_table_gap", 0.10)),
+            )
+        ),
         float(layout.get("table_w", 11.20)),
         float(layout.get("table_h", 4.85)),
     )
 
     table_box_dict = layout.get("table_box")
-    if isinstance(table_box_dict, Mapping):
-        table_outer = _box_from_dict(table_box_dict, fallback_table_box)
-    else:
-        table_outer = fallback_table_box
+    table_outer = (
+        _box_from_dict(table_box_dict, fallback_table_box)
+        if isinstance(table_box_dict, Mapping)
+        else fallback_table_box
+    )
 
     add_rounded_box(
         slide,
@@ -169,9 +220,9 @@ def build_notation_panel_slide(
         max_header_font=int(layout.get("max_header_font", 16)),
     )
 
-    header_cols = [
-        Box(c.x, table_layout.header_box.y, c.w, table_layout.header_box.h)
-        for c in table_layout.col_boxes
+    header_col_boxes = [
+        Box(col.x, table_layout.header_box.y, col.w, table_layout.header_box.h)
+        for col in table_layout.col_boxes
     ]
 
     for idx, header in enumerate(columns[:3]):
@@ -179,14 +230,14 @@ def build_notation_panel_slide(
         header_align = PP_ALIGN.CENTER if idx == 0 else PP_ALIGN.LEFT
         header_font = _fit_text_size(
             header_text,
-            header_cols[idx],
+            header_col_boxes[idx],
             min_font=table_layout.recommended_header_font,
             max_font=table_layout.recommended_header_font,
             max_lines=2,
         )
         _add_cell_text(
             slide,
-            box=header_cols[idx],
+            box=header_col_boxes[idx],
             text=header_text,
             font_name=BODY_FONT,
             font_size=header_font,
@@ -195,6 +246,11 @@ def build_notation_panel_slide(
             align=header_align,
         )
 
+    symbol_inner_pad_x = float(layout.get("symbol_inner_pad_x", 0.04))
+    meaning_inner_pad_x = float(layout.get("meaning_inner_pad_x", 0.05))
+    example_inner_pad_x = float(layout.get("example_inner_pad_x", 0.05))
+    row_inner_pad_y = float(layout.get("row_inner_pad_y", 0.02))
+
     for row_idx, row in enumerate(rows):
         if row_idx >= len(table_layout.row_boxes):
             break
@@ -202,27 +258,27 @@ def build_notation_panel_slide(
         row_box = table_layout.row_boxes[row_idx]
 
         symbol_box = Box(
-            table_layout.col_boxes[0].x,
-            row_box.y,
-            table_layout.col_boxes[0].w,
-            row_box.h,
+            table_layout.col_boxes[0].x + symbol_inner_pad_x,
+            row_box.y + row_inner_pad_y,
+            table_layout.col_boxes[0].w - 2 * symbol_inner_pad_x,
+            row_box.h - 2 * row_inner_pad_y,
         )
         meaning_box = Box(
-            table_layout.col_boxes[1].x,
-            row_box.y,
-            table_layout.col_boxes[1].w,
-            row_box.h,
+            table_layout.col_boxes[1].x + meaning_inner_pad_x,
+            row_box.y + row_inner_pad_y,
+            table_layout.col_boxes[1].w - 2 * meaning_inner_pad_x,
+            row_box.h - 2 * row_inner_pad_y,
         )
         example_box = Box(
-            table_layout.col_boxes[2].x,
-            row_box.y,
-            table_layout.col_boxes[2].w,
-            row_box.h,
+            table_layout.col_boxes[2].x + example_inner_pad_x,
+            row_box.y + row_inner_pad_y,
+            table_layout.col_boxes[2].w - 2 * example_inner_pad_x,
+            row_box.h - 2 * row_inner_pad_y,
         )
 
-        symbol_text = str(row.get("symbol", "")).strip()
+        symbol_text = _normalize_formula_like_text(str(row.get("symbol", "")).strip())
         meaning_text = str(row.get("meaning", "")).strip()
-        example_text = str(row.get("example", "")).strip()
+        example_text = _normalize_formula_like_text(str(row.get("example", "")).strip())
 
         symbol_font = _fit_text_size(
             symbol_text,
@@ -230,20 +286,27 @@ def build_notation_panel_slide(
             min_font=max(14, table_layout.recommended_body_font),
             max_font=max(16, table_layout.recommended_body_font + 1),
             max_lines=2,
+            prefer_single_line=False,
         )
         meaning_font = _fit_text_size(
             meaning_text,
             meaning_box,
-            min_font=max(13, table_layout.recommended_body_font - 1),
+            min_font=max(12, table_layout.recommended_body_font - 1),
             max_font=table_layout.recommended_body_font,
             max_lines=3,
+            prefer_single_line=False,
         )
+
+        example_is_formula = _looks_formula_like(example_text)
         example_font = _fit_text_size(
             example_text,
             example_box,
-            min_font=max(13, table_layout.recommended_body_font - 1),
+            min_font=max(12, table_layout.recommended_body_font - 1),
             max_font=table_layout.recommended_body_font,
-            max_lines=3,
+            max_lines=int(layout.get("example_max_lines", 3)),
+            prefer_single_line=bool(
+                example_is_formula and layout.get("prefer_single_line_formula_examples", False)
+            ),
         )
 
         _add_cell_text(
@@ -267,10 +330,10 @@ def build_notation_panel_slide(
             align=PP_ALIGN.LEFT,
         )
 
-        example_font_name = FORMULA_FONT if _looks_formula_like(example_text) else BODY_FONT
+        example_font_name = FORMULA_FONT if example_is_formula else BODY_FONT
         example_color = (
             notation_style["example_formula_color"]
-            if example_font_name == FORMULA_FONT
+            if example_is_formula
             else notation_style["example_text_color"]
         )
 
@@ -287,11 +350,14 @@ def build_notation_panel_slide(
 
     if formulas:
         formula_text = "   •   ".join(
-            item.strip() for item in formulas if item and item.strip()
+            _normalize_formula_like_text(item.strip())
+            for item in formulas
+            if item and item.strip()
         )
+        formula_y = float(layout.get("formula_y", table_outer.bottom + 0.18))
         formula_box = Box(
             float(layout.get("formula_x", 1.00)),
-            float(layout.get("formula_y", max(table_outer.bottom + 0.18, 6.55))),
+            formula_y,
             float(layout.get("formula_w", 11.00)),
             float(layout.get("formula_h", 0.22)),
         )

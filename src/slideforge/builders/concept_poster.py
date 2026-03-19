@@ -146,9 +146,7 @@ def build_concept_poster_slide(
     formulas = list(spec.get("formulas", []) or [])
     formulas_text = _join_items(formulas)
 
-    # IMPORTANT:
-    # concrete_example_anchor is treated as design guidance by default
-    # and is NOT rendered unless explicitly enabled.
+    # Design guidance is hidden by default.
     anchor_text = str(spec.get("concrete_example_anchor", "")).strip()
     visible_anchor_text = str(spec.get("visible_anchor_text", "")).strip()
     show_anchor_text = bool(

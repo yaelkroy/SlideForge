@@ -15,16 +15,23 @@ from slideforge.render.header import render_header_from_spec
 from slideforge.render.primitives import add_footer, add_rounded_box, add_textbox
 
 
-def _fit_text_size(
+def _join_items(items: list[str]) -> str:
+    cleaned = [item.strip() for item in items if item and item.strip()]
+    return "   •   ".join(cleaned)
+
+
+def _fit_font_size(
     text: str,
     box: Box,
     *,
     min_font: int,
     max_font: int,
-    max_lines: int,
+    max_lines: int | None = None,
+    prefer_single_line: bool = False,
 ) -> int:
     if not text.strip() or box.w <= 0 or box.h <= 0:
         return max_font
+
     fitted = fit_text(
         text,
         box.w,
@@ -32,12 +39,9 @@ def _fit_text_size(
         min_font_size=min_font,
         max_font_size=max_font,
         max_lines=max_lines,
+        prefer_single_line=prefer_single_line,
     )
     return max(min_font, fitted.font_size)
-
-
-def _join_items(items: list[str]) -> str:
-    return "   •   ".join(item.strip() for item in items if item and item.strip())
 
 
 def _box_from_dict(raw: Mapping[str, Any], fallback: Box) -> Box:
@@ -54,7 +58,7 @@ def _resolve_triple_role_style(
     *,
     theme_obj: SlideTheme,
 ) -> dict[str, Any]:
-    triple_style = dict(spec.get("triple_role_style", {}) or {})
+    role_style = dict(spec.get("triple_role_style", {}) or {})
 
     panel_fill_default = theme_obj.box_fill_color
     if panel_fill_default is None:
@@ -62,264 +66,97 @@ def _resolve_triple_role_style(
     if panel_fill_default is None:
         panel_fill_default = OFFWHITE
 
+    panel_line_default = theme_obj.box_line_color
+    if panel_line_default is None:
+        panel_line_default = theme_obj.panel_line_color
+
     return {
         "panel_fill_color": resolve_color(
-            triple_style.get("panel_fill_color"),
+            role_style.get("panel_fill_color"),
             panel_fill_default,
         ),
         "panel_line_color": resolve_color(
-            triple_style.get("panel_line_color"),
-            theme_obj.box_line_color,
+            role_style.get("panel_line_color"),
+            panel_line_default,
         ),
         "panel_title_color": resolve_color(
-            triple_style.get("panel_title_color"),
+            role_style.get("panel_title_color"),
             theme_obj.box_title_color,
         ),
         "panel_caption_color": resolve_color(
-            triple_style.get("panel_caption_color"),
+            role_style.get("panel_caption_color"),
             theme_obj.subtitle_color,
         ),
         "panel_formula_color": resolve_color(
-            triple_style.get("panel_formula_color"),
+            role_style.get("panel_formula_color"),
             theme_obj.body_color,
         ),
-        "panel_visual_variant": str(
-            triple_style.get("panel_visual_variant", theme_obj.panel_visual_variant)
-        ),
-        "panel_line_width_pt": float(
-            triple_style.get("panel_line_width_pt", 1.25)
-        ),
         "bullets_color": resolve_color(
-            triple_style.get("bullets_color"),
+            role_style.get("bullets_color"),
             theme_obj.subtitle_color,
         ),
         "formulas_color": resolve_color(
-            triple_style.get("formulas_color"),
+            role_style.get("formulas_color"),
             theme_obj.body_color,
         ),
         "takeaway_color": resolve_color(
-            triple_style.get("takeaway_color"),
+            role_style.get("takeaway_color"),
             theme_obj.subtitle_color,
         ),
         "footer_color": resolve_color(
-            triple_style.get("footer_color"),
+            role_style.get("footer_color"),
             theme_obj.footer_color,
         ),
         "footer_dark": bool(
-            triple_style.get("footer_dark", theme_obj.footer_dark)
-        ),
-    }
-
-
-def _resolve_panel_style(
-    panel: Mapping[str, Any],
-    *,
-    triple_style: Mapping[str, Any],
-) -> dict[str, Any]:
-    panel_style = dict(panel.get("style", {}) or {})
-    return {
-        "fill_color": resolve_color(
-            panel_style.get("fill_color"),
-            triple_style["panel_fill_color"],
-        ),
-        "line_color": resolve_color(
-            panel_style.get("line_color"),
-            triple_style["panel_line_color"],
-        ),
-        "title_color": resolve_color(
-            panel_style.get("title_color"),
-            triple_style["panel_title_color"],
-        ),
-        "caption_color": resolve_color(
-            panel_style.get("caption_color"),
-            triple_style["panel_caption_color"],
-        ),
-        "formula_color": resolve_color(
-            panel_style.get("formula_color"),
-            triple_style["panel_formula_color"],
+            role_style.get("footer_dark", theme_obj.footer_dark)
         ),
         "visual_variant": str(
-            panel_style.get("visual_variant", triple_style["panel_visual_variant"])
+            role_style.get("visual_variant", theme_obj.panel_visual_variant)
         ),
-        "line_width_pt": float(
-            panel_style.get("line_width_pt", triple_style["panel_line_width_pt"])
+        "panel_line_width_pt": float(
+            role_style.get("panel_line_width_pt", 1.2)
         ),
     }
 
 
-def _add_role_panel(
+def _add_fitted_text(
     slide,
-    panel: dict[str, Any],
-    panel_box: Box,
-    idx: int,
     *,
-    triple_style: Mapping[str, Any],
-    layout: Mapping[str, Any],
+    box: Box,
+    text: str,
+    font_name: str,
+    color,
+    min_font: int,
+    max_font: int,
+    max_lines: int | None = None,
+    bold: bool = False,
+    align=PP_ALIGN.CENTER,
+    prefer_single_line: bool = False,
 ) -> None:
-    resolved_panel_style = _resolve_panel_style(panel, triple_style=triple_style)
+    if not text.strip() or box.w <= 0 or box.h <= 0:
+        return
 
-    add_rounded_box(
-        slide,
-        panel_box.x,
-        panel_box.y,
-        panel_box.w,
-        panel_box.h,
-        line_color=resolved_panel_style["line_color"],
-        fill_color=resolved_panel_style["fill_color"],
-        line_width_pt=resolved_panel_style["line_width_pt"],
-    )
-
-    title_text = str(panel.get("title", "")).strip()
-    caption_text = str(panel.get("caption", "")).strip()
-    formula_text = str(panel.get("formula", "")).strip()
-
-    title_h = float(panel.get("title_h", layout.get("panel_title_h", 0.24)))
-    caption_h = float(
-        panel.get("caption_h", layout.get("panel_caption_h", 0.22 if caption_text else 0.0))
-    )
-    formula_h = float(
-        panel.get("formula_h", layout.get("panel_formula_h", 0.18 if formula_text else 0.0))
-    )
-
-    title_box = Box(panel_box.x + 0.10, panel_box.y + 0.10, panel_box.w - 0.20, title_h)
-    title_font = _fit_text_size(
-        title_text,
-        title_box,
-        min_font=int(panel.get("title_min_font", layout.get("panel_title_min_font", 12))),
-        max_font=int(panel.get("title_max_font", layout.get("panel_title_max_font", 15))),
-        max_lines=int(panel.get("title_max_lines", layout.get("panel_title_max_lines", 2))),
+    font_size = _fit_font_size(
+        text,
+        box,
+        min_font=min_font,
+        max_font=max_font,
+        max_lines=max_lines,
+        prefer_single_line=prefer_single_line,
     )
     add_textbox(
         slide,
-        x=title_box.x,
-        y=title_box.y,
-        w=title_box.w,
-        h=title_box.h,
-        text=title_text,
-        font_name=TITLE_FONT,
-        font_size=title_font,
-        color=resolved_panel_style["title_color"],
-        bold=True,
-        align=PP_ALIGN.CENTER,
+        x=box.x,
+        y=box.y,
+        w=box.w,
+        h=box.h,
+        text=text,
+        font_name=font_name,
+        font_size=font_size,
+        color=color,
+        bold=bold,
+        align=align,
     )
-
-    top_pad = float(panel.get("top_pad", layout.get("panel_top_pad", 0.10)))
-    above_gap = float(panel.get("gap_above_visual", layout.get("panel_gap_above_visual", 0.10)))
-    below_gap = float(panel.get("gap_below_visual", layout.get("panel_gap_below_visual", 0.08)))
-    bottom_pad = float(panel.get("bottom_pad", layout.get("panel_bottom_pad", 0.12)))
-
-    visual_h = panel_box.h - (
-        top_pad + title_h + above_gap + caption_h + formula_h + below_gap + bottom_pad
-    )
-    visual_h = max(0.85, visual_h)
-
-    visual_box = Box(
-        panel_box.x + 0.14,
-        panel_box.y + top_pad + title_h + above_gap,
-        panel_box.w - 0.28,
-        visual_h,
-    )
-
-    visual_override = panel.get("visual_box")
-    if isinstance(visual_override, Mapping):
-        visual_box = _box_from_dict(visual_override, visual_box)
-
-    add_mini_visual(
-        slide,
-        kind=str(panel.get("mini_visual", "")),
-        x=visual_box.x,
-        y=visual_box.y,
-        w=visual_box.w,
-        h=visual_box.h,
-        suffix=f"_triple_role_{idx}",
-        variant=resolved_panel_style["visual_variant"],
-    )
-
-    current_y = visual_box.bottom + float(
-        panel.get("below_visual_gap", layout.get("panel_below_visual_gap", 0.08))
-    )
-
-    if caption_text:
-        caption_box = Box(panel_box.x + 0.12, current_y, panel_box.w - 0.24, caption_h)
-        caption_font = _fit_text_size(
-            caption_text,
-            caption_box,
-            min_font=int(panel.get("caption_min_font", layout.get("panel_caption_min_font", 11))),
-            max_font=int(panel.get("caption_max_font", layout.get("panel_caption_max_font", 13))),
-            max_lines=int(panel.get("caption_max_lines", layout.get("panel_caption_max_lines", 2))),
-        )
-        add_textbox(
-            slide,
-            x=caption_box.x,
-            y=caption_box.y,
-            w=caption_box.w,
-            h=caption_box.h,
-            text=caption_text,
-            font_name=BODY_FONT,
-            font_size=caption_font,
-            color=resolved_panel_style["caption_color"],
-            bold=False,
-            align=PP_ALIGN.CENTER,
-        )
-        current_y += caption_h + float(
-            panel.get("caption_to_formula_gap", layout.get("caption_to_formula_gap", 0.04))
-        )
-
-    if formula_text:
-        formula_box = Box(panel_box.x + 0.10, current_y, panel_box.w - 0.20, formula_h)
-        formula_font = _fit_text_size(
-            formula_text,
-            formula_box,
-            min_font=int(panel.get("formula_min_font", layout.get("panel_formula_min_font", 11))),
-            max_font=int(panel.get("formula_max_font", layout.get("panel_formula_max_font", 13))),
-            max_lines=int(panel.get("formula_max_lines", layout.get("panel_formula_max_lines", 2))),
-        )
-        add_textbox(
-            slide,
-            x=formula_box.x,
-            y=formula_box.y,
-            w=formula_box.w,
-            h=formula_box.h,
-            text=formula_text,
-            font_name=FORMULA_FONT,
-            font_size=formula_font,
-            color=resolved_panel_style["formula_color"],
-            bold=False,
-            align=PP_ALIGN.CENTER,
-        )
-
-
-def _default_panel_region(
-    *,
-    header_content_top_y: float,
-    layout: Mapping[str, Any],
-    has_bullets: bool,
-    has_formulas: bool,
-    has_takeaway: bool,
-) -> Box:
-    panel_x = float(layout.get("panel_x", 0.88))
-    panel_y = float(
-        layout.get(
-            "panel_y",
-            header_content_top_y + float(layout.get("content_to_panel_gap", 0.18)),
-        )
-    )
-    panel_w = float(layout.get("panel_w", 11.24))
-
-    if "panel_h" in layout:
-        panel_h = float(layout["panel_h"])
-    else:
-        if has_takeaway:
-            bottom_limit = float(layout.get("panel_bottom_limit", 4.86))
-        elif has_formulas:
-            bottom_limit = float(layout.get("panel_bottom_limit", 5.20))
-        elif has_bullets:
-            bottom_limit = float(layout.get("panel_bottom_limit", 5.00))
-        else:
-            bottom_limit = float(layout.get("panel_bottom_limit", 5.20))
-        panel_h = max(1.30, bottom_limit - panel_y)
-
-    return Box(panel_x, panel_y, panel_w, panel_h)
 
 
 def build_triple_role_slide(
@@ -334,9 +171,15 @@ def build_triple_role_slide(
     slide = new_slide(prs, bg)
 
     layout = dict(spec.get("layout", {}) or {})
+    style = _resolve_triple_role_style(spec, theme_obj=theme_obj)
+
     panels = list(spec.get("panels", []) or [])
     bullets = list(spec.get("bullets", []) or [])
+    bullets_text = _join_items(bullets)
+
     formulas = list(spec.get("formulas", []) or [])
+    formulas_text = _join_items(formulas)
+
     takeaway = str(spec.get("takeaway", "")).strip()
 
     header_result = render_header_from_spec(
@@ -345,129 +188,239 @@ def build_triple_role_slide(
         theme=theme_obj,
     )
 
-    triple_style = _resolve_triple_role_style(spec, theme_obj=theme_obj)
+    panel_region_fallback = Box(
+        float(layout.get("panel_x", 0.88)),
+        float(
+            layout.get(
+                "panel_y",
+                header_result.content_top_y + float(layout.get("content_to_panel_gap", 0.14)),
+            )
+        ),
+        float(layout.get("panel_w", 11.24)),
+        float(layout.get("panel_h", 3.05)),
+    )
+    panel_region_raw = layout.get("panel_region")
+    panel_region = (
+        _box_from_dict(panel_region_raw, panel_region_fallback)
+        if isinstance(panel_region_raw, Mapping)
+        else panel_region_fallback
+    )
 
-    region_dict = layout.get("panel_region")
-    if isinstance(region_dict, Mapping):
-        fallback_region = _default_panel_region(
-            header_content_top_y=header_result.content_top_y,
-            layout=layout,
-            has_bullets=bool(bullets),
-            has_formulas=bool(formulas),
-            has_takeaway=bool(takeaway),
-        )
-        region = _box_from_dict(region_dict, fallback_region)
-    else:
-        region = _default_panel_region(
-            header_content_top_y=header_result.content_top_y,
-            layout=layout,
-            has_bullets=bool(bullets),
-            has_formulas=bool(formulas),
-            has_takeaway=bool(takeaway),
-        )
+    panel_gap = float(layout.get("panel_gap", 0.24))
+    default_cols = max(1, len(panels))
+    panel_boxes = distribute_columns(
+        panel_region,
+        default_cols,
+        gap=panel_gap,
+    )
 
-    gap = float(layout.get("panel_gap", 0.24))
-    count = max(1, len(panels))
-    panel_boxes = distribute_columns(region, count, gap=gap)
+    visible_panels = min(len(panels), len(panel_boxes))
+    panel_boxes = panel_boxes[:visible_panels]
 
-    for idx, panel in enumerate(panels):
-        _add_role_panel(
+    panel_inner_pad_x = float(layout.get("panel_inner_pad_x", 0.12))
+    panel_inner_pad_top = float(layout.get("panel_inner_pad_top", 0.10))
+    visual_h = float(layout.get("panel_visual_h", 1.14))
+    title_h = float(layout.get("panel_title_h", 0.24))
+    caption_h = float(layout.get("panel_caption_h", 0.28))
+    title_to_visual_gap = float(layout.get("title_to_visual_gap", 0.05))
+    visual_to_caption_gap = float(layout.get("visual_to_caption_gap", 0.06))
+    caption_to_formula_gap = float(layout.get("caption_to_formula_gap", 0.05))
+    formula_bottom_pad = float(layout.get("formula_bottom_pad", 0.08))
+
+    for panel, panel_box in zip(panels, panel_boxes):
+        add_rounded_box(
             slide,
-            panel,
-            panel_boxes[idx],
-            idx,
-            triple_style=triple_style,
-            layout=layout,
+            panel_box.x,
+            panel_box.y,
+            panel_box.w,
+            panel_box.h,
+            line_color=resolve_color(
+                panel.get("line_color"),
+                style["panel_line_color"],
+            ),
+            fill_color=resolve_color(
+                panel.get("fill_color"),
+                style["panel_fill_color"],
+            ),
+            line_width_pt=float(
+                panel.get("line_width_pt", style["panel_line_width_pt"])
+            ),
         )
 
-    if bullets:
-        bullets_text = _join_items(bullets)
-        bullets_box = Box(
-            float(layout.get("bullets_x", 1.02)),
-            float(layout.get("bullets_y", region.bottom + 0.20)),
-            float(layout.get("bullets_w", 10.96)),
-            float(layout.get("bullets_h", 0.24)),
-        )
-        bullets_font = _fit_text_size(
-            bullets_text,
-            bullets_box,
-            min_font=int(layout.get("bullets_min_font", 12)),
-            max_font=int(layout.get("bullets_max_font", 14)),
-            max_lines=int(layout.get("bullets_max_lines", 2)),
-        )
-        add_textbox(
+        inner_x = panel_box.x + panel_inner_pad_x
+        inner_w = panel_box.w - 2 * panel_inner_pad_x
+
+        panel_title = str(panel.get("title", "")).strip()
+        title_box = Box(inner_x, panel_box.y + panel_inner_pad_top, inner_w, title_h)
+        _add_fitted_text(
             slide,
-            x=bullets_box.x,
-            y=bullets_box.y,
-            w=bullets_box.w,
-            h=bullets_box.h,
+            box=title_box,
+            text=panel_title,
+            font_name=TITLE_FONT,
+            color=style["panel_title_color"],
+            min_font=int(layout.get("panel_title_min_font", 12)),
+            max_font=int(panel.get("title_font_size", layout.get("panel_title_max_font", 16))),
+            max_lines=2,
+            bold=True,
+            align=PP_ALIGN.CENTER,
+        )
+
+        visual_box = Box(
+            inner_x,
+            title_box.bottom + title_to_visual_gap,
+            inner_w,
+            visual_h,
+        )
+        mini_visual = str(panel.get("mini_visual", "")).strip()
+        if mini_visual:
+            add_mini_visual(
+                slide,
+                kind=mini_visual,
+                x=visual_box.x,
+                y=visual_box.y,
+                w=visual_box.w,
+                h=visual_box.h,
+                suffix="_triple_role",
+                variant=str(panel.get("visual_variant", style["visual_variant"])),
+            )
+
+        caption_text = str(panel.get("caption", "")).strip()
+        caption_box = Box(
+            inner_x,
+            visual_box.bottom + visual_to_caption_gap,
+            inner_w,
+            caption_h,
+        )
+        _add_fitted_text(
+            slide,
+            box=caption_box,
+            text=caption_text,
+            font_name=BODY_FONT,
+            color=style["panel_caption_color"],
+            min_font=int(layout.get("panel_caption_min_font", 11)),
+            max_font=int(panel.get("caption_font_size", layout.get("panel_caption_max_font", 13))),
+            max_lines=2,
+            bold=False,
+            align=PP_ALIGN.CENTER,
+        )
+
+        formula_text = str(panel.get("formula", "")).strip()
+        formula_box = Box(
+            inner_x,
+            caption_box.bottom + caption_to_formula_gap,
+            inner_w,
+            max(0.0, panel_box.bottom - (caption_box.bottom + caption_to_formula_gap) - formula_bottom_pad),
+        )
+        _add_fitted_text(
+            slide,
+            box=formula_box,
+            text=formula_text,
+            font_name=FORMULA_FONT,
+            color=style["panel_formula_color"],
+            min_font=int(layout.get("panel_formula_min_font", 11)),
+            max_font=int(panel.get("formula_font_size", layout.get("panel_formula_max_font", 13))),
+            max_lines=int(layout.get("panel_formula_max_lines", 2)),
+            bold=False,
+            align=PP_ALIGN.CENTER,
+        )
+
+    occupied_bottom = panel_region.bottom
+    bottom_gap = float(layout.get("bottom_text_gap", 0.10))
+    left_pad = float(layout.get("bottom_text_side_pad", 0.48))
+    bottom_x = float(layout.get("bottom_text_x", panel_region.x + left_pad))
+    bottom_w = float(layout.get("bottom_text_w", panel_region.w - 2 * left_pad))
+
+    bullets_y = float(layout.get("bullets_y", occupied_bottom + 0.18))
+    formulas_y_default = bullets_y + float(layout.get("bullets_h", 0.28)) + bottom_gap
+    formulas_y = float(layout.get("formula_y", formulas_y_default))
+    takeaway_y_default = formulas_y + float(layout.get("formula_h", 0.28)) + bottom_gap
+    takeaway_y = float(layout.get("takeaway_y", takeaway_y_default))
+
+    bullets_h = float(layout.get("bullets_h", 0.28))
+    formula_h_box = float(layout.get("formula_h", 0.28))
+    takeaway_h = float(layout.get("takeaway_h", 0.30))
+
+    show_bullets = bool(bullets_text)
+    show_formulas = bool(formulas_text)
+    show_takeaway = bool(takeaway)
+
+    footer_clearance_top = float(layout.get("footer_clearance_top", 6.58))
+
+    projected_bottom = 0.0
+    if show_bullets:
+        projected_bottom = max(projected_bottom, bullets_y + bullets_h)
+    if show_formulas:
+        projected_bottom = max(projected_bottom, formulas_y + formula_h_box)
+    if show_takeaway:
+        projected_bottom = max(projected_bottom, takeaway_y + takeaway_h)
+
+    if projected_bottom > footer_clearance_top:
+        if show_bullets and show_formulas and show_takeaway:
+            show_formulas = False
+            formulas_text = ""
+            takeaway_y = bullets_y + bullets_h + bottom_gap
+
+        projected_bottom = 0.0
+        if show_bullets:
+            projected_bottom = max(projected_bottom, bullets_y + bullets_h)
+        if show_formulas:
+            projected_bottom = max(projected_bottom, formulas_y + formula_h_box)
+        if show_takeaway:
+            projected_bottom = max(projected_bottom, takeaway_y + takeaway_h)
+
+    if projected_bottom > footer_clearance_top:
+        if show_bullets and show_takeaway:
+            show_bullets = False
+            bullets_text = ""
+            takeaway_y = occupied_bottom + 0.22
+
+    if show_bullets:
+        bullets_box = Box(bottom_x, bullets_y, bottom_w, bullets_h)
+        _add_fitted_text(
+            slide,
+            box=bullets_box,
             text=bullets_text,
             font_name=BODY_FONT,
-            font_size=bullets_font,
-            color=triple_style["bullets_color"],
+            color=style["bullets_color"],
+            min_font=int(layout.get("bullets_min_font", 12)),
+            max_font=int(layout.get("bullets_max_font", 13)),
+            max_lines=int(layout.get("bullets_max_lines", 2)),
             bold=bool(layout.get("bullets_bold", False)),
             align=layout.get("bullets_align", PP_ALIGN.CENTER),
         )
 
-    if formulas:
-        formulas_text = _join_items(formulas)
-        formulas_box = Box(
-            float(layout.get("formula_x", 1.02)),
-            float(layout.get("formula_y", region.bottom + 0.56)),
-            float(layout.get("formula_w", 10.96)),
-            float(layout.get("formula_h", 0.20)),
-        )
-        formulas_font = _fit_text_size(
-            formulas_text,
-            formulas_box,
-            min_font=int(layout.get("formula_min_font", 12)),
-            max_font=int(layout.get("formula_max_font", 14)),
-            max_lines=int(layout.get("formula_max_lines", 2)),
-        )
-        add_textbox(
+    if show_formulas:
+        formula_box = Box(bottom_x, formulas_y, bottom_w, formula_h_box)
+        _add_fitted_text(
             slide,
-            x=formulas_box.x,
-            y=formulas_box.y,
-            w=formulas_box.w,
-            h=formulas_box.h,
+            box=formula_box,
             text=formulas_text,
             font_name=FORMULA_FONT,
-            font_size=formulas_font,
-            color=triple_style["formulas_color"],
+            color=style["formulas_color"],
+            min_font=int(layout.get("formula_min_font", 11)),
+            max_font=int(layout.get("formula_max_font", 13)),
+            max_lines=int(layout.get("formula_max_lines", 2)),
             bold=False,
             align=layout.get("formula_align", PP_ALIGN.CENTER),
         )
 
-    if takeaway:
-        takeaway_box = Box(
-            float(layout.get("takeaway_x", 1.02)),
-            float(layout.get("takeaway_y", region.bottom + 0.92)),
-            float(layout.get("takeaway_w", 10.96)),
-            float(layout.get("takeaway_h", 0.24)),
-        )
-        takeaway_font = _fit_text_size(
-            takeaway,
-            takeaway_box,
-            min_font=int(layout.get("takeaway_min_font", 12)),
-            max_font=int(layout.get("takeaway_max_font", 14)),
-            max_lines=int(layout.get("takeaway_max_lines", 2)),
-        )
-        add_textbox(
+    if show_takeaway:
+        takeaway_box = Box(bottom_x, takeaway_y, bottom_w, takeaway_h)
+        _add_fitted_text(
             slide,
-            x=takeaway_box.x,
-            y=takeaway_box.y,
-            w=takeaway_box.w,
-            h=takeaway_box.h,
+            box=takeaway_box,
             text=takeaway,
             font_name=BODY_FONT,
-            font_size=takeaway_font,
-            color=triple_style["takeaway_color"],
-            bold=bool(layout.get("takeaway_bold", False)),
+            color=style["takeaway_color"],
+            min_font=int(layout.get("takeaway_min_font", 12)),
+            max_font=int(layout.get("takeaway_max_font", 13)),
+            max_lines=int(layout.get("takeaway_max_lines", 2)),
+            bold=True,
             align=layout.get("takeaway_align", PP_ALIGN.CENTER),
         )
 
     add_footer(
         slide,
-        dark=triple_style["footer_dark"],
-        color=triple_style["footer_color"],
+        dark=style["footer_dark"],
+        color=style["footer_color"],
     )
