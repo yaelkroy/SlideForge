@@ -6,10 +6,10 @@ from slideforge.config.paths import OUTPUT_FILE, ensure_runtime_dirs
 from slideforge.io.backgrounds import validate_backgrounds
 from slideforge.app.build_deck import create_presentation
 from slideforge.builders.builder_registry import BUILDERS
-from slideforge.projects.ml_foundations import ML_FOUNDATIONS_PART1_SLIDES
+from slideforge.projects.ml_foundations import ML_FOUNDATIONS_SLIDES
 
 
-SLIDES = ML_FOUNDATIONS_PART1_SLIDES
+SLIDES = ML_FOUNDATIONS_SLIDES
 
 
 def build_deck() -> None:
