@@ -160,6 +160,8 @@ Prefer calculated placement for:
 - table font size
 - card visual centering
 - safe spacing between subtitle, diagrams, formulas, and notes
+- side-column reservation for dependency or hub-and-spoke slides
+- safe bottom placement for formula ribbons and takeaway text
 
 ### Builders should avoid hardcoded guess stacks
 
@@ -169,6 +171,8 @@ Avoid patterns like:
 - manually stacking 4–5 text bands under one image
 - assuming all captions fit in one line
 - assuming formulas always fit into the same narrow ribbon
+- placing a right-side explanation box without reserving horizontal space for it
+- placing formula and takeaway bands at fixed Y positions regardless of actual content height
 
 ### Harmony rule
 
@@ -218,6 +222,13 @@ Use for:
 - prerequisite maps
 - concept dependency diagrams
 - hub-and-spoke explanation slides
+
+Rules:
+
+- the diagram must have its own reserved region
+- the explanation box must not overlap the diagram
+- right-side explanatory columns should be treated as a real layout region, not as an afterthought
+- formula and takeaway text should sit below the lowest occupied content area
 
 Avoid adding dense bullet columns unless absolutely necessary.
 
@@ -293,6 +304,11 @@ Use for:
 - one-object-multiple-interpretations slides
 - bridge slides where role changes must be shown with large annotations
 
+Important rule:
+
+- use only when it is genuinely stronger than `triple_role`
+- if it creates a near-duplicate of an adjacent bridge slide, merge the ideas into one stronger slide instead
+
 ---
 
 ## Anti-Patterns
@@ -356,6 +372,30 @@ Do not use nearly identical visuals for concepts that are supposed to be contras
 
 If the audience cannot see the difference immediately, the slide failed.
 
+### Anti-pattern 8: metadata leakage
+
+Do not render design guidance onto the visible slide by accident.
+
+Examples of leakage:
+
+- “Use one Gaussian with clear mean and spread”
+- “Faint background words only...”
+- other author/LLM notes appearing as visible audience-facing text
+
+Fields like `purpose`, `visual`, `speaker_intent`, and `concrete_example_anchor` are usually metadata, not slide text.
+
+### Anti-pattern 9: side-panel intrusion
+
+Do not place an explanation box or side panel on top of a diagram region just because empty-looking space exists visually.
+
+If the region is conceptually part of the diagram, it must remain reserved for the diagram.
+
+### Anti-pattern 10: bottom-ribbon collision
+
+Do not place formula strips and takeaway text at fixed Y values when the diagram or side panels may extend lower on some slides.
+
+Bottom content must react to actual occupied height.
+
 ---
 
 ## When to Split a Slide
@@ -368,6 +408,7 @@ Split a slide when one or more of these becomes true:
 - the diagram requires several captions to be understood
 - the slide uses many cards, boxes, or table rows
 - the renderer is forced to shrink the visual to fit text
+- two consecutive slides are teaching almost the same thing
 
 ### Typical split cases
 
@@ -375,6 +416,10 @@ Split a slide when one or more of these becomes true:
 - one example slide becomes object-to-vector slide + vector-to-prediction slide
 - one notation slide becomes two notation slides
 - one 6-card grid becomes two 3-card grids
+
+### Merge rule
+
+If two neighboring slides are substantially teaching the same bridge or contrast, prefer merging them into one stronger slide.
 
 ---
 
@@ -407,6 +452,10 @@ Formulas should be minimal or absent.
 
 Do not shrink formulas to rescue an overcrowded layout.  
 If the formula area becomes too tight, reduce content or split the slide.
+
+### Formula placement rule
+
+Formula ribbons should be placed relative to actual occupied content, not as fixed “magic Y” positions.
 
 ---
 
@@ -442,6 +491,34 @@ The builder should calculate which is appropriate instead of forcing a tiny one-
 
 ---
 
+## Metadata and Visibility Rules
+
+This is now a required spec-writing rule.
+
+### Usually metadata only
+
+These fields are typically for authors, future editors, or the LLM:
+
+- `purpose`
+- `visual`
+- `speaker_intent`
+- `concrete_example_anchor`
+
+Do not assume they should appear on the slide.
+
+### If text should be visible
+
+Use explicit audience-facing fields such as:
+
+- `visible_anchor_text`
+- `show_anchor_text: True`
+
+### Default rule
+
+If a field is primarily design guidance, it should remain hidden unless explicitly surfaced.
+
+---
+
 ## Table and Notation Rules
 
 Notation panels should be designed from row geometry, not only from habit.
@@ -462,6 +539,32 @@ Table font size should be derived from:
 - expected maximum line count
 
 Do not default to tiny table fonts just because there are multiple rows.
+
+---
+
+## Mini-Visual Rules
+
+Mini visuals should be technically explanatory and robust.
+
+### Good practice
+
+- use stable, reusable motifs
+- prefer diagram semantics over decoration
+- keep generated visuals consistent with the slide theme
+
+### Font and glyph rule
+
+Generated PNG mini-visuals should not rely on fragile glyphs unless the rendering font is explicitly controlled.
+
+Prefer:
+
+- Matplotlib-safe fonts
+- drawn symbols when necessary
+- robust text choices
+
+Avoid:
+
+- special Unicode symbols that may trigger missing-glyph warnings in the rendering environment
 
 ---
 
@@ -490,6 +593,8 @@ A good slide spec says things like:
 - keep the slide conceptual and clean
 - this should be a hero example slide
 - treat this as a worked example storyboard
+- reserve the right side for the explanation box
+- keep formula and takeaway below the diagram region
 
 ### Weak spec writing
 
@@ -530,6 +635,8 @@ For visually sensitive slides, explicitly say things like:
 - this should look like a poster-style concept slide
 - note height should be auto-calculated
 - visual and text stack should be vertically balanced
+- reserve a real right column for side explanation
+- do not let metadata fields leak into visible content
 
 ---
 
@@ -564,6 +671,7 @@ When creating or updating a slide spec, choose the builder by visual intent.
 
 - the transition between roles is the actual teaching point
 - the difference between the roles must be visually obvious
+- it is materially better than a `triple_role` slide
 
 ---
 
@@ -577,6 +685,8 @@ For the early foundations section:
 - keep prerequisite concepts on separate large poster slides when needed
 - use recurring examples sparingly and visibly
 - if point, vector, and feature vector are visually too similar, strengthen the semantics or merge weak duplicate slides into one stronger bridge slide
+- if a dependency slide has a side explanation, reserve real space for it
+- if formulas and takeaway compete at the bottom, reduce content or compute safer bottom spacing
 
 A visually strong Part I is more important than compressing content.
 

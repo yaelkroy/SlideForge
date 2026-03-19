@@ -1,3 +1,9 @@
+
+---
+
+# `LLM_CONTEXT.md`
+
+```md
 # LLM_CONTEXT.md
 
 ## Project Identity
@@ -41,7 +47,7 @@ If something can be made more explicit for future LLM understanding, do it.
 
 This project must keep documentation synchronized with the actual codebase.
 
-Whenever the code structure, module responsibilities, file layout, build flow, naming conventions, builder inventory, theme system, header/layout behavior, slide-spec rules, or project architecture changes in a way that affects repo understanding, the LLM should explicitly check whether the following files also need updates:
+Whenever the code structure, module responsibilities, file layout, build flow, naming conventions, builder inventory, theme system, header/layout behavior, slide-spec rules, project architecture, or asset-generation rules change in a way that affects repo understanding, the LLM should explicitly check whether the following files also need updates:
 
 - `README.md`
 - `LLM_CONTEXT.md`
@@ -111,7 +117,7 @@ The repository is working, modular, and mid-refactor.
 
 Current build flow is:
 
-**project slide specs -> builder registry -> slide builders -> layout/header/theme helpers -> rendering primitives / mini visuals -> pptx output**
+**project slide specs -> builder registry -> slide builders -> theme/header/layout helpers -> rendering primitives / mini visuals -> pptx output**
 
 At the moment:
 
@@ -121,6 +127,7 @@ At the moment:
 - the system already produces useful slides and should be extended incrementally, not rewritten wholesale
 - layout is increasingly being treated as a measurable geometry problem rather than repeated manual tweaking
 - visual styling is increasingly being treated as a theme/token problem rather than hardcoded builder-local colors
+- generated PNG mini-visuals now need their own font policy separate from PowerPoint fonts
 
 ### Current active modules
 
@@ -134,7 +141,14 @@ Important current modules include:
 - `src/slideforge/render/primitives.py`
 - `src/slideforge/render/header.py`
 - `src/slideforge/assets/mini_visuals.py`
-- `src/slideforge/layout/__init__.py`
+- `src/slideforge/layout/base.py`
+- `src/slideforge/layout/text_fit.py`
+- `src/slideforge/layout/grid.py`
+- `src/slideforge/layout/stack.py`
+- `src/slideforge/layout/poster.py`
+- `src/slideforge/layout/table.py`
+- `src/slideforge/layout/cards.py`
+- `src/slideforge/layout/dependency.py`
 - `src/slideforge/layout/autofit.py`
 - `src/slideforge/app/build_deck.py`
 - `src/slideforge/app/presentation_factory.py`
@@ -173,7 +187,7 @@ When extending the system, prefer:
 - adding specs in `projects/...`
 - reusing rendering primitives
 - reusing mini-visual motifs
-- reusing layout/autofit helpers
+- reusing layout helpers
 - reusing theme/header helpers
 - avoiding logic growth in `slideforge_app.py`
 
@@ -222,7 +236,7 @@ When a new slide pattern repeats, prefer adding a new builder rather than overlo
 
 ## Theme System
 
-A major new design direction is the theme layer in:
+A major design direction is the theme layer in:
 
 - `src/slideforge/config/themes.py`
 
@@ -278,7 +292,7 @@ Avoid:
 
 ## Shared Header Layer
 
-A major new design direction is the shared header layer in:
+A major design direction is the shared header layer in:
 
 - `src/slideforge/render/header.py`
 
@@ -323,13 +337,77 @@ Avoid:
 
 ---
 
-## Layout / Autofit Layer
+## Layout Layer
 
-A major design direction is the layout/autofit layer in:
+The layout layer has been deliberately split to keep files below the repo’s file-size threshold and to keep responsibilities explicit.
 
-- `src/slideforge/layout/autofit.py`
+### `base.py`
 
-This layer exists because many lecture-slide failures are geometry failures:
+Shared geometry primitives such as:
+
+- `Box`
+- `SlideSize`
+
+### `text_fit.py`
+
+Handles:
+
+- wrapping
+- line counts
+- height estimation
+- font-size fitting
+- note-height heuristics
+
+### `grid.py`
+
+Handles:
+
+- row distribution
+- column distribution
+
+### `stack.py`
+
+Handles:
+
+- vertical stacking of text blocks
+- auto-sized stacked text regions
+
+### `poster.py`
+
+Handles:
+
+- concept-poster visual/text balancing
+
+### `table.py`
+
+Handles:
+
+- notation-table geometry
+- row-based body/header sizing
+
+### `cards.py`
+
+Handles:
+
+- centered visuals inside card-like layouts
+- note box estimation
+
+### `dependency.py`
+
+Handles:
+
+- dependency-map geometry
+- right-column reservation
+- explanation box placement
+- formula/takeaway placement below the lowest occupied region
+
+### `autofit.py`
+
+This is now a **compatibility/export layer** that re-exports the split layout API so builders can continue importing from one stable module path.
+
+### Layout rule
+
+The layout layer exists because many lecture-slide failures are geometry failures:
 
 - notes are too small even though there is enough free space
 - a single diagram is stuck in the top half of a large box
@@ -337,38 +415,10 @@ This layer exists because many lecture-slide failures are geometry failures:
 - notation tables shrink too aggressively
 - vertical whitespace is poorly distributed
 - cards do not center the visual payload
+- right-side sidebars overlap diagrams
+- bottom ribbons drift into the footer zone
 
-### Design rule
-
-The slide size is known.  
-The container box is known.  
-Text size and line count can be estimated.  
-So layout should increasingly be **calculated**.
-
-### What layout/autofit should handle
-
-The layout layer should increasingly support:
-
-- text fitting by width and height
-- estimated line count
-- deciding whether a note should be one line or two lines
-- vertical stacking without overlap
-- concept-poster visual/text balancing
-- notation-table sizing from row geometry
-- centered visuals inside cards
-- more mathematically harmonious slide coverage
-
-### Preferred usage
-
-Builders should use `layout/autofit.py` when they need:
-
-- a large dominant visual plus a short text stack
-- row-based readable tables
-- centered card visuals
-- measured note sizing
-- safe vertical placement
-
-Avoid hand-placing several text bands under a diagram when the same result can be computed.
+Layout should increasingly be **calculated**.
 
 ---
 
@@ -407,26 +457,22 @@ Mini visuals should be:
 - technically explanatory
 - builder-agnostic when possible
 
-### Preferred implementation style
+### Font rule for generated assets
+
+PowerPoint text fonts and Matplotlib-generated asset fonts are separate concerns.
 
 Prefer:
 
-- Matplotlib for technical mini-diagrams
-- transparent PNG generation into `_generated/`
-- simple named motifs with aliases
-- embedding through `python-pptx`
+- PowerPoint text fonts for `.pptx` text
+- Matplotlib-safe fonts for generated PNGs:
+  - `DejaVu Sans`
+  - `DejaVu Sans Mono`
 
-Avoid:
-
-- builder-local ad hoc drawing code when the same motif might be reused
-- decorative visuals that do not explain the concept
-- weak visual semantics that require captions to rescue them
+Avoid relying on fragile special glyphs in generated assets unless the font is explicitly controlled.
 
 ### Refactoring direction
 
-`mini_visuals.py` is already large and should not keep growing indefinitely.
-
-The preferred future split is by visual family, for example:
+`mini_visuals.py` is still a candidate for further split by visual family, for example:
 
 - geometry visuals
 - optimization visuals
@@ -474,10 +520,6 @@ If two consecutive slides teach the same bridge, prefer:
 - one clearer takeaway
 
 Do not keep both just because both are decent individually.
-
-Example of preferred cleanup logic:
-
-- if slide 17 and slide 18 teach the same concept, merge into one stronger slide instead of keeping two similar slides
 
 ---
 
@@ -736,11 +778,14 @@ These are good cleanup targets because they improve clarity without destabilizin
    - keep naming stable and explicit
    - strengthen semantics so visuals are understandable before captions
    - avoid silently drifting visual meaning
+   - avoid fragile glyph dependencies in Matplotlib-generated assets
 
 6. **Layout hardening**
-   - move fragile manual spacing into `layout/autofit.py`
+   - keep fragile spacing out of builders
+   - prefer the split layout modules over repeated local geometry code
    - compute note height, table font size, and vertical stacks instead of guessing
    - make visual centering the default behavior for card-like builders
+   - reserve side columns explicitly for dependency-style slides
 
 7. **Project spec organization**
    - keep deck-specific slide specs inside `projects/`
@@ -769,7 +814,7 @@ When continuing work in this repo:
 - extend the builder layer rather than bypassing it
 - reuse existing primitives before adding new drawing helpers
 - reuse existing mini-visual motifs before creating new ones
-- reuse existing layout/autofit helpers before hardcoding new placement guesses
+- reuse existing layout helpers before hardcoding new placement guesses
 - reuse `render/header.py` before reimplementing a title/divider/subtitle stack
 - reuse `config/themes.py` before inventing new builder-local color systems
 - prefer introducing a new `kind` over making one builder excessively branchy

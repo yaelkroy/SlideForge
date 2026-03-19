@@ -9,7 +9,7 @@ SlideForge is a Python-native presentation engine for generating polished academ
 - probability and statistics
 - programming and technical education
 
-The project currently generates PowerPoint presentations (`.pptx`) from structured Python slide specs and is evolving toward a more reusable, builder-driven, theme-aware, layout-aware architecture.
+The project currently generates PowerPoint presentations (`.pptx`) from structured Python slide specs and is evolving toward a more reusable, builder-driven, theme-aware, and layout-aware architecture.
 
 ---
 
@@ -24,7 +24,7 @@ Current reality:
 - renders reusable technical mini-illustrations through `mini_visuals.py`
 - supports larger poster-style concept slides through dedicated builder families
 - uses shared theme and header layers so color systems and title/subtitle/divider layout do not have to be hardcoded in each builder
-- increasingly uses layout/autofit helpers so diagrams, notes, captions, formulas, and tables can be sized and placed mathematically rather than by guesswork
+- uses a split layout system so fitting, stacking, grids, posters, tables, cards, and dependency maps are computed instead of manually guessed
 - writes the generated deck to the repo root as `ML_Foundations_Auto.pptx`
 
 This is a working slide generator, not just a prototype.

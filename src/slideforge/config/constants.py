@@ -12,12 +12,22 @@ SLIDE_H = 7.5
 
 
 # ============================================================
-# Fonts
+# Fonts used in PowerPoint text
 # ============================================================
 
 TITLE_FONT = "Calibri"
 BODY_FONT = "Calibri"
 FORMULA_FONT = "Cambria"
+
+
+# ============================================================
+# Fonts used for Matplotlib-generated mini-visual PNGs
+# ============================================================
+# Keep these separate from PowerPoint fonts so special glyphs
+# and diagram labels are more reliable during image generation.
+
+MPL_BODY_FONT = "DejaVu Sans"
+MPL_FORMULA_FONT = "DejaVu Sans Mono"
 
 
 # ============================================================
