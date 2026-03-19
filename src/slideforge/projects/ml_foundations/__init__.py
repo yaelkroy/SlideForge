@@ -1,3 +1,3 @@
-from .slides_part1 import ML_FOUNDATIONS_PART1_SLIDES
+from slideforge.projects.ml_foundations.slides_part1 import ML_FOUNDATIONS_PART1_SLIDES
 
 __all__ = ["ML_FOUNDATIONS_PART1_SLIDES"]

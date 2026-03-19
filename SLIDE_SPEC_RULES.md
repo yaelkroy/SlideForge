@@ -128,12 +128,58 @@ That means:
 - a loss curve with a clearly marked current point and downhill direction
 - a pipeline that clearly shows object → vector → decision
 - a projection picture with a visible perpendicular drop
+- a real-world object explicitly turning into a feature vector
 
 ### Bad examples
 
 - abstract line art that requires a caption to understand
 - tiny technical icons inside overly dense cards
 - decorative mini visuals that do not teach the concept directly
+- point and vector diagrams that look identical when the slide is supposed to explain the distinction
+
+---
+
+## Layout Calculation Rules
+
+SlideForge should increasingly rely on measurable layout rather than manual guesswork.
+
+The slide size is known.  
+The usable box size is known.  
+Text can be estimated.  
+So spacing, fitting, and coverage should be calculated.
+
+### Layout should be computed when possible
+
+Prefer calculated placement for:
+
+- dominant visual height
+- vertical text stacks
+- note height
+- whether a note should be 1 line or 2 lines
+- notation row height
+- table font size
+- card visual centering
+- safe spacing between subtitle, diagrams, formulas, and notes
+
+### Builders should avoid hardcoded guess stacks
+
+Avoid patterns like:
+
+- fixed tiny note heights for all slides
+- manually stacking 4–5 text bands under one image
+- assuming all captions fit in one line
+- assuming formulas always fit into the same narrow ribbon
+
+### Harmony rule
+
+The slide should feel balanced in both directions:
+
+- horizontally
+- vertically
+
+Do not optimize only left-to-right structure while ignoring top-to-bottom harmony.
+
+A good slide uses the whole page intentionally.
 
 ---
 
@@ -210,10 +256,9 @@ Use for:
 
 Preferred stage count:
 
-- 3 or 4 stages
-- 5 only when the stages remain visually large
-
-Avoid many narrow equal-width cards.
+- 3 stages is ideal for strong lecture readability
+- 4 stages is acceptable if each stage remains visually large
+- avoid 5 narrow equal stages when the slide is meant to teach visually
 
 ### `card_grid`
 
@@ -295,6 +340,22 @@ Avoid stacking all of the following on one concept slide:
 
 Split the slide instead.
 
+### Anti-pattern 6: top-biased card visuals
+
+Do not let the main drawing sit only in the top half of a tall card when there is large unused white space below.
+
+The visual should be vertically centered relative to the full card structure.
+
+### Anti-pattern 7: fake distinction visuals
+
+Do not use nearly identical visuals for concepts that are supposed to be contrasted, such as:
+
+- point vs vector
+- object vs encoded representation
+- separator vs classifier output
+
+If the audience cannot see the difference immediately, the slide failed.
+
 ---
 
 ## When to Split a Slide
@@ -342,6 +403,11 @@ Formulas may be more prominent, but they should be:
 
 Formulas should be minimal or absent.
 
+### Formula readability rule
+
+Do not shrink formulas to rescue an overcrowded layout.  
+If the formula area becomes too tight, reduce content or split the slide.
+
 ---
 
 ## Text Placement Rules
@@ -362,6 +428,40 @@ Text must not crowd the dominant visual.
 - one short explanatory sentence is usually better than a paragraph
 - bullet fragments are better than long bullets
 - speaker-intent content belongs in notes or source spec, not on the slide
+
+### Note rule
+
+Notes should be sized by fit, not by habit.
+
+A note may be:
+
+- one line
+- two lines
+
+The builder should calculate which is appropriate instead of forcing a tiny one-line box.
+
+---
+
+## Table and Notation Rules
+
+Notation panels should be designed from row geometry, not only from habit.
+
+### Notation panel rules
+
+- default to 4 rows max per slide
+- make symbols visually prominent
+- keep meaning and example columns readable at lecture distance
+- examples should be concrete and large enough to scan quickly
+
+### Font calculation rule
+
+Table font size should be derived from:
+
+- available row height
+- available column width
+- expected maximum line count
+
+Do not default to tiny table fonts just because there are multiple rows.
 
 ---
 
@@ -428,6 +528,8 @@ For visually sensitive slides, explicitly say things like:
 - split into separate slides if visuals become too small
 - captions must remain secondary
 - this should look like a poster-style concept slide
+- note height should be auto-calculated
+- visual and text stack should be vertically balanced
 
 ---
 
@@ -445,6 +547,7 @@ When creating or updating a slide spec, choose the builder by visual intent.
 
 - the slide is a worked story of transformation
 - stages should show a process with a specific example
+- each stage must remain visually large
 
 ### Choose `card_grid` only when:
 
@@ -457,6 +560,11 @@ When creating or updating a slide spec, choose the builder by visual intent.
 - the slide is genuinely a notation reference
 - rows remain few enough to read comfortably
 
+### Choose `integrated_bridge` when:
+
+- the transition between roles is the actual teaching point
+- the difference between the roles must be visually obvious
+
 ---
 
 ## Part I-Specific Rules
@@ -468,6 +576,7 @@ For the early foundations section:
 - split notation into multiple slides
 - keep prerequisite concepts on separate large poster slides when needed
 - use recurring examples sparingly and visibly
+- if point, vector, and feature vector are visually too similar, strengthen the semantics or merge weak duplicate slides into one stronger bridge slide
 
 A visually strong Part I is more important than compressing content.
 

@@ -33,12 +33,16 @@ PALETTES = {
         "soft": _mpl(SLATE),
         "accent": _mpl(ACCENT),
         "ghost": _mpl(GHOST_TEXT),
+        "bg_soft": (0.92, 0.95, 1.0, 0.16),
+        "bg_alt": (0.88, 0.92, 1.0, 0.10),
     },
     "light_on_dark": {
         "fg": _mpl(OFFWHITE),
         "soft": _mpl(TITLE_PANEL_LINE),
         "accent": _mpl(TITLE_PANEL_LINE),
         "ghost": _mpl(GHOST_TEXT),
+        "bg_soft": (1.0, 1.0, 1.0, 0.08),
+        "bg_alt": (1.0, 1.0, 1.0, 0.05),
     },
 }
 
@@ -53,7 +57,7 @@ def add_image(slide, image_path: Path, x: float, y: float, w: float, h: float) -
     )
 
 
-def _canvas(path: Path, figsize: tuple[float, float] = (3.8, 2.1)):
+def _canvas(path: Path, figsize: tuple[float, float] = (4.0, 2.2)):
     GENERATED_DIR.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(figsize=figsize)
     fig.patch.set_alpha(0.0)
@@ -71,30 +75,28 @@ def _save(fig, path: Path) -> Path:
     return path
 
 
-def _movie_icon(ax, x: float, y: float, w: float, h: float, p) -> None:
-    body = mpatches.FancyBboxPatch(
-        (x, y),
-        w,
-        h,
-        boxstyle="round,pad=0.02,rounding_size=0.22",
-        linewidth=1.5,
-        edgecolor=p["fg"],
-        facecolor=(0, 0, 0, 0),
+def _rounded_box(ax, x: float, y: float, w: float, h: float, p, *, lw: float = 1.3) -> None:
+    ax.add_patch(
+        mpatches.FancyBboxPatch(
+            (x, y),
+            w,
+            h,
+            boxstyle="round,pad=0.02,rounding_size=0.18",
+            linewidth=lw,
+            edgecolor=p["fg"],
+            facecolor=(0, 0, 0, 0),
+        )
     )
-    ax.add_patch(body)
 
-    ax.plot(
-        [x + 0.20, x + w - 0.20],
-        [y + h * 0.72, y + h * 0.72],
-        color=p["soft"],
-        lw=1.1,
-    )
+
+def _movie_icon(ax, x: float, y: float, w: float, h: float, p) -> None:
+    _rounded_box(ax, x, y, w, h, p, lw=1.5)
+    ax.plot([x + 0.20, x + w - 0.20], [y + h * 0.72, y + h * 0.72], color=p["soft"], lw=1.1)
 
     cx = x + w / 2
     cy = y + h * 0.34
     tri_w = w * 0.22
     tri_h = h * 0.24
-
     triangle = mpatches.Polygon(
         [
             (cx - tri_w * 0.40, cy - tri_h / 2),
@@ -110,39 +112,40 @@ def _movie_icon(ax, x: float, y: float, w: float, h: float, p) -> None:
 
 
 def _digit_card_shape(ax, x: float, y: float, w: float, h: float, p, digit: str = "7") -> None:
-    body = mpatches.FancyBboxPatch(
-        (x, y),
-        w,
-        h,
-        boxstyle="round,pad=0.02,rounding_size=0.20",
-        linewidth=1.5,
-        edgecolor=p["fg"],
-        facecolor=(0, 0, 0, 0),
-    )
-    ax.add_patch(body)
+    _rounded_box(ax, x, y, w, h, p, lw=1.5)
     ax.text(
         x + w / 2,
         y + h / 2,
         digit,
         ha="center",
         va="center",
-        fontsize=18,
+        fontsize=20,
         color=p["accent"],
         fontfamily=FORMULA_FONT,
     )
 
 
-def _vector_strip(ax, x: float, y: float, w: float, h: float, p, values: list[str]) -> None:
+def _vector_strip(
+    ax,
+    x: float,
+    y: float,
+    w: float,
+    h: float,
+    p,
+    values: list[str],
+    *,
+    labels: list[str] | None = None,
+) -> None:
     gap = 0.12
     cell_w = (w - gap * (len(values) - 1)) / len(values)
     for i, v in enumerate(values):
         cell_x = x + i * (cell_w + gap)
-        face = p["accent"] if v in {"1", "x"} else (0, 0, 0, 0)
+        face = p["bg_soft"] if v not in {"1", "x"} else p["accent"]
         rect = mpatches.Rectangle(
             (cell_x, y),
             cell_w,
             h,
-            linewidth=1.25,
+            linewidth=1.2,
             edgecolor=p["fg"],
             facecolor=face,
         )
@@ -158,77 +161,94 @@ def _vector_strip(ax, x: float, y: float, w: float, h: float, p, values: list[st
             color=txt_color,
             fontfamily=FORMULA_FONT,
         )
+        if labels and i < len(labels):
+            ax.text(
+                cell_x + cell_w / 2,
+                y - 0.16,
+                labels[i],
+                ha="center",
+                va="top",
+                fontsize=6.8,
+                color=p["soft"],
+                fontfamily=BODY_FONT,
+            )
 
 
-def _make_vector_point(path: Path, p) -> Path:
+def _axes_2d(ax, p) -> None:
+    ax.plot([1.0, 1.0], [0.9, 5.1], color=p["ghost"], lw=1.0)
+    ax.plot([1.0, 9.0], [0.9, 0.9], color=p["ghost"], lw=1.0)
+    ax.annotate("", xy=(1.0, 5.1), xytext=(1.0, 0.9), arrowprops=dict(arrowstyle="-|>", lw=1.0, color=p["ghost"]))
+    ax.annotate("", xy=(9.0, 0.9), xytext=(1.0, 0.9), arrowprops=dict(arrowstyle="-|>", lw=1.0, color=p["ghost"]))
+
+
+def _make_point_in_space(path: Path, p) -> Path:
     fig, ax = _canvas(path)
-    ax.plot([1.2, 1.2], [1.0, 5.0], color=p["ghost"], lw=1.1)
-    ax.plot([1.2, 8.8], [1.0, 1.0], color=p["ghost"], lw=1.1)
-    ax.annotate(
-        "",
-        xy=(1.2, 5.0),
-        xytext=(1.2, 1.0),
-        arrowprops=dict(arrowstyle="-|>", lw=1.1, color=p["ghost"]),
-    )
-    ax.annotate(
-        "",
-        xy=(8.8, 1.0),
-        xytext=(1.2, 1.0),
-        arrowprops=dict(arrowstyle="-|>", lw=1.1, color=p["ghost"]),
-    )
-    ax.annotate(
-        "",
-        xy=(7.3, 4.2),
-        xytext=(1.4, 1.2),
-        arrowprops=dict(arrowstyle="-|>", lw=2.2, color=p["accent"]),
-    )
-    ax.add_patch(
-        mpatches.Circle((7.3, 4.2), 0.20, edgecolor=p["fg"], facecolor=p["accent"], lw=1.0)
-    )
-    ax.text(7.75, 4.45, "x", fontsize=10, color=p["fg"], fontfamily=FORMULA_FONT)
+    _axes_2d(ax, p)
+    ax.add_patch(mpatches.Circle((6.8, 4.0), 0.20, edgecolor=p["fg"], facecolor=p["accent"], lw=1.2))
+    ax.text(7.15, 4.20, "x", fontsize=10, color=p["fg"], fontfamily=FORMULA_FONT)
+    ax.plot([6.8, 6.8], [0.9, 4.0], color=p["ghost"], lw=0.9, linestyle="--")
+    ax.plot([1.0, 6.8], [4.0, 4.0], color=p["ghost"], lw=0.9, linestyle="--")
+    return _save(fig, path)
+
+
+def _make_vector_arrow(path: Path, p) -> Path:
+    fig, ax = _canvas(path)
+    _axes_2d(ax, p)
+    ax.annotate("", xy=(7.2, 4.1), xytext=(1.2, 1.1), arrowprops=dict(arrowstyle="-|>", lw=2.3, color=p["accent"]))
+    ax.text(7.45, 4.28, "x", fontsize=10, color=p["fg"], fontfamily=FORMULA_FONT)
     return _save(fig, path)
 
 
 def _make_plane_slice(path: Path, p) -> Path:
     fig, ax = _canvas(path)
-    ax.plot([1.2, 8.7], [1.0, 5.0], color=p["fg"], lw=2.0)
-    ax.annotate(
-        "",
-        xy=(4.7, 4.4),
-        xytext=(5.8, 2.5),
-        arrowprops=dict(arrowstyle="-|>", lw=2.0, color=p["accent"]),
-    )
-    ax.scatter([2.2, 3.0], [4.5, 3.8], s=42, facecolors="none", edgecolors=[p["accent"]], linewidths=1.5)
-    ax.scatter([6.8, 7.6], [2.2, 1.5], s=46, marker="x", color=[p["soft"]], linewidths=1.8)
+    # Soft region shading for clearer "boundary" semantics.
+    ax.add_patch(mpatches.Polygon([(0.8, 5.7), (5.8, 5.7), (3.9, 0.5), (0.8, 0.5)], closed=True, facecolor=p["bg_soft"], edgecolor="none"))
+    ax.add_patch(mpatches.Polygon([(5.8, 5.7), (9.2, 5.7), (9.2, 0.5), (3.9, 0.5)], closed=True, facecolor=p["bg_alt"], edgecolor="none"))
+    ax.plot([3.5, 6.7], [0.8, 5.2], color=p["fg"], lw=2.0)
+    ax.annotate("", xy=(5.4, 4.3), xytext=(6.25, 2.8), arrowprops=dict(arrowstyle="-|>", lw=2.0, color=p["accent"]))
+    pos = np.array([[1.8, 4.6], [2.6, 3.8], [3.0, 4.8]])
+    neg = np.array([[7.1, 1.7], [7.8, 2.6], [8.5, 1.4]])
+    ax.scatter(pos[:, 0], pos[:, 1], s=42, facecolors="none", edgecolors=[p["accent"]], linewidths=1.6)
+    ax.scatter(neg[:, 0], neg[:, 1], s=46, marker="x", color=[p["soft"]], linewidths=1.8)
     return _save(fig, path)
 
 
 def _make_loss_curve(path: Path, p) -> Path:
     fig, ax = _canvas(path)
-    x = np.linspace(1.2, 8.8, 300)
-    y = 0.18 * (x - 5.4) ** 2 + 1.3
-    ax.plot(x, y, color=p["fg"], lw=2.0)
-    ax.annotate(
-        "",
-        xy=(5.45, 1.45),
-        xytext=(2.8, 4.5),
-        arrowprops=dict(arrowstyle="-|>", lw=2.2, color=p["accent"]),
-    )
-    ax.add_patch(
-        mpatches.Circle((5.45, 1.45), 0.15, edgecolor=p["fg"], facecolor=p["accent"], lw=1.0)
-    )
+    # Contour-style bowl reads more clearly as optimization than a plain parabola.
+    xx = np.linspace(1.0, 9.0, 200)
+    yy = np.linspace(0.8, 5.2, 160)
+    X, Y = np.meshgrid(xx, yy)
+    Z = ((X - 5.5) / 2.2) ** 2 + ((Y - 2.2) / 1.15) ** 2
+    ax.contour(X, Y, Z, levels=[0.6, 1.2, 2.0, 3.0, 4.3], colors=[p["ghost"]], linewidths=1.0)
+
+    path_pts = np.array([[2.5, 4.4], [3.4, 3.5], [4.3, 2.9], [5.0, 2.45], [5.45, 2.2]])
+    ax.plot(path_pts[:, 0], path_pts[:, 1], color=p["accent"], lw=2.0)
+    for i in range(len(path_pts) - 1):
+        ax.annotate(
+            "",
+            xy=tuple(path_pts[i + 1]),
+            xytext=tuple(path_pts[i]),
+            arrowprops=dict(arrowstyle="-|>", lw=1.8, color=p["accent"]),
+        )
+    ax.add_patch(mpatches.Circle((5.45, 2.2), 0.14, edgecolor=p["fg"], facecolor=p["accent"], lw=1.0))
+    ax.text(2.20, 4.78, "current", fontsize=8, color=p["soft"], fontfamily=BODY_FONT)
+    ax.text(5.65, 1.85, "lower loss", fontsize=8, color=p["fg"], fontfamily=BODY_FONT)
     return _save(fig, path)
 
 
 def _make_scatter_boundary(path: Path, p) -> Path:
     fig, ax = _canvas(path)
-    pos = np.array([[2.1, 4.3], [3.0, 3.7], [4.0, 4.5]])
-    neg = np.array([[6.3, 1.8], [7.0, 2.7], [8.0, 1.6]])
-    ax.scatter(pos[:, 0], pos[:, 1], s=44, facecolors="none", edgecolors=[p["accent"]], linewidths=1.6)
-    ax.scatter(neg[:, 0], neg[:, 1], s=48, marker="x", color=[p["soft"]], linewidths=1.9)
-    ax.plot([4.7, 7.6], [5.2, 0.9], color=p["fg"], lw=1.8)
-    ax.text(2.3, 4.95, "+1", fontsize=10, color=p["accent"], fontfamily=FORMULA_FONT)
-    ax.text(7.55, 0.95, "-1", fontsize=10, color=p["soft"], fontfamily=FORMULA_FONT)
+    # Stronger region split.
+    ax.add_patch(mpatches.Polygon([(0.8, 5.6), (5.2, 5.6), (6.9, 0.6), (0.8, 0.6)], closed=True, facecolor=p["bg_soft"], edgecolor="none"))
+    ax.add_patch(mpatches.Polygon([(5.2, 5.6), (9.2, 5.6), (9.2, 0.6), (6.9, 0.6)], closed=True, facecolor=p["bg_alt"], edgecolor="none"))
+    pos = np.array([[2.0, 4.4], [2.8, 3.8], [3.7, 4.7]])
+    neg = np.array([[6.9, 1.7], [7.5, 2.6], [8.2, 1.5]])
+    ax.scatter(pos[:, 0], pos[:, 1], s=46, facecolors="none", edgecolors=[p["accent"]], linewidths=1.7)
+    ax.scatter(neg[:, 0], neg[:, 1], s=50, marker="x", color=[p["soft"]], linewidths=1.9)
+    ax.plot([4.9, 7.0], [5.2, 0.9], color=p["fg"], lw=1.9)
+    ax.text(1.8, 5.0, "+1 region", fontsize=8, color=p["accent"], fontfamily=BODY_FONT)
+    ax.text(6.8, 0.9, "−1 region", fontsize=8, color=p["soft"], fontfamily=BODY_FONT)
     return _save(fig, path)
 
 
@@ -236,50 +256,60 @@ def _make_gaussian(path: Path, p) -> Path:
     fig, ax = _canvas(path)
     x = np.linspace(-3, 3, 300)
     y = np.exp(-(x**2) / 2)
-    xx = 1.2 + (x + 3) / 6 * 7.4
-    yy = 1.1 + y / y.max() * 3.4
+    xx = 1.1 + (x + 3) / 6 * 7.8
+    yy = 1.1 + y / y.max() * 3.3
+    ax.fill_between(xx, 1.1, yy, color=p["bg_soft"])
     ax.plot(xx, yy, color=p["fg"], lw=2.0)
-    ax.plot([5.0, 5.0], [1.1, 4.55], color=p["ghost"], lw=1.1, linestyle="--")
+    ax.plot([5.0, 5.0], [1.1, 4.5], color=p["fg"], lw=1.3, linestyle="--")
+    ax.plot([3.7, 6.3], [1.55, 1.55], color=p["soft"], lw=2.0)
+    ax.text(5.08, 4.35, "μ", fontsize=10, color=p["fg"], fontfamily=FORMULA_FONT)
+    ax.text(4.75, 1.77, "spread", fontsize=8, color=p["soft"], fontfamily=BODY_FONT)
     return _save(fig, path)
 
 
 def _make_array_glyph(path: Path, p) -> Path:
     fig, ax = _canvas(path)
-    ax.text(
-        5.0,
-        3.0,
-        "[1, 0, 1]\n[0, 1, 1]",
-        ha="center",
-        va="center",
-        fontsize=14,
-        color=p["fg"],
-        fontfamily="DejaVu Sans Mono",
-    )
+    # Real-world object -> vector/matrix semantics, not just brackets.
+    _movie_icon(ax, 0.8, 1.55, 2.2, 2.7, p)
+    ax.text(1.9, 1.10, "object", ha="center", va="center", fontsize=8, color=p["soft"], fontfamily=BODY_FONT)
+    ax.annotate("", xy=(5.2, 3.0), xytext=(3.25, 3.0), arrowprops=dict(arrowstyle="-|>", lw=1.9, color=p["accent"]))
+
+    ax.text(6.3, 4.0, "[1, 0, 1]", ha="center", va="center", fontsize=12, color=p["fg"], fontfamily="DejaVu Sans Mono")
+    ax.text(6.3, 2.8, "[0, 1, 1]", ha="center", va="center", fontsize=12, color=p["fg"], fontfamily="DejaVu Sans Mono")
+    ax.text(6.3, 1.6, "NumPy array / matrix", ha="center", va="center", fontsize=8.5, color=p["soft"], fontfamily=BODY_FONT)
     return _save(fig, path)
 
 
 def _make_movie_card(path: Path, p) -> Path:
     fig, ax = _canvas(path)
     _movie_icon(ax, 2.4, 1.35, 5.2, 3.25, p)
+    ax.text(5.0, 1.00, "movie object", ha="center", va="center", fontsize=8.5, color=p["soft"], fontfamily=BODY_FONT)
     return _save(fig, path)
 
 
 def _make_digit_card(path: Path, p) -> Path:
     fig, ax = _canvas(path)
     _digit_card_shape(ax, 3.0, 1.2, 4.0, 3.6, p, digit="7")
+    ax.text(5.0, 0.95, "digit image", ha="center", va="center", fontsize=8.5, color=p["soft"], fontfamily=BODY_FONT)
     return _save(fig, path)
 
 
 def _make_movie_to_vector(path: Path, p) -> Path:
     fig, ax = _canvas(path)
-    _movie_icon(ax, 0.8, 1.4, 2.7, 3.1, p)
-    ax.annotate(
-        "",
-        xy=(6.0, 3.0),
-        xytext=(3.8, 3.0),
-        arrowprops=dict(arrowstyle="-|>", lw=2.0, color=p["accent"]),
+    _movie_icon(ax, 0.8, 1.55, 2.3, 2.7, p)
+    ax.text(1.95, 1.12, "movie", ha="center", va="center", fontsize=8.5, color=p["soft"], fontfamily=BODY_FONT)
+    ax.annotate("", xy=(5.0, 3.0), xytext=(3.35, 3.0), arrowprops=dict(arrowstyle="-|>", lw=1.9, color=p["accent"]))
+    _vector_strip(
+        ax,
+        5.3,
+        2.45,
+        3.8,
+        0.95,
+        p,
+        ["1", "0", "1", "1", "0"],
+        labels=["act", "com", "rom", "long", "anim"],
     )
-    _vector_strip(ax, 6.2, 2.35, 3.1, 1.25, p, ["1", "0", "1", "1", "0"])
+    ax.text(7.2, 4.25, "selected features", ha="center", va="center", fontsize=8.0, color=p["soft"], fontfamily=BODY_FONT)
     return _save(fig, path)
 
 
@@ -287,79 +317,66 @@ def _make_raw_object_pair(path: Path, p) -> Path:
     fig, ax = _canvas(path)
     _movie_icon(ax, 0.9, 1.4, 3.0, 3.0, p)
     _digit_card_shape(ax, 6.0, 1.4, 2.5, 3.0, p, digit="7")
-    ax.plot([5.0, 5.0], [1.2, 4.8], color=p["ghost"], lw=1.1)
+    ax.plot([5.0, 5.0], [1.1, 4.8], color=p["ghost"], lw=1.0)
+    ax.text(2.4, 1.02, "movie", fontsize=8.3, color=p["soft"], fontfamily=BODY_FONT, ha="center")
+    ax.text(7.25, 1.02, "digit", fontsize=8.3, color=p["soft"], fontfamily=BODY_FONT, ha="center")
     return _save(fig, path)
 
 
 def _make_feature_vector_pair(path: Path, p) -> Path:
     fig, ax = _canvas(path)
-    _vector_strip(ax, 1.0, 3.3, 4.8, 1.0, p, ["1", "0", "1", "1", "0"])
-    _vector_strip(ax, 2.4, 1.5, 4.0, 1.0, p, ["x", "x", "x", "x"])
-    ax.text(7.0, 1.95, "[brightness, width]", fontsize=9, color=p["soft"], fontfamily=FORMULA_FONT)
+    _vector_strip(
+        ax,
+        1.0,
+        3.35,
+        4.8,
+        0.95,
+        p,
+        ["1", "0", "1", "1", "0"],
+        labels=["act", "com", "rom", "long", "anim"],
+    )
+    _vector_strip(
+        ax,
+        2.2,
+        1.45,
+        4.6,
+        0.95,
+        p,
+        ["x", "x"],
+        labels=["brightness", "width"],
+    )
+    ax.text(7.5, 1.92, "image features", fontsize=8.3, color=p["soft"], fontfamily=BODY_FONT)
     return _save(fig, path)
 
 
 def _make_digit_to_label(path: Path, p) -> Path:
     fig, ax = _canvas(path)
     _digit_card_shape(ax, 0.9, 1.4, 2.6, 3.0, p, digit="7")
-    ax.annotate(
-        "",
-        xy=(6.0, 3.0),
-        xytext=(3.9, 3.0),
-        arrowprops=dict(arrowstyle="-|>", lw=2.0, color=p["accent"]),
-    )
-    label_box = mpatches.FancyBboxPatch(
-        (6.3, 2.15),
-        2.6,
-        1.7,
-        boxstyle="round,pad=0.02,rounding_size=0.18",
-        linewidth=1.3,
-        edgecolor=p["fg"],
-        facecolor=(0, 0, 0, 0),
-    )
-    ax.add_patch(label_box)
-    ax.text(7.6, 3.0, "class = 7", ha="center", va="center", fontsize=11, color=p["fg"], fontfamily=FORMULA_FONT)
+    ax.annotate("", xy=(6.0, 3.0), xytext=(3.9, 3.0), arrowprops=dict(arrowstyle="-|>", lw=1.9, color=p["accent"]))
+    _rounded_box(ax, 6.2, 2.1, 2.8, 1.8, p, lw=1.3)
+    ax.text(7.6, 3.02, "class = 7", ha="center", va="center", fontsize=11.5, color=p["fg"], fontfamily=FORMULA_FONT)
     return _save(fig, path)
 
 
 def _make_prediction_error(path: Path, p) -> Path:
     fig, ax = _canvas(path)
-    pred = mpatches.FancyBboxPatch(
-        (1.0, 2.1),
-        2.5,
-        1.4,
-        boxstyle="round,pad=0.02,rounding_size=0.16",
-        linewidth=1.3,
-        edgecolor=p["fg"],
-        facecolor=(0, 0, 0, 0),
-    )
-    truth = mpatches.FancyBboxPatch(
-        (6.0, 2.1),
-        2.5,
-        1.4,
-        boxstyle="round,pad=0.02,rounding_size=0.16",
-        linewidth=1.3,
-        edgecolor=p["fg"],
-        facecolor=(0, 0, 0, 0),
-    )
-    ax.add_patch(pred)
-    ax.add_patch(truth)
-    ax.text(2.25, 2.8, "ŷ = like", ha="center", va="center", fontsize=12, color=p["accent"], fontfamily=FORMULA_FONT)
-    ax.text(7.25, 2.8, "y = like", ha="center", va="center", fontsize=12, color=p["fg"], fontfamily=FORMULA_FONT)
-    ax.annotate(
-        "",
-        xy=(5.45, 2.8),
-        xytext=(3.75, 2.8),
-        arrowprops=dict(arrowstyle="-|>", lw=1.9, color=p["accent"]),
-    )
-    ax.text(5.05, 3.25, "compare", ha="center", va="center", fontsize=9, color=p["soft"], fontfamily=BODY_FONT)
-    ax.text(5.0, 1.4, "L(θ)", ha="center", va="center", fontsize=12, color=p["fg"], fontfamily=FORMULA_FONT)
+    _rounded_box(ax, 0.9, 2.0, 2.8, 1.5, p, lw=1.3)
+    _rounded_box(ax, 6.3, 2.0, 2.8, 1.5, p, lw=1.3)
+    ax.text(2.3, 2.95, "prediction", ha="center", va="center", fontsize=8.2, color=p["soft"], fontfamily=BODY_FONT)
+    ax.text(2.3, 2.52, "ŷ = like", ha="center", va="center", fontsize=11.5, color=p["accent"], fontfamily=FORMULA_FONT)
+    ax.text(7.7, 2.95, "truth", ha="center", va="center", fontsize=8.2, color=p["soft"], fontfamily=BODY_FONT)
+    ax.text(7.7, 2.52, "y = like", ha="center", va="center", fontsize=11.5, color=p["fg"], fontfamily=FORMULA_FONT)
+    ax.annotate("", xy=(6.0, 2.75), xytext=(3.95, 2.75), arrowprops=dict(arrowstyle="-|>", lw=1.8, color=p["accent"]))
+    ax.text(5.0, 3.15, "compare", ha="center", va="center", fontsize=8.2, color=p["soft"], fontfamily=BODY_FONT)
+    ax.add_patch(mpatches.Circle((5.0, 1.55), 0.24, edgecolor=p["fg"], facecolor=p["bg_soft"], lw=1.2))
+    ax.text(5.0, 1.55, "✓", ha="center", va="center", fontsize=14, color=p["accent"], fontfamily=BODY_FONT)
+    ax.text(5.0, 1.02, "agreement / loss check", ha="center", va="center", fontsize=8.0, color=p["soft"], fontfamily=BODY_FONT)
     return _save(fig, path)
 
 
 DRAWERS: dict[str, Callable[[Path, dict], Path]] = {
-    "vector_arrow": _make_vector_point,
-    "point_in_space": _make_vector_point,
+    "point_in_space": _make_point_in_space,
+    "vector_arrow": _make_vector_arrow,
     "plane_slice": _make_plane_slice,
     "line_to_boundary": _make_plane_slice,
     "loss_curve": _make_loss_curve,
@@ -448,7 +465,7 @@ def add_visual_with_caption(
         add_mini_visual(slide, kind=kind, x=x, y=y, w=w, h=h, suffix=suffix, variant=variant)
         return
 
-    visual_h = max(0.1, h - 0.20)
+    visual_h = max(0.1, h - 0.22)
     add_mini_visual(slide, kind=kind, x=x, y=y, w=w, h=visual_h, suffix=suffix, variant=variant)
 
     add_textbox(

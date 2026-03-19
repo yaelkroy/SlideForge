@@ -1,6 +1,3 @@
-## `LLM_CONTEXT.md`
-
-```md
 # LLM_CONTEXT.md
 
 ## Project Identity
@@ -44,7 +41,7 @@ If something can be made more explicit for future LLM understanding, do it.
 
 This project must keep its documentation synchronized with the actual codebase.
 
-Whenever the code structure, module responsibilities, file layout, build flow, naming conventions, builder inventory, visual system, slide-spec rules, or project architecture changes in a way that affects repo understanding, the LLM should explicitly check whether the following files also need updates:
+Whenever the code structure, module responsibilities, file layout, build flow, naming conventions, builder inventory, visual system, layout/autofit rules, slide-spec rules, or project architecture changes in a way that affects repo understanding, the LLM should explicitly check whether the following files also need updates:
 
 - `README.md`
 - `LLM_CONTEXT.md`
@@ -92,7 +89,7 @@ Update `SLIDE_SPEC_RULES.md` when the change affects:
 
 ### Anti-drift rule
 
-The LLM should never assume documentation is still correct after a refactor.
+The LLM should never assume documentation is still correct after a refactor.  
 It should actively compare intended architecture with actual code organization and call out mismatches.
 
 ### Priority rule
@@ -115,13 +112,17 @@ Current build flow is:
 
 **project slide specs -> builder registry -> slide builders -> rendering primitives / mini visuals -> pptx output**
 
+The emerging hardening layer is:
+
+**project slide specs -> builder registry -> slide builders -> layout/autofit helpers -> rendering primitives / mini visuals -> pptx output**
+
 At the moment:
 
 - `src/slideforge_app.py` is the executable deck-building entrypoint
 - slide content is stored as Python dictionaries inside `projects/`
 - builders are explicit functions, one per slide family
-- coordinates are still mostly hand-authored
 - the system already produces useful slides and should be extended incrementally, not rewritten wholesale
+- layout is increasingly being treated as a measurable geometry problem rather than repeated manual tweaking
 
 ### Current active modules
 
@@ -133,6 +134,8 @@ Important current modules include:
 - `src/slideforge/io/backgrounds.py`
 - `src/slideforge/render/primitives.py`
 - `src/slideforge/assets/mini_visuals.py`
+- `src/slideforge/layout/__init__.py`
+- `src/slideforge/layout/autofit.py`
 - `src/slideforge/app/build_deck.py`
 - `src/slideforge/app/presentation_factory.py`
 - `src/slideforge/app/slide_utils.py`
@@ -151,6 +154,7 @@ Important current modules include:
 - `src/slideforge/builders/integrated_bridge.py`
 - `src/slideforge/builders/concept_poster.py`
 - `src/slideforge/projects/ml_foundations/slides_part1.py`
+- `src/slideforge/projects/ml_foundations/__init__.py`
 - `SLIDE_SPEC_RULES.md`
 
 ---
@@ -159,7 +163,7 @@ Important current modules include:
 
 The active architecture is builder-driven.
 
-The builder registry maps `kind` values from slide specs to builder functions.
+The builder registry maps `kind` values from slide specs to builder functions.  
 That is the preferred extension point.
 
 When extending the system, prefer:
@@ -169,9 +173,86 @@ When extending the system, prefer:
 - adding specs in `projects/...`
 - reusing rendering primitives
 - reusing mini-visual motifs
+- reusing layout/autofit helpers
 - avoiding logic growth in `slideforge_app.py`
 
 Do **not** move slide-specific rendering logic back into the top-level app entrypoint.
+
+### Current builder families
+
+The builder registry is expected to include:
+
+- `title`
+- `title_composite`
+- `section`
+- `section_divider`
+- `bullets`
+- `formula`
+- `two_column`
+- `image`
+- `dependency_map`
+- `pipeline`
+- `prereq_grid`
+- `example_pipeline`
+- `card_grid`
+- `notation_panel`
+- `triple_role`
+- `integrated_bridge`
+- `concept_poster`
+
+When a new slide pattern repeats, prefer adding a new builder rather than overloading one builder with many unrelated branches.
+
+---
+
+## Layout / Autofit Layer
+
+A major new design direction is the layout/autofit layer in:
+
+- `src/slideforge/layout/autofit.py`
+
+This layer exists because many lecture-slide failures are not content failures.  
+They are geometry failures.
+
+Examples:
+
+- notes are too small even though there is enough free space
+- a single diagram is stuck in the top half of a large box
+- captions, formulas, and notes collide
+- notation tables shrink too aggressively
+- vertical whitespace is poorly distributed
+- cards do not center the visual payload
+
+### Design rule
+
+The slide size is known.  
+The container box is known.  
+Text size and line count can be estimated.  
+So layout should increasingly be **calculated**.
+
+### What layout/autofit should handle
+
+The layout layer should increasingly support:
+
+- text fitting by width and height
+- estimated line count
+- deciding whether a note should be one line or two lines
+- vertical stacking without overlap
+- concept-poster visual/text balancing
+- notation-table sizing from row geometry
+- centered visuals inside cards
+- more mathematically harmonious slide coverage
+
+### Preferred usage
+
+Builders should use `layout/autofit.py` when they need:
+
+- a large dominant visual plus a short text stack
+- row-based readable tables
+- centered card visuals
+- measured note sizing
+- safe vertical placement
+
+Avoid hand-placing several text bands under a diagram when the same result can be computed.
 
 ---
 
@@ -181,22 +262,23 @@ A central design direction is the reusable mini-visual system in:
 
 - `src/slideforge/assets/mini_visuals.py`
 
-This layer exists to provide small technical illustrations that can be reused across multiple builders and multiple decks.
+This layer exists to provide technical illustrations that can be reused across multiple builders and multiple decks.
 
 ### Why it exists
 
 Technical lecture slides fail when they rely only on text boxes and labels.
 
-This repo explicitly supports teaching through **small explanatory diagrams**, including:
+This repo explicitly supports teaching through **explanatory diagrams**, including:
 
-- vectors and points in space
+- points in space
+- vector arrows
 - plane / separator sketches
-- loss curves and descent arrows
+- loss and optimization visuals
 - uncertainty curves
 - array / matrix glyphs
 - feature-vector examples
-- prediction vs truth mini-diagrams
-- simple object-to-representation visuals such as movie and digit examples
+- prediction vs truth comparisons
+- object-to-representation visuals such as movie and digit examples
 
 ### Design rule
 
@@ -221,8 +303,22 @@ Prefer:
 Avoid:
 
 - builder-local ad hoc drawing code when the same motif might be reused
-- heavy external visualization frameworks unless they clearly improve quality
-- decorative visuals that do not help explain the concept
+- decorative visuals that do not explain the concept
+- weak visual semantics that require captions to rescue them
+
+### Refactoring direction
+
+`mini_visuals.py` is already large and should not keep growing indefinitely.
+
+The preferred future split is by visual family, for example:
+
+- geometry visuals
+- optimization visuals
+- probability visuals
+- representation visuals
+- classification visuals
+
+That split should happen before the file becomes difficult to reason about safely.
 
 ---
 
@@ -253,7 +349,7 @@ For lecture planning:
 
 ### Part I pattern
 
-The redesigned Part I uses this rhythm:
+The redesigned Part I should follow this spirit:
 
 1. opener / divider
 2. concept overview
@@ -262,8 +358,8 @@ The redesigned Part I uses this rhythm:
 5. conceptual pipeline
 6. large example A
 7. large example B
-8. anchor examples
-9. split notation
+8. anchor examples split when needed
+9. notation split when needed
 10. concept bridge
 11. large bridge example
 
@@ -340,6 +436,7 @@ Always separate:
 - **where** elements go
 - **how** elements are drawn
 - **which** assets or mini visuals they use
+- **which** layout logic computes spacing and fit
 - **which** style or theme is applied
 - **which** output backend is used
 
@@ -423,18 +520,24 @@ These are good cleanup targets because they improve clarity without destabilizin
 3. **Mini-visual hardening**
    - expand motifs only when they improve multiple slides
    - keep naming stable and explicit
-   - avoid silently drifting visual semantics
+   - strengthen semantics so visuals are understandable before captions
+   - avoid silently drifting visual meaning
 
-4. **Project spec organization**
+4. **Layout hardening**
+   - move fragile manual spacing into `layout/autofit.py`
+   - compute note height, table font size, and vertical stacks instead of guessing
+   - make visual centering the default behavior for card-like builders
+
+5. **Project spec organization**
    - keep deck-specific slide specs inside `projects/`
    - split large slide lists if they become too long
 
-5. **Documentation coherence**
+6. **Documentation coherence**
    - `README.md` should match actual current repo behavior
    - this file should reflect actual architectural direction
    - `SLIDE_SPEC_RULES.md` should reflect current slide-authoring expectations
 
-6. **File-size governance**
+7. **File-size governance**
    - keep Python source files below 500 lines when practical
    - refactor large modules before they become hard to reason about
 
@@ -448,6 +551,7 @@ When continuing work in this repo:
 - extend the builder layer rather than bypassing it
 - reuse existing primitives before adding new drawing helpers
 - reuse existing mini-visual motifs before creating new ones
+- reuse existing layout/autofit helpers before hardcoding new placement guesses
 - prefer introducing a new `kind` over making one builder excessively branchy
 - keep project-specific content in `projects/`
 - keep generated artifacts out of source directories

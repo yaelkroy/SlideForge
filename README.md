@@ -16,6 +16,7 @@ Current reality:
 - renders reusable text, boxes, lines, connectors, and panels through shared primitives
 - renders reusable technical mini-illustrations through `mini_visuals.py`
 - supports larger poster-style concept slides through dedicated builder families
+- is being extended with layout autofit utilities so diagrams, notes, captions, and tables can be sized and placed mathematically rather than by guesswork
 - writes the generated deck to the repo root as `ML_Foundations_Auto.pptx`
 
 This is a working slide generator, not just a prototype.
