@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Mapping
 
 from pptx import Presentation
 from pptx.enum.text import PP_ALIGN
 
 from slideforge.builders.common import new_slide
-from slideforge.config.constants import BODY_FONT, FORMULA_FONT, NAVY, SLATE, TITLE_FONT
+from slideforge.config.constants import BODY_FONT, FORMULA_FONT
+from slideforge.config.themes import SlideTheme, get_theme, resolve_color
 from slideforge.io.backgrounds import choose_background
 from slideforge.layout.autofit import Box, fit_text, layout_notation_table
-from slideforge.render.primitives import add_divider_line, add_footer, add_rounded_box, add_textbox
+from slideforge.render.header import render_header_from_spec
+from slideforge.render.primitives import add_footer, add_rounded_box, add_textbox
 
 
 def _fit_text_size(
@@ -62,61 +64,86 @@ def _add_cell_text(
     )
 
 
+def _box_from_dict(raw: Mapping[str, Any], fallback: Box) -> Box:
+    return Box(
+        raw.get("x", fallback.x),
+        raw.get("y", fallback.y),
+        raw.get("w", fallback.w),
+        raw.get("h", fallback.h),
+    )
+
+
+def _looks_formula_like(text: str) -> bool:
+    if not text:
+        return False
+    formula_chars = set("=⋅∈()[]{}₀₁₂₃₄₅₆₇₈₉±→←↦θγμσ^·/")
+    return any(ch in formula_chars for ch in text)
+
+
+def _resolve_notation_style(
+    spec: Mapping[str, Any],
+    *,
+    theme_obj: SlideTheme,
+) -> dict[str, Any]:
+    notation_style = dict(spec.get("notation_style", {}) or {})
+
+    table_fill_default = theme_obj.box_fill_color
+    if table_fill_default is None:
+        table_fill_default = theme_obj.panel_fill_color
+    if table_fill_default is None:
+        table_fill_default = theme_obj.box_body_color
+
+    return {
+        "table_fill_color": resolve_color(notation_style.get("table_fill_color"), table_fill_default),
+        "table_line_color": resolve_color(notation_style.get("table_line_color"), theme_obj.box_line_color),
+        "header_color": resolve_color(notation_style.get("header_color"), theme_obj.box_title_color),
+        "symbol_color": resolve_color(notation_style.get("symbol_color"), theme_obj.body_color),
+        "meaning_color": resolve_color(notation_style.get("meaning_color"), theme_obj.subtitle_color),
+        "example_formula_color": resolve_color(notation_style.get("example_formula_color"), theme_obj.body_color),
+        "example_text_color": resolve_color(notation_style.get("example_text_color"), theme_obj.subtitle_color),
+        "formulas_color": resolve_color(notation_style.get("formulas_color"), theme_obj.body_color),
+        "footer_color": resolve_color(notation_style.get("footer_color"), theme_obj.footer_color),
+        "footer_dark": bool(notation_style.get("footer_dark", theme_obj.footer_dark)),
+        "table_line_width_pt": float(notation_style.get("table_line_width_pt", 1.25)),
+    }
+
+
 def build_notation_panel_slide(
     prs: Presentation,
     spec: dict[str, Any],
     counters: dict[str, int],
 ) -> None:
-    theme = spec.get("theme", "concept")
-    bg = spec.get("background") or choose_background(theme, counters)
+    slide_theme_name = spec.get("theme", "concept")
+    theme_obj = get_theme(slide_theme_name=slide_theme_name)
+
+    bg = spec.get("background") or choose_background(slide_theme_name, counters)
     slide = new_slide(prs, bg)
 
-    layout = spec.get("layout", {})
-    title = spec.get("title") or spec["slide_title"]
-    subtitle = spec.get("subtitle", "").strip()
-    rows = spec.get("rows", [])
-    columns = spec.get("columns", ["symbol", "meaning", "visual example"])
-    formulas = spec.get("formulas", [])
+    layout = dict(spec.get("layout", {}) or {})
+    rows = list(spec.get("rows", []) or [])
+    columns = list(spec.get("columns", ["symbol", "meaning", "visual example"]) or [])
+    formulas = list(spec.get("formulas", []) or [])
 
-    add_textbox(
+    header_result = render_header_from_spec(
         slide,
-        x=0.80,
-        y=layout.get("title_y", 0.42),
-        w=11.70,
-        h=0.52,
-        text=title,
-        font_name=TITLE_FONT,
-        font_size=27,
-        color=NAVY,
-        bold=True,
+        spec,
+        theme=theme_obj,
     )
-    add_divider_line(slide, dark=False)
 
-    if subtitle:
-        add_textbox(
-            slide,
-            x=0.96,
-            y=layout.get("subtitle_y", 0.98),
-            w=11.08,
-            h=0.42,
-            text=subtitle,
-            font_name=BODY_FONT,
-            font_size=16,
-            color=SLATE,
-            bold=False,
-            align=PP_ALIGN.CENTER,
-        )
+    notation_style = _resolve_notation_style(spec, theme_obj=theme_obj)
 
-    table_box_dict = layout.get(
-        "table_box",
-        {"x": 0.88, "y": 1.55, "w": 11.20, "h": 4.85},
+    fallback_table_box = Box(
+        float(layout.get("table_x", 0.88)),
+        float(layout.get("table_y", header_result.content_top_y + float(layout.get("content_to_table_gap", 0.10)))),
+        float(layout.get("table_w", 11.20)),
+        float(layout.get("table_h", 4.85)),
     )
-    table_outer = Box(
-        table_box_dict["x"],
-        table_box_dict["y"],
-        table_box_dict["w"],
-        table_box_dict["h"],
-    )
+
+    table_box_dict = layout.get("table_box")
+    if isinstance(table_box_dict, Mapping):
+        table_outer = _box_from_dict(table_box_dict, fallback_table_box)
+    else:
+        table_outer = fallback_table_box
 
     add_rounded_box(
         slide,
@@ -124,22 +151,23 @@ def build_notation_panel_slide(
         table_outer.y,
         table_outer.w,
         table_outer.h,
+        line_color=notation_style["table_line_color"],
+        fill_color=notation_style["table_fill_color"],
+        line_width_pt=notation_style["table_line_width_pt"],
     )
 
     table_layout = layout_notation_table(
         table_outer,
         rows=len(rows),
         col_ratios=tuple(layout.get("col_ratios", (0.18, 0.38, 0.44))),
-        header_h=layout.get("header_h", 0.34),
-        row_gap=layout.get("row_gap", 0.04),
-        col_gap=layout.get("col_gap", 0.12),
-        min_body_font=layout.get("min_body_font", 13),
-        max_body_font=layout.get("max_body_font", 18),
-        min_header_font=layout.get("min_header_font", 12),
-        max_header_font=layout.get("max_header_font", 16),
+        header_h=float(layout.get("header_h", 0.34)),
+        row_gap=float(layout.get("row_gap", 0.04)),
+        col_gap=float(layout.get("col_gap", 0.12)),
+        min_body_font=int(layout.get("min_body_font", 13)),
+        max_body_font=int(layout.get("max_body_font", 18)),
+        min_header_font=int(layout.get("min_header_font", 12)),
+        max_header_font=int(layout.get("max_header_font", 16)),
     )
-
-    inner = table_outer.inset(0.14, 0.10)
 
     header_cols = [
         Box(c.x, table_layout.header_box.y, c.w, table_layout.header_box.h)
@@ -147,9 +175,10 @@ def build_notation_panel_slide(
     ]
 
     for idx, header in enumerate(columns[:3]):
+        header_text = str(header).strip()
         header_align = PP_ALIGN.CENTER if idx == 0 else PP_ALIGN.LEFT
         header_font = _fit_text_size(
-            header,
+            header_text,
             header_cols[idx],
             min_font=table_layout.recommended_header_font,
             max_font=table_layout.recommended_header_font,
@@ -158,15 +187,18 @@ def build_notation_panel_slide(
         _add_cell_text(
             slide,
             box=header_cols[idx],
-            text=header,
+            text=header_text,
             font_name=BODY_FONT,
             font_size=header_font,
-            color=SLATE,
+            color=notation_style["header_color"],
             bold=True,
             align=header_align,
         )
 
     for row_idx, row in enumerate(rows):
+        if row_idx >= len(table_layout.row_boxes):
+            break
+
         row_box = table_layout.row_boxes[row_idx]
 
         symbol_box = Box(
@@ -188,9 +220,9 @@ def build_notation_panel_slide(
             row_box.h,
         )
 
-        symbol_text = row.get("symbol", "").strip()
-        meaning_text = row.get("meaning", "").strip()
-        example_text = row.get("example", "").strip()
+        symbol_text = str(row.get("symbol", "")).strip()
+        meaning_text = str(row.get("meaning", "")).strip()
+        example_text = str(row.get("example", "")).strip()
 
         symbol_font = _fit_text_size(
             symbol_text,
@@ -220,7 +252,7 @@ def build_notation_panel_slide(
             text=symbol_text,
             font_name=FORMULA_FONT,
             font_size=symbol_font,
-            color=NAVY,
+            color=notation_style["symbol_color"],
             bold=True,
             align=PP_ALIGN.CENTER,
         )
@@ -230,14 +262,17 @@ def build_notation_panel_slide(
             text=meaning_text,
             font_name=BODY_FONT,
             font_size=meaning_font,
-            color=SLATE,
+            color=notation_style["meaning_color"],
             bold=False,
             align=PP_ALIGN.LEFT,
         )
 
-        example_font_name = FORMULA_FONT if any(
-            ch in example_text for ch in "=⋅∈()[]{}₀₁₂₃₄₅₆₇₈₉±→"
-        ) else BODY_FONT
+        example_font_name = FORMULA_FONT if _looks_formula_like(example_text) else BODY_FONT
+        example_color = (
+            notation_style["example_formula_color"]
+            if example_font_name == FORMULA_FONT
+            else notation_style["example_text_color"]
+        )
 
         _add_cell_text(
             slide,
@@ -245,7 +280,7 @@ def build_notation_panel_slide(
             text=example_text,
             font_name=example_font_name,
             font_size=example_font,
-            color=NAVY if example_font_name == FORMULA_FONT else SLATE,
+            color=example_color,
             bold=False,
             align=PP_ALIGN.LEFT,
         )
@@ -255,17 +290,17 @@ def build_notation_panel_slide(
             item.strip() for item in formulas if item and item.strip()
         )
         formula_box = Box(
-            1.00,
-            layout.get("formula_y", 6.55),
-            11.00,
-            0.22,
+            float(layout.get("formula_x", 1.00)),
+            float(layout.get("formula_y", max(table_outer.bottom + 0.18, 6.55))),
+            float(layout.get("formula_w", 11.00)),
+            float(layout.get("formula_h", 0.22)),
         )
         formula_font = _fit_text_size(
             formula_text,
             formula_box,
-            min_font=12,
-            max_font=14,
-            max_lines=2,
+            min_font=int(layout.get("formula_min_font", 12)),
+            max_font=int(layout.get("formula_max_font", 14)),
+            max_lines=int(layout.get("formula_max_lines", 2)),
         )
         add_textbox(
             slide,
@@ -276,9 +311,13 @@ def build_notation_panel_slide(
             text=formula_text,
             font_name=FORMULA_FONT,
             font_size=formula_font,
-            color=NAVY,
+            color=notation_style["formulas_color"],
             bold=False,
-            align=PP_ALIGN.CENTER,
+            align=layout.get("formula_align", PP_ALIGN.CENTER),
         )
 
-    add_footer(slide, dark=False)
+    add_footer(
+        slide,
+        dark=notation_style["footer_dark"],
+        color=notation_style["footer_color"],
+    )

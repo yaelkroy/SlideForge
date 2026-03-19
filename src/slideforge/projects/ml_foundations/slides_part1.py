@@ -3,6 +3,33 @@ from __future__ import annotations
 from typing import Any
 
 
+TITLE_DARK_HERO_STYLE: dict[str, Any] = {
+    "preset": "dark_hero",
+    "panel_fill_color": "DARK_BOX_FILL",
+    "panel_line_color": "TITLE_PANEL_LINE",
+    "connector_color": "ACCENT",
+}
+
+LONG_HEADER_LAYOUT_GRID: dict[str, Any] = {
+    "title_y": 0.42,
+    "title_h": 0.82,
+    "title_max_lines": 2,
+    "title_max_font": 26,
+    "subtitle_h": 0.42,
+    "subtitle_max_lines": 2,
+    "content_to_grid_gap": 0.14,
+}
+
+LONG_HEADER_LAYOUT_TABLE: dict[str, Any] = {
+    "title_y": 0.42,
+    "title_h": 0.82,
+    "title_max_lines": 2,
+    "title_max_font": 26,
+    "subtitle_h": 0.46,
+    "subtitle_max_lines": 2,
+    "content_to_table_gap": 0.12,
+}
+
 ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
     {
         "kind": "title_composite",
@@ -45,6 +72,7 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
         "author_line": "Dr. Yael Demedetskaya",
         "show_author_line": True,
         "show_footer_author": False,
+        "title_style": TITLE_DARK_HERO_STYLE,
         "layout": {
             "title_y": 0.90,
             "subtitle_y": 2.02,
@@ -664,9 +692,11 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
         },
         "takeaway": "geometry and optimization examples we will reuse often",
         "layout": {
-            "title_y": 0.42,
-            "subtitle_y": 0.98,
-            "grid_region": {"x": 0.90, "y": 1.72, "w": 11.20, "h": 3.95},
+            **LONG_HEADER_LAYOUT_GRID,
+            "grid_x": 0.90,
+            "grid_y": 1.96,
+            "grid_w": 11.20,
+            "grid_h": 3.72,
             "gap_x": 0.28,
             "gap_y": 0.0,
             "takeaway_y": 5.98,
@@ -713,9 +743,11 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
         },
         "takeaway": "probability, computation, and supervised-learning anchors",
         "layout": {
-            "title_y": 0.42,
-            "subtitle_y": 0.98,
-            "grid_region": {"x": 0.90, "y": 1.72, "w": 11.20, "h": 3.95},
+            **LONG_HEADER_LAYOUT_GRID,
+            "grid_x": 0.90,
+            "grid_y": 1.98,
+            "grid_w": 11.20,
+            "grid_h": 3.70,
             "gap_x": 0.28,
             "gap_y": 0.0,
             "takeaway_y": 5.98,
@@ -752,9 +784,11 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
             {"symbol": "y", "meaning": "label", "example": "y=+1"},
         ],
         "layout": {
-            "title_y": 0.42,
-            "subtitle_y": 0.98,
-            "table_box": {"x": 0.88, "y": 1.55, "w": 11.20, "h": 4.85},
+            **LONG_HEADER_LAYOUT_TABLE,
+            "table_x": 0.88,
+            "table_y": 1.98,
+            "table_w": 11.20,
+            "table_h": 4.40,
             "formula_y": 6.55,
         },
     },
@@ -790,9 +824,11 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
             {"symbol": "L", "meaning": "loss", "example": "L(θ)"},
         ],
         "layout": {
-            "title_y": 0.42,
-            "subtitle_y": 0.98,
-            "table_box": {"x": 0.88, "y": 1.55, "w": 11.20, "h": 4.85},
+            **LONG_HEADER_LAYOUT_TABLE,
+            "table_x": 0.88,
+            "table_y": 1.98,
+            "table_w": 11.20,
+            "table_h": 4.40,
             "formula_y": 6.55,
         },
     },
