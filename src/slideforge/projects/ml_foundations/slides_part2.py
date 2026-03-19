@@ -3,16 +3,26 @@ from __future__ import annotations
 from typing import Any
 
 
+def _merged_layout(base: dict[str, Any], **overrides: Any) -> dict[str, Any]:
+    merged = dict(base)
+    merged.update(overrides)
+    return merged
+
+
 PART2_POSTER_LAYOUT: dict[str, Any] = {
     "title_y": 0.42,
     "subtitle_y": 0.98,
     "poster_box": {"x": 0.96, "y": 1.34, "w": 11.10, "h": 4.98},
+    "visual_min_share": 0.62,
+    "visual_max_share": 0.80,
 }
 
 PART2_WORKED_POSTER_LAYOUT: dict[str, Any] = {
     "title_y": 0.42,
     "subtitle_y": 0.98,
-    "poster_box": {"x": 0.90, "y": 1.32, "w": 11.20, "h": 5.02},
+    "poster_box": {"x": 0.92, "y": 1.32, "w": 11.18, "h": 5.02},
+    "visual_min_share": 0.58,
+    "visual_max_share": 0.76,
 }
 
 PART2_NOTATION_LAYOUT: dict[str, Any] = {
@@ -26,11 +36,12 @@ PART2_NOTATION_LAYOUT: dict[str, Any] = {
     "table_x": 0.88,
     "table_y": 1.98,
     "table_w": 11.20,
-    "table_h": 4.28,
-    "formula_y": 6.48,
+    "table_h": 4.26,
+    "formula_y": 6.46,
+    "example_max_lines": 2,
 }
 
-PART2_COMPARE_LAYOUT: dict[str, Any] = {
+PART2_TWO_PANEL_LAYOUT: dict[str, Any] = {
     "title_y": 0.42,
     "title_h": 0.84,
     "title_max_lines": 2,
@@ -39,20 +50,21 @@ PART2_COMPARE_LAYOUT: dict[str, Any] = {
     "subtitle_max_lines": 1,
     "panel_region": {"x": 0.88, "y": 1.96, "w": 11.24, "h": 2.92},
     "panel_gap": 0.28,
-    "takeaway_y": 5.40,
+    "takeaway_y": 5.38,
     "takeaway_h": 0.28,
 }
 
-PART2_ML_BRIDGE_LAYOUT: dict[str, Any] = {
+PART2_THREE_PANEL_LAYOUT: dict[str, Any] = {
     "title_y": 0.42,
     "title_h": 0.84,
     "title_max_lines": 2,
     "title_max_font": 25,
-    "subtitle_h": 0.44,
+    "subtitle_h": 0.42,
     "subtitle_max_lines": 2,
     "panel_region": {"x": 0.88, "y": 1.98, "w": 11.24, "h": 2.88},
     "panel_gap": 0.24,
-    "bullets_y": 5.16,
+    "bullets_y": 5.14,
+    "bullets_h": 0.34,
     "takeaway_y": 5.82,
     "takeaway_h": 0.26,
 }
@@ -67,16 +79,20 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "slide_title": "Part II — Points, Vectors, Norms, Dot Products, and Projections",
         "purpose": "Mark the beginning of the geometric foundations section.",
         "visual": (
-            "A large clean hero geometry composition with a 3D coordinate frame, "
-            "two vectors with angle marked, and a projection shadow onto a direction line."
+            "A large unified geometry composition with a coordinate frame, one vector, "
+            "a second vector with angle marked, and a projection shadow."
         ),
-        "text_explanation": "The geometric language used to represent examples, compare directions, and measure similarity",
+        "text_explanation": (
+            "The geometric language used to represent examples, compare directions, and measure similarity"
+        ),
         "bullets": [],
         "formulas": ["‖x‖", "x·y", "proj_y(x)"],
         "concrete_example_anchor": "Tiny embedded labels only: x=(3,2,2), y=(1,1,1)",
         "speaker_intent": "This is where the geometry starts becoming operational.",
         "title": "Part II — Points, Vectors, Norms, Dot Products, and Projections",
-        "subtitle": "The geometric language used to represent examples, compare directions, and measure similarity",
+        "subtitle": (
+            "The geometric language used to represent examples, compare directions, and measure similarity"
+        ),
         "layout": {
             "title_region": {"x": 0.92, "y": 1.82, "w": 11.40, "h": 0.96},
             "subtitle_region": {"x": 1.20, "y": 2.84, "w": 10.90, "h": 0.42},
@@ -107,8 +123,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "subtitle": "",
         "mini_visual": "point_and_vector_same_coords",
         "text_explanation": (
-            "The same coordinates can be interpreted in two ways: as a location in space "
-            "and as a displacement from the origin."
+            "The same coordinates can be interpreted in two ways: as a location in space and as a displacement from the origin."
         ),
         "bullets": [
             "point view: where the object is",
@@ -129,8 +144,8 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "background": "Background 10.png",
         "slide_number": 14,
         "slide_title": "One Set of Coordinates, Two Interpretations",
-        "purpose": "Give students a dedicated visual example right after the definition slide.",
-        "visual": "A two-panel comparison: same coordinates as a point and as a vector.",
+        "purpose": "Give students a dedicated visual example slide right after the definition slide.",
+        "visual": "A two-panel comparison using the same coordinates as a point and as a vector.",
         "text_explanation": "Nothing numerical changed. Only the interpretation changed.",
         "bullets": [],
         "formulas": ["x=(3,2,2)"],
@@ -153,7 +168,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             },
         ],
         "takeaway": "same coordinates • different role",
-        "layout": PART2_COMPARE_LAYOUT,
+        "layout": PART2_TWO_PANEL_LAYOUT,
     },
     {
         "kind": "notation_panel",
@@ -162,21 +177,21 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "slide_number": 15,
         "slide_title": "Coordinates and the Meaning of x_i",
         "purpose": "Explain vector notation and indexing clearly enough that later sums and dot products feel natural.",
-        "visual": "A clean notation panel with list form, column form, and indexed coordinate meaning.",
-        "text_explanation": "A vector is made of coordinates, and x_i means the i-th coordinate.",
+        "visual": "A large notation comparison with coordinate-list form, column-vector form, and indexed coordinate meaning.",
+        "text_explanation": "A vector is made of coordinates, and x_i means the i-th coordinate of the vector.",
         "bullets": [],
         "formulas": [
-            "x=[x_1,x_2,x_3]^T",
-            "x=(3,2,2)⇒x_1=3, x_2=2, x_3=2",
+            "x=[x_1,x_2,x_3]ᵀ",
+            "x=(3,2,2) ⇒ x_1=3, x_2=2, x_3=2",
         ],
         "concrete_example_anchor": "Explicitly highlight x_2=2.",
         "speaker_intent": "Index notation is how vector formulas become manageable.",
         "title": "Coordinates and the Meaning of x_i",
-        "subtitle": "A vector is made of coordinates, and x_i means the i-th coordinate.",
+        "subtitle": "A vector is made of coordinates, and x_i means the i-th coordinate of the vector.",
         "columns": ["symbol", "meaning", "visual example"],
         "rows": [
             {"symbol": "x", "meaning": "the full vector", "example": "x=(3,2,2)"},
-            {"symbol": "[x_1,x_2,x_3]^T", "meaning": "column-vector notation", "example": "[3,2,2]^T"},
+            {"symbol": "[x_1,x_2,x_3]ᵀ", "meaning": "column-vector notation", "example": "[3,2,2]ᵀ"},
             {"symbol": "x_i", "meaning": "the i-th coordinate", "example": "x_2=2"},
             {"symbol": "x_1,x_2,x_3", "meaning": "coordinate-by-coordinate view", "example": "3,2,2"},
         ],
@@ -226,11 +241,11 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         ],
         "formulas": [
             "A=(1,1), B=(4,3)",
-            "C=B−A",
+            "C = B − A",
             "C=(4,3)−(1,1)=(3,2)",
         ],
         "concrete_example_anchor": "Use A=(1,1), B=(4,3), C=(3,2).",
-        "takeaway": "Worked displacement examples make vector subtraction concrete.",
+        "takeaway": "This is the kind of geometric subtraction that will later reappear in optimization and gradients.",
         "layout": PART2_WORKED_POSTER_LAYOUT,
     },
     {
@@ -244,8 +259,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "subtitle": "",
         "mini_visual": "norm_triangle",
         "text_explanation": (
-            "The norm tells us how long a vector is. In Euclidean space, length comes from "
-            "summing squared coordinates and taking a square root."
+            "The norm tells us how long a vector is. In Euclidean space, length comes from summing squared coordinates and taking a square root."
         ),
         "bullets": [
             "norm = magnitude",
@@ -257,7 +271,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "‖x‖ = √(Σ_{i=1}^n x_i^2)",
         ],
         "concrete_example_anchor": "General n-dimensional vector.",
-        "takeaway": "The norm is the standard measurement tool for vector size.",
+        "takeaway": "This is the first standard measurement tool for vectors.",
         "layout": PART2_POSTER_LAYOUT,
     },
     {
@@ -296,7 +310,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "subtitle": "",
         "mini_visual": "dot_product_pairing",
         "text_explanation": (
-            "The dot product combines two vectors into one number by summing coordinate-wise products."
+            "The dot product combines two vectors into one number. Algebraically, it is the sum of coordinate-wise products."
         ),
         "bullets": [
             "multiply corresponding coordinates",
@@ -379,7 +393,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "cos α = (x·y)/(‖x‖‖y‖)",
             "α = arccos((x·y)/(‖x‖‖y‖))",
         ],
-        "concrete_example_anchor": "Use x=[0.4,0.3]^T and y=[−0.15,0.2]^T.",
+        "concrete_example_anchor": "Use x=[0.4,0.3]ᵀ and y=[−0.15,0.2]ᵀ.",
         "takeaway": "This is the bridge from raw arithmetic to geometric interpretation.",
         "layout": PART2_POSTER_LAYOUT,
     },
@@ -401,8 +415,8 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "conclude angle",
         ],
         "formulas": [
-            "x=[0.4,0.3]^T ⇒ ‖x‖ = √(0.16+0.09) = 0.5",
-            "y=[−0.15,0.2]^T ⇒ ‖y‖ = √(0.0225+0.04) = 0.25",
+            "x=[0.4,0.3]ᵀ ⇒ ‖x‖ = √(0.16+0.09) = 0.5",
+            "y=[−0.15,0.2]ᵀ ⇒ ‖y‖ = √(0.0225+0.04) = 0.25",
             "x·y = (0.4)(−0.15) + (0.3)(0.2) = 0",
             "cos α = 0 ⇒ α = π/2",
         ],
@@ -430,12 +444,13 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         ],
         "formulas": [
             "x ⟂ y ⟺ x·y = 0",
-            "x^(1)=[a_1,a_2,a_3]^T, x^(2)=[a_1,−a_2,a_3]^T",
-            "x^(1)·x^(2) = a_1^2 − a_2^2 + a_3^2",
+            "x^(1)=[a_1,a_2,a_3]ᵀ, x^(2)=[a_1,−a_2,a_3]ᵀ",
+            "x^(1)·x^(2)=a_1^2−a_2^2+a_3^2",
+            "x^(1) ⟂ x^(2) ⟺ a_1^2−a_2^2+a_3^2=0",
         ],
         "concrete_example_anchor": "Use the exact symbolic homework condition.",
         "takeaway": "Perpendicularity becomes a simple algebraic test.",
-        "layout": PART2_POSTER_LAYOUT,
+        "layout": PART2_WORKED_POSTER_LAYOUT,
     },
     {
         "kind": "concept_poster",
@@ -455,7 +470,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         ],
         "formulas": [
             "u = x / ‖x‖",
-            "x=(3,2,2) ⇒ u = (1/√17)(3,2,2)",
+            "x=(3,2,2) ⇒ u=(1/√17)(3,2,2)",
         ],
         "concrete_example_anchor": "Generic x, plus optional x=(3,2,2).",
         "takeaway": "This is how we isolate pure direction.",
@@ -471,7 +486,9 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "title": "Projection = How Much of x Lies in the Direction of y",
         "subtitle": "",
         "mini_visual": "projection_geometry",
-        "text_explanation": "Projection asks what part of one vector points along another. It isolates the directional component.",
+        "text_explanation": (
+            "Projection asks what part of one vector points along another. It isolates the directional component."
+        ),
         "bullets": [
             "result points along target direction",
             "length depends on alignment",
@@ -496,8 +513,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "subtitle": "",
         "mini_visual": "projection_symbolic_homework",
         "text_explanation": (
-            "The projection must point in the direction of x^(2). If u is the unit direction, "
-            "then projection can be written as c u."
+            "The projection must point in the direction of x^(2). If u is the unit direction, then projection can be written as c u."
         ),
         "bullets": [
             "direction is x^(2)",
@@ -505,12 +521,11 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "signed magnitude comes from a dot product",
         ],
         "formulas": [
-            "x^(1)=[a_1,a_2,a_3]^T, x^(2)=[a_1,−a_2,a_3]^T",
             "u = x^(2)/‖x^(2)‖",
             "p_{x^(1)→x^(2)} = c u",
             "c = (x^(1)·x^(2))/‖x^(2)‖",
-            "x^(1)·x^(2) = a_1^2 − a_2^2 + a_3^2",
-            "‖x^(2)‖ = √(a_1^2 + a_2^2 + a_3^2)",
+            "x^(1)·x^(2)=a_1^2−a_2^2+a_3^2",
+            "‖x^(2)‖=√(a_1^2+a_2^2+a_3^2)",
         ],
         "concrete_example_anchor": "This is the exact symbolic homework form students need.",
         "takeaway": "This is the projection question in a form students can actually follow and reproduce.",
@@ -539,10 +554,11 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "proj_y(x)",
         ],
         "concrete_example_anchor": (
-            "Mention feature vectors in classification, parameter vectors in linear models, "
-            "and gradients in optimization."
+            "Mention feature vectors in classification, parameter vectors in linear models, and gradients in optimization."
         ),
-        "speaker_intent": "This geometry is not background decoration — it is the operating language of machine learning.",
+        "speaker_intent": (
+            "This geometry is not background decoration — it is the operating language of machine learning."
+        ),
         "title": "Why Norms, Dot Products, and Projections Matter in ML",
         "subtitle": (
             "Norms measure size, dot products measure alignment, and projections isolate directional components."
@@ -568,6 +584,6 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             },
         ],
         "takeaway": "This geometry is the operating language of machine learning.",
-        "layout": PART2_ML_BRIDGE_LAYOUT,
+        "layout": PART2_THREE_PANEL_LAYOUT,
     },
 ]
