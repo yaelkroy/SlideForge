@@ -24,7 +24,13 @@ def points_to_inches(points: float) -> float:
     return points / 72.0
 
 
-def line_height_inches(font_size_pt: int, line_spacing: float = 1.15) -> float:
+def line_height_inches(font_size_pt: int, line_spacing: float = 1.18) -> float:
+    """
+    Convert font size to a practical line-height estimate in inches.
+
+    Slightly conservative line spacing helps prevent PowerPoint-rendered text
+    from touching the bottom edge of fitted boxes.
+    """
     return points_to_inches(font_size_pt) * line_spacing
 
 
@@ -92,10 +98,16 @@ def estimate_text_height(
     box_width_in: float,
     font_size_pt: int,
     *,
-    line_spacing: float = 1.15,
-    padding_y_in: float = 0.02,
+    line_spacing: float = 1.18,
+    padding_y_in: float = 0.03,
     avg_char_width_em: float = 0.55,
 ) -> tuple[float, int, list[str]]:
+    """
+    Estimate text block height for PowerPoint placement.
+
+    The padding is intentionally a bit conservative so the final rendered text
+    is less likely to overlap the bottom border of a container.
+    """
     lines = wrap_text_to_width(
         text,
         box_width_in,
@@ -114,7 +126,7 @@ def fit_text(
     *,
     min_font_size: int = 12,
     max_font_size: int = 18,
-    line_spacing: float = 1.15,
+    line_spacing: float = 1.18,
     prefer_single_line: bool = False,
     max_lines: int | None = None,
     avg_char_width_em: float = 0.55,
@@ -173,10 +185,10 @@ def choose_single_or_double_line_height(
     box_width_in: float,
     *,
     font_size_pt: int,
-    line_spacing: float = 1.15,
+    line_spacing: float = 1.18,
     avg_char_width_em: float = 0.55,
-    single_line_pad: float = 0.05,
-    double_line_pad: float = 0.05,
+    single_line_pad: float = 0.06,
+    double_line_pad: float = 0.06,
 ) -> tuple[int, float]:
     """
     Decide whether a note is naturally one or two lines at a given font size.

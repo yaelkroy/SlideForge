@@ -274,8 +274,8 @@ def build_dependency_map_slide(
         top_pad=float(layout.get("dep_top_pad", 0.06)),
         bottom_pad=float(layout.get("dep_bottom_pad", 0.08)),
         side_gap=float(layout.get("dep_side_gap", 0.38)),
-        right_column_w=float(layout.get("dep_right_column_w", 3.05)),
-        explanation_h=float(layout.get("dep_explanation_h", 1.18)),
+        right_column_w=float(layout.get("dep_right_column_w", 3.15)),
+        explanation_h=float(layout.get("dep_explanation_h", 1.28)),
         right_panel_h=float(layout.get("dep_right_panel_h", 1.40)),
         right_column_inner_gap=float(layout.get("dep_right_column_inner_gap", 0.18)),
         center_w=float(layout.get("dep_center_w", 2.10)),
@@ -294,12 +294,11 @@ def build_dependency_map_slide(
         takeaway_side_pad=float(layout.get("dep_takeaway_side_pad", 0.35)),
     )
 
-    # Legacy manual boxes are opt-in now.
+    # Legacy manual boxes are opt-in only.
     use_manual_boxes = bool(layout.get("use_manual_dependency_boxes", False))
 
     center_box = dep_layout.center_box
     input_boxes = dep_layout.input_boxes
-
     explanation_box = dep_layout.explanation_box
     right_panel_box = dep_layout.right_panel_box
     formula_box = dep_layout.formula_box
@@ -310,7 +309,9 @@ def build_dependency_map_slide(
             explanation_box = _box_from_dict(layout["explanation_box"], explanation_box)
         if right_panel_box is not None and isinstance(layout.get("bullets_box"), Mapping):
             right_panel_box = _box_from_dict(layout["bullets_box"], right_panel_box)
-        if formula_box is not None and all(k in layout for k in ("formula_x", "formula_y", "formula_w", "formula_h")):
+        if formula_box is not None and all(
+            key in layout for key in ("formula_x", "formula_y", "formula_w", "formula_h")
+        ):
             formula_box = Box(
                 float(layout["formula_x"]),
                 float(layout["formula_y"]),
@@ -403,12 +404,18 @@ def build_dependency_map_slide(
             line_width_pt=dep_style["side_panel_line_width_pt"],
         )
 
+        top_inner_pad = float(layout.get("explanation_inner_top_pad", 0.10))
+        side_inner_pad = float(layout.get("explanation_inner_side_pad", 0.14))
+        bottom_inner_pad = float(layout.get("explanation_inner_bottom_pad", 0.16))
+        title_to_body_gap = float(layout.get("explanation_title_to_body_gap", 0.07))
+        title_h = float(layout.get("explanation_title_h", 0.22))
+
         if explanation_title:
             title_box = Box(
                 explanation_box.x + 0.12,
-                explanation_box.y + 0.10,
+                explanation_box.y + top_inner_pad,
                 explanation_box.w - 0.24,
-                0.22,
+                title_h,
             )
             title_font = _fit_text_size(
                 explanation_title,
@@ -430,24 +437,23 @@ def build_dependency_map_slide(
                 bold=True,
                 align=PP_ALIGN.CENTER,
             )
-            body_y = title_box.bottom + 0.05
-            body_h = explanation_box.bottom - body_y - 0.10
+            body_y = title_box.bottom + title_to_body_gap
         else:
-            body_y = explanation_box.y + 0.10
-            body_h = explanation_box.h - 0.20
+            body_y = explanation_box.y + top_inner_pad
 
+        body_h = explanation_box.bottom - body_y - bottom_inner_pad
         body_box = Box(
-            explanation_box.x + 0.14,
+            explanation_box.x + side_inner_pad,
             body_y,
-            explanation_box.w - 0.28,
+            explanation_box.w - 2 * side_inner_pad,
             max(0.0, body_h),
         )
         body_font = _fit_text_size(
             explanation_text,
             body_box,
             min_font=int(layout.get("explanation_body_min_font", 12)),
-            max_font=int(layout.get("explanation_body_max_font", 14)),
-            max_lines=int(layout.get("explanation_body_max_lines", 5)),
+            max_font=int(layout.get("explanation_body_max_font", 13)),
+            max_lines=int(layout.get("explanation_body_max_lines", 4)),
         )
         add_textbox(
             slide,
