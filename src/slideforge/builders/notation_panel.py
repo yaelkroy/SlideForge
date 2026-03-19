@@ -5,118 +5,64 @@ from typing import Any
 from pptx import Presentation
 from pptx.enum.text import PP_ALIGN
 
-from slideforge.assets.mini_visuals import add_mini_visual
 from slideforge.builders.common import new_slide
 from slideforge.config.constants import BODY_FONT, FORMULA_FONT, NAVY, SLATE, TITLE_FONT
 from slideforge.io.backgrounds import choose_background
+from slideforge.layout.autofit import Box, fit_text, layout_notation_table
 from slideforge.render.primitives import add_divider_line, add_footer, add_rounded_box, add_textbox
-from slideforge.utils.text_layout import fit_text_to_box
 
 
-def _add_grid_card(
+def _fit_text_size(
+    text: str,
+    box: Box,
+    *,
+    min_font: int,
+    max_font: int,
+    max_lines: int,
+) -> int:
+    if not text.strip() or box.w <= 0 or box.h <= 0:
+        return max_font
+    fitted = fit_text(
+        text,
+        box.w,
+        box.h,
+        min_font_size=min_font,
+        max_font_size=max_font,
+        max_lines=max_lines,
+    )
+    return max(min_font, fitted.font_size)
+
+
+def _add_cell_text(
     slide,
-    card: dict[str, Any],
-    x: float,
-    y: float,
-    w: float,
-    h: float,
-    idx: int,
+    *,
+    box: Box,
+    text: str,
+    font_name: str,
+    font_size: int,
+    color,
+    bold: bool = False,
+    align=PP_ALIGN.LEFT,
 ) -> None:
-    add_rounded_box(slide, x, y, w, h)
-
-    inner_x = x + 0.12
-    inner_y = y + 0.10
-    inner_w = w - 0.24
-    inner_h = h - 0.20
-
-    title_fit = fit_text_to_box(
-        text=card.get("title", ""),
-        width_in=inner_w,
-        height_in=0.26,
-        min_font_size=13,
-        max_font_size=15,
-        max_lines=2,
-    )
-
-    formula_fit = fit_text_to_box(
-        text=card.get("formula", ""),
-        width_in=inner_w,
-        height_in=0.28,
-        min_font_size=12,
-        max_font_size=13,
-        max_lines=2,
-    )
-
-    caption_fit = fit_text_to_box(
-        text=card.get("caption", ""),
-        width_in=inner_w,
-        height_in=0.22,
-        min_font_size=11,
-        max_font_size=12,
-        max_lines=2,
-    )
-
-    reserved_h = title_fit.height_in + formula_fit.height_in + caption_fit.height_in + 0.20
-    visual_h = max(1.20, inner_h - reserved_h)
-    visual_y = inner_y + title_fit.height_in + 0.04
+    if not text.strip() or box.w <= 0 or box.h <= 0:
+        return
 
     add_textbox(
         slide,
-        x=inner_x,
-        y=inner_y,
-        w=inner_w,
-        h=title_fit.height_in + 0.02,
-        text=title_fit.text,
-        font_name=TITLE_FONT,
-        font_size=title_fit.font_size,
-        color=NAVY,
-        bold=True,
-        align=PP_ALIGN.CENTER,
-    )
-
-    add_mini_visual(
-        slide,
-        kind=card.get("mini_visual", ""),
-        x=inner_x + 0.04,
-        y=visual_y,
-        w=inner_w - 0.08,
-        h=visual_h,
-        suffix=f"_card_grid_{idx}",
-        variant="dark_on_light",
-    )
-
-    formula_y = visual_y + visual_h + 0.04
-    add_textbox(
-        slide,
-        x=inner_x,
-        y=formula_y,
-        w=inner_w,
-        h=formula_fit.height_in + 0.02,
-        text=formula_fit.text,
-        font_name=FORMULA_FONT,
-        font_size=formula_fit.font_size,
-        color=NAVY,
-        bold=False,
-        align=PP_ALIGN.CENTER,
-    )
-
-    caption_y = formula_y + formula_fit.height_in + 0.03
-    add_textbox(
-        slide,
-        x=inner_x,
-        y=caption_y,
-        w=inner_w,
-        h=caption_fit.height_in + 0.02,
-        text=caption_fit.text,
-        font_name=BODY_FONT,
-        font_size=caption_fit.font_size,
-        color=SLATE,
-        bold=False,
-        align=PP_ALIGN.CENTER,
+        x=box.x,
+        y=box.y,
+        w=box.w,
+        h=box.h,
+        text=text,
+        font_name=font_name,
+        font_size=font_size,
+        color=color,
+        bold=bold,
+        align=align,
     )
 
 
-def build_card_grid_slide(
+def build_notation_panel_slide(
     prs: Presentation,
     spec: dict[str, Any],
     counters: dict[str, int],
@@ -126,82 +72,211 @@ def build_card_grid_slide(
     slide = new_slide(prs, bg)
 
     layout = spec.get("layout", {})
-    grid = spec.get("grid", {})
-    rows = grid.get("rows", 1)
-    cols = grid.get("cols", 3)
-    cards = grid.get("cards", [])
-    region = layout.get("grid_region", {"x": 0.90, "y": 1.72, "w": 11.20, "h": 3.95})
-    gap_x = layout.get("gap_x", 0.28)
-    gap_y = layout.get("gap_y", 0.24)
+    title = spec.get("title") or spec["slide_title"]
+    subtitle = spec.get("subtitle", "").strip()
+    rows = spec.get("rows", [])
+    columns = spec.get("columns", ["symbol", "meaning", "visual example"])
+    formulas = spec.get("formulas", [])
 
     add_textbox(
         slide,
         x=0.80,
         y=layout.get("title_y", 0.42),
         w=11.70,
-        h=0.50,
-        text=spec["title"],
+        h=0.52,
+        text=title,
         font_name=TITLE_FONT,
-        font_size=25,
+        font_size=27,
         color=NAVY,
         bold=True,
     )
     add_divider_line(slide, dark=False)
 
-    subtitle = spec.get("subtitle", "").strip()
     if subtitle:
-        sub_fit = fit_text_to_box(
-            text=subtitle,
-            width_in=11.0,
-            height_in=0.34,
-            min_font_size=14,
-            max_font_size=16,
-            max_lines=2,
-        )
         add_textbox(
             slide,
-            x=1.00,
+            x=0.96,
             y=layout.get("subtitle_y", 0.98),
-            w=11.00,
-            h=0.34,
-            text=sub_fit.text,
+            w=11.08,
+            h=0.42,
+            text=subtitle,
             font_name=BODY_FONT,
-            font_size=sub_fit.font_size,
+            font_size=16,
             color=SLATE,
             bold=False,
             align=PP_ALIGN.CENTER,
         )
 
-    card_w = (region["w"] - gap_x * (cols - 1)) / cols
-    card_h = (region["h"] - gap_y * (rows - 1)) / rows
+    table_box_dict = layout.get(
+        "table_box",
+        {"x": 0.88, "y": 1.55, "w": 11.20, "h": 4.85},
+    )
+    table_outer = Box(
+        table_box_dict["x"],
+        table_box_dict["y"],
+        table_box_dict["w"],
+        table_box_dict["h"],
+    )
 
-    for idx, card in enumerate(cards[: rows * cols]):
-        r = idx // cols
-        c = idx % cols
-        card_x = region["x"] + c * (card_w + gap_x)
-        card_y = region["y"] + r * (card_h + gap_y)
-        _add_grid_card(slide, card, card_x, card_y, card_w, card_h, idx)
+    add_rounded_box(
+        slide,
+        table_outer.x,
+        table_outer.y,
+        table_outer.w,
+        table_outer.h,
+    )
 
-    takeaway = spec.get("takeaway", "").strip()
-    if takeaway:
-        fit = fit_text_to_box(
-            text=takeaway,
-            width_in=10.95,
-            height_in=0.24,
-            min_font_size=11,
-            max_font_size=13,
+    table_layout = layout_notation_table(
+        table_outer,
+        rows=len(rows),
+        col_ratios=tuple(layout.get("col_ratios", (0.18, 0.38, 0.44))),
+        header_h=layout.get("header_h", 0.34),
+        row_gap=layout.get("row_gap", 0.04),
+        col_gap=layout.get("col_gap", 0.12),
+        min_body_font=layout.get("min_body_font", 13),
+        max_body_font=layout.get("max_body_font", 18),
+        min_header_font=layout.get("min_header_font", 12),
+        max_header_font=layout.get("max_header_font", 16),
+    )
+
+    inner = table_outer.inset(0.14, 0.10)
+
+    header_cols = [
+        Box(c.x, table_layout.header_box.y, c.w, table_layout.header_box.h)
+        for c in table_layout.col_boxes
+    ]
+
+    for idx, header in enumerate(columns[:3]):
+        header_align = PP_ALIGN.CENTER if idx == 0 else PP_ALIGN.LEFT
+        header_font = _fit_text_size(
+            header,
+            header_cols[idx],
+            min_font=table_layout.recommended_header_font,
+            max_font=table_layout.recommended_header_font,
+            max_lines=2,
+        )
+        _add_cell_text(
+            slide,
+            box=header_cols[idx],
+            text=header,
+            font_name=BODY_FONT,
+            font_size=header_font,
+            color=SLATE,
+            bold=True,
+            align=header_align,
+        )
+
+    for row_idx, row in enumerate(rows):
+        row_box = table_layout.row_boxes[row_idx]
+
+        symbol_box = Box(
+            table_layout.col_boxes[0].x,
+            row_box.y,
+            table_layout.col_boxes[0].w,
+            row_box.h,
+        )
+        meaning_box = Box(
+            table_layout.col_boxes[1].x,
+            row_box.y,
+            table_layout.col_boxes[1].w,
+            row_box.h,
+        )
+        example_box = Box(
+            table_layout.col_boxes[2].x,
+            row_box.y,
+            table_layout.col_boxes[2].w,
+            row_box.h,
+        )
+
+        symbol_text = row.get("symbol", "").strip()
+        meaning_text = row.get("meaning", "").strip()
+        example_text = row.get("example", "").strip()
+
+        symbol_font = _fit_text_size(
+            symbol_text,
+            symbol_box,
+            min_font=max(14, table_layout.recommended_body_font),
+            max_font=max(16, table_layout.recommended_body_font + 1),
+            max_lines=2,
+        )
+        meaning_font = _fit_text_size(
+            meaning_text,
+            meaning_box,
+            min_font=max(13, table_layout.recommended_body_font - 1),
+            max_font=table_layout.recommended_body_font,
+            max_lines=3,
+        )
+        example_font = _fit_text_size(
+            example_text,
+            example_box,
+            min_font=max(13, table_layout.recommended_body_font - 1),
+            max_font=table_layout.recommended_body_font,
+            max_lines=3,
+        )
+
+        _add_cell_text(
+            slide,
+            box=symbol_box,
+            text=symbol_text,
+            font_name=FORMULA_FONT,
+            font_size=symbol_font,
+            color=NAVY,
+            bold=True,
+            align=PP_ALIGN.CENTER,
+        )
+        _add_cell_text(
+            slide,
+            box=meaning_box,
+            text=meaning_text,
+            font_name=BODY_FONT,
+            font_size=meaning_font,
+            color=SLATE,
+            bold=False,
+            align=PP_ALIGN.LEFT,
+        )
+
+        example_font_name = FORMULA_FONT if any(
+            ch in example_text for ch in "=⋅∈()[]{}₀₁₂₃₄₅₆₇₈₉±→"
+        ) else BODY_FONT
+
+        _add_cell_text(
+            slide,
+            box=example_box,
+            text=example_text,
+            font_name=example_font_name,
+            font_size=example_font,
+            color=NAVY if example_font_name == FORMULA_FONT else SLATE,
+            bold=False,
+            align=PP_ALIGN.LEFT,
+        )
+
+    if formulas:
+        formula_text = "   •   ".join(
+            item.strip() for item in formulas if item and item.strip()
+        )
+        formula_box = Box(
+            1.00,
+            layout.get("formula_y", 6.55),
+            11.00,
+            0.22,
+        )
+        formula_font = _fit_text_size(
+            formula_text,
+            formula_box,
+            min_font=12,
+            max_font=14,
             max_lines=2,
         )
         add_textbox(
             slide,
-            x=1.05,
-            y=layout.get("takeaway_y", 5.98),
-            w=10.95,
-            h=0.24,
-            text=fit.text,
-            font_name=BODY_FONT,
-            font_size=fit.font_size,
-            color=SLATE,
+            x=formula_box.x,
+            y=formula_box.y,
+            w=formula_box.w,
+            h=formula_box.h,
+            text=formula_text,
+            font_name=FORMULA_FONT,
+            font_size=formula_font,
+            color=NAVY,
             bold=False,
             align=PP_ALIGN.CENTER,
         )

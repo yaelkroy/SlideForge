@@ -5,96 +5,54 @@ from typing import Any
 from pptx import Presentation
 from pptx.enum.text import PP_ALIGN
 
-from slideforge.assets.mini_visuals import add_mini_visual, add_visual_with_caption
+from slideforge.assets.mini_visuals import add_mini_visual
 from slideforge.builders.common import new_slide
-from slideforge.config.constants import (
-    ACCENT,
-    BODY_FONT,
-    FORMULA_FONT,
-    NAVY,
-    SLATE,
-    TITLE_FONT,
-)
+from slideforge.config.constants import BODY_FONT, FORMULA_FONT, NAVY, SLATE, TITLE_FONT
 from slideforge.io.backgrounds import choose_background
+from slideforge.layout.autofit import Box, layout_concept_poster
 from slideforge.render.primitives import (
     add_divider_line,
     add_footer,
     add_rounded_box,
-    add_soft_connector,
     add_textbox,
 )
 
 
-def _pipeline_card(
+def _join_items(items: list[str]) -> str:
+    cleaned = [item.strip() for item in items if item and item.strip()]
+    return "   •   ".join(cleaned)
+
+
+def _add_fitted_text(
     slide,
-    step: dict[str, Any],
-    x: float,
-    y: float,
-    w: float,
-    h: float,
-    idx: int,
+    *,
+    box: Box,
+    text: str,
+    font_name: str,
+    font_size: int,
+    color,
+    bold: bool = False,
+    align=PP_ALIGN.CENTER,
 ) -> None:
-    add_rounded_box(slide, x, y, w, h)
+    if not text.strip() or box.w <= 0 or box.h <= 0:
+        return
 
     add_textbox(
         slide,
-        x=x + 0.08,
-        y=y + 0.10,
-        w=w - 0.16,
-        h=0.24,
-        text=step.get("title", ""),
-        font_name=TITLE_FONT,
-        font_size=14,
-        color=NAVY,
-        bold=True,
-        align=PP_ALIGN.CENTER,
+        x=box.x,
+        y=box.y,
+        w=box.w,
+        h=box.h,
+        text=text,
+        font_name=font_name,
+        font_size=font_size,
+        color=color,
+        bold=bold,
+        align=align,
     )
 
-    add_mini_visual(
-        slide,
-        kind=step.get("mini_visual", ""),
-        x=x + 0.14,
-        y=y + 0.34,
-        w=w - 0.28,
-        h=1.00,
-        suffix=f"_pipeline_{idx}",
-        variant="dark_on_light",
-    )
 
-    body = step.get("body", "").strip()
-    if body:
-        add_textbox(
-            slide,
-            x=x + 0.12,
-            y=y + 1.40,
-            w=w - 0.24,
-            h=0.28,
-            text=body,
-            font_name=BODY_FONT,
-            font_size=11,
-            color=SLATE,
-            bold=False,
-            align=PP_ALIGN.CENTER,
-        )
-
-    footer = step.get("footer", "").strip()
-    if footer:
-        add_textbox(
-            slide,
-            x=x + 0.12,
-            y=y + h - 0.28,
-            w=w - 0.24,
-            h=0.18,
-            text=footer,
-            font_name=FORMULA_FONT,
-            font_size=11,
-            color=NAVY,
-            bold=False,
-            align=PP_ALIGN.CENTER,
-        )
-
-
-def build_pipeline_slide(
+def build_concept_poster_slide(
     prs: Presentation,
     spec: dict[str, Any],
     counters: dict[str, int],
@@ -104,139 +62,171 @@ def build_pipeline_slide(
     slide = new_slide(prs, bg)
 
     layout = spec.get("layout", {})
-    steps = spec.get("pipeline", {}).get("steps", [])
+
+    title = spec.get("title") or spec["slide_title"]
+    subtitle = spec.get("subtitle", "").strip()
+    mini_visual = spec.get("mini_visual", "").strip()
+
+    explanation = (
+        spec.get("text_explanation", "").strip()
+        or spec.get("explanation", "").strip()
+    )
+    bullets = spec.get("bullets", [])
+    bullets_text = _join_items(bullets)
+
+    formulas = spec.get("formulas", [])
+    formulas_text = _join_items(formulas)
+
+    note_text = spec.get("concrete_example_anchor", "").strip()
+    takeaway = spec.get("takeaway", "").strip()
 
     add_textbox(
         slide,
         x=0.80,
         y=layout.get("title_y", 0.42),
         w=11.70,
-        h=0.50,
-        text=spec["title"],
+        h=0.52,
+        text=title,
         font_name=TITLE_FONT,
-        font_size=24,
+        font_size=28,
         color=NAVY,
         bold=True,
     )
     add_divider_line(slide, dark=False)
 
-    subtitle = spec.get("subtitle", "").strip()
     if subtitle:
         add_textbox(
             slide,
-            x=1.05,
+            x=1.00,
             y=layout.get("subtitle_y", 0.98),
-            w=10.95,
-            h=0.48,
+            w=11.00,
+            h=0.42,
             text=subtitle,
             font_name=BODY_FONT,
-            font_size=16,
+            font_size=17,
             color=SLATE,
             bold=False,
             align=PP_ALIGN.CENTER,
         )
 
-    region = layout.get(
-        "pipeline_region",
-        {"x": 0.90, "y": 1.84, "w": 11.20, "h": 2.16},
+    poster_box_dict = layout.get(
+        "poster_box",
+        {"x": 0.96, "y": 1.34, "w": 11.10, "h": 4.98},
     )
-    gap = layout.get("pipeline_gap", 0.15)
+    outer_box = Box(
+        poster_box_dict["x"],
+        poster_box_dict["y"],
+        poster_box_dict["w"],
+        poster_box_dict["h"],
+    )
 
-    count = max(1, len(steps))
-    card_w = (region["w"] - gap * (count - 1)) / count
+    add_rounded_box(
+        slide,
+        outer_box.x,
+        outer_box.y,
+        outer_box.w,
+        outer_box.h,
+    )
 
-    for idx, step in enumerate(steps):
-        card_x = region["x"] + idx * (card_w + gap)
+    poster_layout = layout_concept_poster(
+        outer_box,
+        explanation=explanation,
+        bullets_text=bullets_text,
+        formulas_text=formulas_text,
+        note_text=note_text,
+        takeaway_text=takeaway,
+        top_pad=layout.get("top_pad", 0.18),
+        bottom_pad=layout.get("bottom_pad", 0.14),
+        gap=layout.get("content_gap", 0.08),
+        visual_min_share=layout.get("visual_min_share", 0.66),
+        visual_max_share=layout.get("visual_max_share", 0.80),
+    )
 
-        _pipeline_card(
-            slide=slide,
-            step=step,
-            x=card_x,
-            y=region["y"],
-            w=card_w,
-            h=region["h"],
-            idx=idx,
+    # Optional manual override, but the default should be autofit-driven.
+    visual_override = layout.get("visual_box")
+    visual_box = (
+        Box(
+            visual_override["x"],
+            visual_override["y"],
+            visual_override["w"],
+            visual_override["h"],
+        )
+        if visual_override
+        else poster_layout.visual_box
+    )
+
+    if mini_visual:
+        add_mini_visual(
+            slide,
+            kind=mini_visual,
+            x=visual_box.x,
+            y=visual_box.y,
+            w=visual_box.w,
+            h=visual_box.h,
+            suffix="_concept_poster",
+            variant="dark_on_light",
         )
 
-        if idx < count - 1:
-            next_x = region["x"] + (idx + 1) * (card_w + gap)
-            add_soft_connector(
-                slide,
-                x1=card_x + card_w,
-                y1=region["y"] + region["h"] / 2,
-                x2=next_x,
-                y2=region["y"] + region["h"] / 2,
-                color=ACCENT,
-                width_pt=1.5,
-            )
+    fits = poster_layout.text_fits
+    boxes = poster_layout.text_boxes
 
-    examples = spec.get("examples", [])
-    if examples:
-        add_textbox(
+    if "explanation" in boxes and "explanation" in fits:
+        _add_fitted_text(
             slide,
-            x=1.10,
-            y=layout.get("examples_y", 4.16),
-            w=10.90,
-            h=0.20,
-            text="Running examples",
+            box=boxes["explanation"],
+            text=explanation,
             font_name=BODY_FONT,
-            font_size=12,
+            font_size=max(15, fits["explanation"].font_size),
             color=SLATE,
-            bold=True,
+            bold=False,
             align=PP_ALIGN.CENTER,
         )
 
-        ex_y = layout.get("examples_y", 4.16) + 0.22
-        ex_w = 4.70
-        ex_gap = 0.40
-        ex_x0 = 1.25
-
-        for idx, ex in enumerate(examples[:2]):
-            if isinstance(ex, dict):
-                ex_kind = ex.get("mini_visual", "")
-                ex_text = ex.get("text", "")
-            else:
-                ex_kind = ""
-                ex_text = str(ex)
-
-            ex_x = ex_x0 + idx * (ex_w + ex_gap)
-            add_visual_with_caption(
-                slide,
-                kind=ex_kind,
-                x=ex_x,
-                y=ex_y,
-                w=ex_w,
-                h=0.88,
-                caption=ex_text,
-                suffix=f"_pipeline_example_{idx}",
-                variant="dark_on_light",
-                caption_font_size=11,
-            )
-
-    takeaway = spec.get("takeaway", "").strip()
-    takeaway_box = layout.get(
-        "takeaway_box",
-        {"x": 1.00, "y": 5.32, "w": 10.90, "h": 0.72},
-    )
-    if takeaway:
-        add_rounded_box(
+    if "bullets" in boxes and "bullets" in fits:
+        _add_fitted_text(
             slide,
-            takeaway_box["x"],
-            takeaway_box["y"],
-            takeaway_box["w"],
-            takeaway_box["h"],
+            box=boxes["bullets"],
+            text=bullets_text,
+            font_name=BODY_FONT,
+            font_size=max(13, fits["bullets"].font_size),
+            color=SLATE,
+            bold=False,
+            align=PP_ALIGN.CENTER,
         )
-        add_textbox(
+
+    if "formulas" in boxes and "formulas" in fits:
+        _add_fitted_text(
             slide,
-            x=takeaway_box["x"] + 0.18,
-            y=takeaway_box["y"] + 0.10,
-            w=takeaway_box["w"] - 0.36,
-            h=takeaway_box["h"] - 0.14,
+            box=boxes["formulas"],
+            text=formulas_text,
+            font_name=FORMULA_FONT,
+            font_size=max(13, fits["formulas"].font_size),
+            color=NAVY,
+            bold=False,
+            align=PP_ALIGN.CENTER,
+        )
+
+    if "note" in boxes and "note" in fits:
+        _add_fitted_text(
+            slide,
+            box=boxes["note"],
+            text=note_text,
+            font_name=BODY_FONT,
+            font_size=max(12, fits["note"].font_size),
+            color=SLATE,
+            bold=False,
+            align=PP_ALIGN.CENTER,
+        )
+
+    if "takeaway" in boxes and "takeaway" in fits:
+        _add_fitted_text(
+            slide,
+            box=boxes["takeaway"],
             text=takeaway,
             font_name=BODY_FONT,
-            font_size=13,
+            font_size=max(13, fits["takeaway"].font_size),
             color=SLATE,
-            bold=False,
+            bold=True,
             align=PP_ALIGN.CENTER,
         )
 
