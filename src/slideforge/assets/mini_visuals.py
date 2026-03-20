@@ -5,11 +5,11 @@ from pptx.enum.text import PP_ALIGN
 from slideforge.assets.mini_visuals_common import (
     BODY_FONT,
     FORMULA_FONT,
+    GENERATED_DIR,
     OFFWHITE,
     SLATE,
     add_image,
     add_textbox,
-    GENERATED_DIR,
 )
 from slideforge.assets.mini_visuals_core import ALIASES_CORE, DRAWERS_CORE
 from slideforge.assets.mini_visuals_geometry import ALIASES_GEOMETRY, DRAWERS_GEOMETRY

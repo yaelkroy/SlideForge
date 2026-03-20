@@ -146,7 +146,6 @@ def build_concept_poster_slide(
     formulas = list(spec.get("formulas", []) or [])
     formulas_text = _join_items(formulas)
 
-    # Design guidance is hidden by default.
     anchor_text = str(spec.get("concrete_example_anchor", "")).strip()
     visible_anchor_text = str(spec.get("visible_anchor_text", "")).strip()
     show_anchor_text = bool(
@@ -202,7 +201,8 @@ def build_concept_poster_slide(
         top_pad=float(layout.get("top_pad", 0.18)),
         bottom_pad=float(layout.get("bottom_pad", 0.14)),
         gap=float(layout.get("content_gap", 0.08)),
-        visual_min_share=float(layout.get("visual_min_share", 0.66)),
+        side_pad=float(layout.get("side_pad", 0.22)),
+        visual_min_share=float(layout.get("visual_min_share", 0.62)),
         visual_max_share=float(layout.get("visual_max_share", 0.80)),
     )
 
@@ -265,7 +265,7 @@ def build_concept_poster_slide(
             text=formulas_text,
             font_name=FORMULA_FONT,
             font_size=max(
-                int(layout.get("formulas_min_font", 13)),
+                int(layout.get("formulas_min_font", 12)),
                 fits["formulas"].font_size,
             ),
             color=poster_style["formulas_color"],
@@ -295,7 +295,7 @@ def build_concept_poster_slide(
             text=takeaway,
             font_name=BODY_FONT,
             font_size=max(
-                int(layout.get("takeaway_min_font", 13)),
+                int(layout.get("takeaway_min_font", 12)),
                 fits["takeaway"].font_size,
             ),
             color=poster_style["takeaway_color"],
