@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Mapping
 
 from pptx import Presentation
@@ -13,6 +14,26 @@ from slideforge.io.backgrounds import choose_background
 from slideforge.layout.autofit import Box, distribute_columns, fit_text
 from slideforge.render.header import render_header_from_spec
 from slideforge.render.primitives import add_footer, add_rounded_box, add_textbox
+
+
+@dataclass
+class _BandRenderSpec:
+    key: str
+    text: str
+    font_name: str
+    color: Any
+    min_font: int
+    max_font: int
+    max_lines: int
+    bold: bool
+    align: Any
+
+
+@dataclass
+class _BandRenderPlacement:
+    spec: _BandRenderSpec
+    box: Box
+    font_size: int
 
 
 def _join_items(items: list[str]) -> str:
@@ -42,6 +63,29 @@ def _fit_font_size(
         prefer_single_line=prefer_single_line,
     )
     return max(min_font, fitted.font_size)
+
+
+def _estimate_band_height(
+    text: str,
+    box_w: float,
+    *,
+    min_font: int,
+    max_font: int,
+    max_lines: int,
+    floor_h: float,
+) -> tuple[float, int]:
+    probe_box = Box(0.0, 0.0, box_w, 10.0)
+    fitted = fit_text(
+        text,
+        probe_box.w,
+        probe_box.h,
+        min_font_size=min_font,
+        max_font_size=max_font,
+        max_lines=max_lines,
+    )
+    font_size = max(min_font, fitted.font_size)
+    estimated_h = max(floor_h, fitted.estimated_height)
+    return estimated_h, font_size
 
 
 def _box_from_dict(raw: Mapping[str, Any], fallback: Box) -> Box:
@@ -159,6 +203,113 @@ def _add_fitted_text(
     )
 
 
+def _build_bottom_band_variants(
+    *,
+    bullets_text: str,
+    formulas_text: str,
+    takeaway: str,
+    style: Mapping[str, Any],
+    layout: Mapping[str, Any],
+) -> list[list[_BandRenderSpec]]:
+    bullets_spec = _BandRenderSpec(
+        key="bullets",
+        text=bullets_text,
+        font_name=BODY_FONT,
+        color=style["bullets_color"],
+        min_font=int(layout.get("bullets_min_font", 12)),
+        max_font=int(layout.get("bullets_max_font", 13)),
+        max_lines=int(layout.get("bullets_max_lines", 2)),
+        bold=bool(layout.get("bullets_bold", False)),
+        align=layout.get("bullets_align", PP_ALIGN.CENTER),
+    )
+    formulas_spec = _BandRenderSpec(
+        key="formulas",
+        text=formulas_text,
+        font_name=FORMULA_FONT,
+        color=style["formulas_color"],
+        min_font=int(layout.get("formula_min_font", 11)),
+        max_font=int(layout.get("formula_max_font", 13)),
+        max_lines=int(layout.get("formula_max_lines", 2)),
+        bold=False,
+        align=layout.get("formula_align", PP_ALIGN.CENTER),
+    )
+    takeaway_spec = _BandRenderSpec(
+        key="takeaway",
+        text=takeaway,
+        font_name=BODY_FONT,
+        color=style["takeaway_color"],
+        min_font=int(layout.get("takeaway_min_font", 12)),
+        max_font=int(layout.get("takeaway_max_font", 13)),
+        max_lines=int(layout.get("takeaway_max_lines", 2)),
+        bold=True,
+        align=layout.get("takeaway_align", PP_ALIGN.CENTER),
+    )
+
+    full = [
+        spec
+        for spec in (bullets_spec, formulas_spec, takeaway_spec)
+        if spec.text.strip()
+    ]
+    no_formulas = [
+        spec
+        for spec in (bullets_spec, takeaway_spec)
+        if spec.text.strip()
+    ]
+    takeaway_only = [takeaway_spec] if takeaway_spec.text.strip() else []
+    bullets_only = [bullets_spec] if bullets_spec.text.strip() else []
+
+    variants = [full, no_formulas, takeaway_only]
+    if bullets_only:
+        variants.append(bullets_only)
+    variants.append([])
+
+    return variants
+
+
+def _place_bottom_bands(
+    *,
+    start_y: float,
+    footer_clearance_top: float,
+    band_x: float,
+    band_w: float,
+    gap: float,
+    layout: Mapping[str, Any],
+    variants: list[list[_BandRenderSpec]],
+) -> list[_BandRenderPlacement]:
+    for specs in variants:
+        y = start_y
+        placements: list[_BandRenderPlacement] = []
+        overflow = False
+
+        for spec in specs:
+            floor_h = float(layout.get(f"{spec.key}_h", 0.28))
+            band_h, font_size = _estimate_band_height(
+                spec.text,
+                band_w,
+                min_font=spec.min_font,
+                max_font=spec.max_font,
+                max_lines=spec.max_lines,
+                floor_h=floor_h,
+            )
+            box = Box(band_x, y, band_w, band_h)
+            placements.append(
+                _BandRenderPlacement(
+                    spec=spec,
+                    box=box,
+                    font_size=font_size,
+                )
+            )
+            y = box.bottom + gap
+
+        if placements and placements[-1].box.bottom > footer_clearance_top:
+            overflow = True
+
+        if not overflow:
+            return placements
+
+    return []
+
+
 def build_triple_role_slide(
     prs: Presentation,
     spec: dict[str, Any],
@@ -193,7 +344,8 @@ def build_triple_role_slide(
         float(
             layout.get(
                 "panel_y",
-                header_result.content_top_y + float(layout.get("content_to_panel_gap", 0.14)),
+                header_result.content_top_y
+                + float(layout.get("content_to_panel_gap", 0.14)),
             )
         ),
         float(layout.get("panel_w", 11.24)),
@@ -259,7 +411,12 @@ def build_triple_role_slide(
             font_name=TITLE_FONT,
             color=style["panel_title_color"],
             min_font=int(layout.get("panel_title_min_font", 12)),
-            max_font=int(panel.get("title_font_size", layout.get("panel_title_max_font", 16))),
+            max_font=int(
+                panel.get(
+                    "title_font_size",
+                    layout.get("panel_title_max_font", 16),
+                )
+            ),
             max_lines=2,
             bold=True,
             align=PP_ALIGN.CENTER,
@@ -298,7 +455,12 @@ def build_triple_role_slide(
             font_name=BODY_FONT,
             color=style["panel_caption_color"],
             min_font=int(layout.get("panel_caption_min_font", 11)),
-            max_font=int(panel.get("caption_font_size", layout.get("panel_caption_max_font", 13))),
+            max_font=int(
+                panel.get(
+                    "caption_font_size",
+                    layout.get("panel_caption_max_font", 13),
+                )
+            ),
             max_lines=2,
             bold=False,
             align=PP_ALIGN.CENTER,
@@ -309,7 +471,12 @@ def build_triple_role_slide(
             inner_x,
             caption_box.bottom + caption_to_formula_gap,
             inner_w,
-            max(0.0, panel_box.bottom - (caption_box.bottom + caption_to_formula_gap) - formula_bottom_pad),
+            max(
+                0.0,
+                panel_box.bottom
+                - (caption_box.bottom + caption_to_formula_gap)
+                - formula_bottom_pad,
+            ),
         )
         _add_fitted_text(
             slide,
@@ -318,7 +485,12 @@ def build_triple_role_slide(
             font_name=FORMULA_FONT,
             color=style["panel_formula_color"],
             min_font=int(layout.get("panel_formula_min_font", 11)),
-            max_font=int(panel.get("formula_font_size", layout.get("panel_formula_max_font", 13))),
+            max_font=int(
+                panel.get(
+                    "formula_font_size",
+                    layout.get("panel_formula_max_font", 13),
+                )
+            ),
             max_lines=int(layout.get("panel_formula_max_lines", 2)),
             bold=False,
             align=PP_ALIGN.CENTER,
@@ -327,97 +499,102 @@ def build_triple_role_slide(
     occupied_bottom = panel_region.bottom
     bottom_gap = float(layout.get("bottom_text_gap", 0.10))
     left_pad = float(layout.get("bottom_text_side_pad", 0.48))
-    bottom_x = float(layout.get("bottom_text_x", panel_region.x + left_pad))
-    bottom_w = float(layout.get("bottom_text_w", panel_region.w - 2 * left_pad))
-
-    bullets_y = float(layout.get("bullets_y", occupied_bottom + 0.18))
-    formulas_y_default = bullets_y + float(layout.get("bullets_h", 0.28)) + bottom_gap
-    formulas_y = float(layout.get("formula_y", formulas_y_default))
-    takeaway_y_default = formulas_y + float(layout.get("formula_h", 0.28)) + bottom_gap
-    takeaway_y = float(layout.get("takeaway_y", takeaway_y_default))
-
-    bullets_h = float(layout.get("bullets_h", 0.28))
-    formula_h_box = float(layout.get("formula_h", 0.28))
-    takeaway_h = float(layout.get("takeaway_h", 0.30))
-
-    show_bullets = bool(bullets_text)
-    show_formulas = bool(formulas_text)
-    show_takeaway = bool(takeaway)
-
+    band_x = float(layout.get("bottom_text_x", panel_region.x + left_pad))
+    band_w = float(layout.get("bottom_text_w", panel_region.w - 2 * left_pad))
+    start_y = float(layout.get("bottom_text_start_y", occupied_bottom + 0.18))
     footer_clearance_top = float(layout.get("footer_clearance_top", 6.58))
 
-    projected_bottom = 0.0
-    if show_bullets:
-        projected_bottom = max(projected_bottom, bullets_y + bullets_h)
-    if show_formulas:
-        projected_bottom = max(projected_bottom, formulas_y + formula_h_box)
-    if show_takeaway:
-        projected_bottom = max(projected_bottom, takeaway_y + takeaway_h)
-
-    if projected_bottom > footer_clearance_top:
-        if show_bullets and show_formulas and show_takeaway:
-            show_formulas = False
-            formulas_text = ""
-            takeaway_y = bullets_y + bullets_h + bottom_gap
-
-        projected_bottom = 0.0
-        if show_bullets:
-            projected_bottom = max(projected_bottom, bullets_y + bullets_h)
-        if show_formulas:
-            projected_bottom = max(projected_bottom, formulas_y + formula_h_box)
-        if show_takeaway:
-            projected_bottom = max(projected_bottom, takeaway_y + takeaway_h)
-
-    if projected_bottom > footer_clearance_top:
-        if show_bullets and show_takeaway:
-            show_bullets = False
-            bullets_text = ""
-            takeaway_y = occupied_bottom + 0.22
-
-    if show_bullets:
-        bullets_box = Box(bottom_x, bullets_y, bottom_w, bullets_h)
-        _add_fitted_text(
-            slide,
-            box=bullets_box,
-            text=bullets_text,
-            font_name=BODY_FONT,
-            color=style["bullets_color"],
-            min_font=int(layout.get("bullets_min_font", 12)),
-            max_font=int(layout.get("bullets_max_font", 13)),
-            max_lines=int(layout.get("bullets_max_lines", 2)),
-            bold=bool(layout.get("bullets_bold", False)),
-            align=layout.get("bullets_align", PP_ALIGN.CENTER),
+    if not bool(layout.get("use_manual_bottom_bands", False)):
+        variants = _build_bottom_band_variants(
+            bullets_text=bullets_text,
+            formulas_text=formulas_text,
+            takeaway=takeaway,
+            style=style,
+            layout=layout,
         )
-
-    if show_formulas:
-        formula_box = Box(bottom_x, formulas_y, bottom_w, formula_h_box)
-        _add_fitted_text(
-            slide,
-            box=formula_box,
-            text=formulas_text,
-            font_name=FORMULA_FONT,
-            color=style["formulas_color"],
-            min_font=int(layout.get("formula_min_font", 11)),
-            max_font=int(layout.get("formula_max_font", 13)),
-            max_lines=int(layout.get("formula_max_lines", 2)),
-            bold=False,
-            align=layout.get("formula_align", PP_ALIGN.CENTER),
+        placements = _place_bottom_bands(
+            start_y=start_y,
+            footer_clearance_top=footer_clearance_top,
+            band_x=band_x,
+            band_w=band_w,
+            gap=bottom_gap,
+            layout=layout,
+            variants=variants,
         )
+        for placement in placements:
+            add_textbox(
+                slide,
+                x=placement.box.x,
+                y=placement.box.y,
+                w=placement.box.w,
+                h=placement.box.h,
+                text=placement.spec.text,
+                font_name=placement.spec.font_name,
+                font_size=placement.font_size,
+                color=placement.spec.color,
+                bold=placement.spec.bold,
+                align=placement.spec.align,
+            )
+    else:
+        if bullets_text:
+            bullets_box = Box(
+                band_x,
+                float(layout.get("bullets_y", occupied_bottom + 0.18)),
+                band_w,
+                float(layout.get("bullets_h", 0.28)),
+            )
+            _add_fitted_text(
+                slide,
+                box=bullets_box,
+                text=bullets_text,
+                font_name=BODY_FONT,
+                color=style["bullets_color"],
+                min_font=int(layout.get("bullets_min_font", 12)),
+                max_font=int(layout.get("bullets_max_font", 13)),
+                max_lines=int(layout.get("bullets_max_lines", 2)),
+                bold=bool(layout.get("bullets_bold", False)),
+                align=layout.get("bullets_align", PP_ALIGN.CENTER),
+            )
 
-    if show_takeaway:
-        takeaway_box = Box(bottom_x, takeaway_y, bottom_w, takeaway_h)
-        _add_fitted_text(
-            slide,
-            box=takeaway_box,
-            text=takeaway,
-            font_name=BODY_FONT,
-            color=style["takeaway_color"],
-            min_font=int(layout.get("takeaway_min_font", 12)),
-            max_font=int(layout.get("takeaway_max_font", 13)),
-            max_lines=int(layout.get("takeaway_max_lines", 2)),
-            bold=True,
-            align=layout.get("takeaway_align", PP_ALIGN.CENTER),
-        )
+        if formulas_text:
+            formula_box = Box(
+                band_x,
+                float(layout.get("formula_y", occupied_bottom + 0.56)),
+                band_w,
+                float(layout.get("formula_h", 0.28)),
+            )
+            _add_fitted_text(
+                slide,
+                box=formula_box,
+                text=formulas_text,
+                font_name=FORMULA_FONT,
+                color=style["formulas_color"],
+                min_font=int(layout.get("formula_min_font", 11)),
+                max_font=int(layout.get("formula_max_font", 13)),
+                max_lines=int(layout.get("formula_max_lines", 2)),
+                bold=False,
+                align=layout.get("formula_align", PP_ALIGN.CENTER),
+            )
+
+        if takeaway:
+            takeaway_box = Box(
+                band_x,
+                float(layout.get("takeaway_y", occupied_bottom + 0.92)),
+                band_w,
+                float(layout.get("takeaway_h", 0.30)),
+            )
+            _add_fitted_text(
+                slide,
+                box=takeaway_box,
+                text=takeaway,
+                font_name=BODY_FONT,
+                color=style["takeaway_color"],
+                min_font=int(layout.get("takeaway_min_font", 12)),
+                max_font=int(layout.get("takeaway_max_font", 13)),
+                max_lines=int(layout.get("takeaway_max_lines", 2)),
+                bold=True,
+                align=layout.get("takeaway_align", PP_ALIGN.CENTER),
+            )
 
     add_footer(
         slide,

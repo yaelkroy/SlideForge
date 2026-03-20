@@ -119,6 +119,129 @@ def _resolve_poster_style(
     }
 
 
+def _candidate_content_variants(
+    *,
+    explanation: str,
+    bullets_text: str,
+    formulas_text: str,
+    note_text: str,
+    takeaway_text: str,
+) -> list[dict[str, str]]:
+    """
+    Try denser versions first, then progressively simplify lower bands to
+    protect the main visual when a slide becomes too crowded.
+    """
+    return [
+        {
+            "explanation": explanation,
+            "bullets": bullets_text,
+            "formulas": formulas_text,
+            "note": note_text,
+            "takeaway": takeaway_text,
+        },
+        {
+            "explanation": explanation,
+            "bullets": bullets_text,
+            "formulas": formulas_text,
+            "note": "",
+            "takeaway": takeaway_text,
+        },
+        {
+            "explanation": explanation,
+            "bullets": bullets_text,
+            "formulas": "",
+            "note": note_text,
+            "takeaway": takeaway_text,
+        },
+        {
+            "explanation": explanation,
+            "bullets": bullets_text,
+            "formulas": "",
+            "note": "",
+            "takeaway": takeaway_text,
+        },
+        {
+            "explanation": explanation,
+            "bullets": "",
+            "formulas": formulas_text,
+            "note": "",
+            "takeaway": takeaway_text,
+        },
+        {
+            "explanation": explanation,
+            "bullets": "",
+            "formulas": "",
+            "note": "",
+            "takeaway": takeaway_text,
+        },
+        {
+            "explanation": explanation,
+            "bullets": "",
+            "formulas": "",
+            "note": "",
+            "takeaway": "",
+        },
+    ]
+
+
+def _choose_best_poster_layout(
+    *,
+    outer_box: Box,
+    explanation: str,
+    bullets_text: str,
+    formulas_text: str,
+    note_text: str,
+    takeaway_text: str,
+    layout: Mapping[str, Any],
+):
+    preferred_visual_share = float(layout.get("preferred_visual_share", 0.68))
+
+    variants = _candidate_content_variants(
+        explanation=explanation,
+        bullets_text=bullets_text,
+        formulas_text=formulas_text,
+        note_text=note_text,
+        takeaway_text=takeaway_text,
+    )
+
+    best_variant = variants[0]
+    best_layout = None
+    best_score = -10**9
+
+    for variant in variants:
+        poster_layout = layout_concept_poster(
+            outer_box,
+            explanation=variant["explanation"],
+            bullets_text=variant["bullets"],
+            formulas_text=variant["formulas"],
+            note_text=variant["note"],
+            takeaway_text=variant["takeaway"],
+            top_pad=float(layout.get("top_pad", 0.18)),
+            bottom_pad=float(layout.get("bottom_pad", 0.14)),
+            gap=float(layout.get("content_gap", 0.08)),
+            side_pad=float(layout.get("side_pad", 0.22)),
+            visual_min_share=float(layout.get("visual_min_share", 0.62)),
+            visual_max_share=float(layout.get("visual_max_share", 0.80)),
+        )
+
+        kept_count = sum(
+            1
+            for key in ("bullets", "formulas", "note", "takeaway")
+            if variant.get(key, "").strip()
+        )
+        score = poster_layout.visual_share * 100.0 + kept_count * 3.0
+
+        if poster_layout.visual_share >= preferred_visual_share:
+            return variant, poster_layout
+
+        if score > best_score:
+            best_score = score
+            best_variant = variant
+            best_layout = poster_layout
+
+    return best_variant, best_layout
+
+
 def build_concept_poster_slide(
     prs: Presentation,
     spec: dict[str, Any],
@@ -166,7 +289,8 @@ def build_concept_poster_slide(
         float(
             layout.get(
                 "poster_y",
-                header_result.content_top_y + float(layout.get("content_to_poster_gap", 0.12)),
+                header_result.content_top_y
+                + float(layout.get("content_to_poster_gap", 0.12)),
             )
         ),
         float(layout.get("poster_w", 11.10)),
@@ -191,19 +315,14 @@ def build_concept_poster_slide(
         line_width_pt=poster_style["poster_line_width_pt"],
     )
 
-    poster_layout = layout_concept_poster(
-        outer_box,
+    chosen_variant, poster_layout = _choose_best_poster_layout(
+        outer_box=outer_box,
         explanation=explanation,
         bullets_text=bullets_text,
         formulas_text=formulas_text,
         note_text=note_text,
         takeaway_text=takeaway,
-        top_pad=float(layout.get("top_pad", 0.18)),
-        bottom_pad=float(layout.get("bottom_pad", 0.14)),
-        gap=float(layout.get("content_gap", 0.08)),
-        side_pad=float(layout.get("side_pad", 0.22)),
-        visual_min_share=float(layout.get("visual_min_share", 0.62)),
-        visual_max_share=float(layout.get("visual_max_share", 0.80)),
+        layout=layout,
     )
 
     visual_override = layout.get("visual_box")
@@ -232,7 +351,7 @@ def build_concept_poster_slide(
         _add_fitted_text(
             slide,
             box=boxes["explanation"],
-            text=explanation,
+            text=chosen_variant["explanation"],
             font_name=BODY_FONT,
             font_size=max(
                 int(layout.get("explanation_min_font", 15)),
@@ -247,7 +366,7 @@ def build_concept_poster_slide(
         _add_fitted_text(
             slide,
             box=boxes["bullets"],
-            text=bullets_text,
+            text=chosen_variant["bullets"],
             font_name=BODY_FONT,
             font_size=max(
                 int(layout.get("bullets_min_font", 13)),
@@ -262,7 +381,7 @@ def build_concept_poster_slide(
         _add_fitted_text(
             slide,
             box=boxes["formulas"],
-            text=formulas_text,
+            text=chosen_variant["formulas"],
             font_name=FORMULA_FONT,
             font_size=max(
                 int(layout.get("formulas_min_font", 12)),
@@ -277,7 +396,7 @@ def build_concept_poster_slide(
         _add_fitted_text(
             slide,
             box=boxes["note"],
-            text=note_text,
+            text=chosen_variant["note"],
             font_name=BODY_FONT,
             font_size=max(
                 int(layout.get("note_min_font", 12)),
@@ -292,7 +411,7 @@ def build_concept_poster_slide(
         _add_fitted_text(
             slide,
             box=boxes["takeaway"],
-            text=takeaway,
+            text=chosen_variant["takeaway"],
             font_name=BODY_FONT,
             font_size=max(
                 int(layout.get("takeaway_min_font", 12)),

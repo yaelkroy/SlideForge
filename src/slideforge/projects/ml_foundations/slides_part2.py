@@ -13,16 +13,27 @@ PART2_POSTER_LAYOUT: dict[str, Any] = {
     "title_y": 0.42,
     "subtitle_y": 0.98,
     "poster_box": {"x": 0.96, "y": 1.34, "w": 11.10, "h": 4.98},
-    "visual_min_share": 0.62,
-    "visual_max_share": 0.80,
+    "visual_min_share": 0.64,
+    "visual_max_share": 0.82,
+    "preferred_visual_share": 0.69,
 }
 
 PART2_WORKED_POSTER_LAYOUT: dict[str, Any] = {
     "title_y": 0.42,
     "subtitle_y": 0.98,
     "poster_box": {"x": 0.92, "y": 1.32, "w": 11.18, "h": 5.02},
+    "visual_min_share": 0.60,
+    "visual_max_share": 0.78,
+    "preferred_visual_share": 0.66,
+}
+
+PART2_DENSE_POSTER_LAYOUT: dict[str, Any] = {
+    "title_y": 0.42,
+    "subtitle_y": 0.98,
+    "poster_box": {"x": 0.90, "y": 1.30, "w": 11.22, "h": 5.06},
     "visual_min_share": 0.58,
     "visual_max_share": 0.76,
+    "preferred_visual_share": 0.64,
 }
 
 PART2_NOTATION_LAYOUT: dict[str, Any] = {
@@ -50,8 +61,9 @@ PART2_TWO_PANEL_LAYOUT: dict[str, Any] = {
     "subtitle_max_lines": 1,
     "panel_region": {"x": 0.88, "y": 1.96, "w": 11.24, "h": 2.92},
     "panel_gap": 0.28,
-    "takeaway_y": 5.38,
-    "takeaway_h": 0.28,
+    "footer_clearance_top": 6.50,
+    "takeaway_min_font": 13,
+    "takeaway_max_font": 14,
 }
 
 PART2_THREE_PANEL_LAYOUT: dict[str, Any] = {
@@ -63,10 +75,10 @@ PART2_THREE_PANEL_LAYOUT: dict[str, Any] = {
     "subtitle_max_lines": 2,
     "panel_region": {"x": 0.88, "y": 1.98, "w": 11.24, "h": 2.88},
     "panel_gap": 0.24,
-    "bullets_y": 5.14,
-    "bullets_h": 0.34,
-    "takeaway_y": 5.82,
-    "takeaway_h": 0.26,
+    "footer_clearance_top": 6.46,
+    "bottom_text_gap": 0.12,
+    "takeaway_min_font": 13,
+    "takeaway_max_font": 14,
 }
 
 
@@ -94,8 +106,8 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "The geometric language used to represent examples, compare directions, and measure similarity"
         ),
         "layout": {
-            "title_region": {"x": 0.92, "y": 1.82, "w": 11.40, "h": 0.96},
-            "subtitle_region": {"x": 1.20, "y": 2.84, "w": 10.90, "h": 0.42},
+            "title_region": {"x": 0.92, "y": 1.76, "w": 11.40, "h": 1.02},
+            "subtitle_region": {"x": 1.12, "y": 2.82, "w": 11.00, "h": 0.42},
         },
         "section_visual": {
             "type": "wide_concept_band",
@@ -103,10 +115,10 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "elements": [
                 {
                     "kind": "point_vector_projection_hero",
-                    "x": 0.95,
-                    "y": 3.56,
-                    "w": 11.20,
-                    "h": 1.42,
+                    "x": 0.84,
+                    "y": 3.42,
+                    "w": 11.46,
+                    "h": 1.62,
                     "label": "",
                 },
             ],
@@ -148,7 +160,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "visual": "A two-panel comparison using the same coordinates as a point and as a vector.",
         "text_explanation": "Nothing numerical changed. Only the interpretation changed.",
         "bullets": [],
-        "formulas": ["x=(3,2,2)"],
+        "formulas": [],
         "concrete_example_anchor": "point x and vector x",
         "speaker_intent": "The distinction is conceptual, not algebraic.",
         "title": "One Set of Coordinates, Two Interpretations",
@@ -167,8 +179,11 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
                 "formula": "x=(3,2,2)",
             },
         ],
-        "takeaway": "same coordinates • different role",
-        "layout": PART2_TWO_PANEL_LAYOUT,
+        "takeaway": "Same coordinates. Different role.",
+        "layout": _merged_layout(
+            PART2_TWO_PANEL_LAYOUT,
+            panel_region={"x": 0.88, "y": 1.94, "w": 11.24, "h": 3.06},
+        ),
     },
     {
         "kind": "notation_panel",
@@ -245,7 +260,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "C=(4,3)−(1,1)=(3,2)",
         ],
         "concrete_example_anchor": "Use A=(1,1), B=(4,3), C=(3,2).",
-        "takeaway": "This is the kind of geometric subtraction that will later reappear in optimization and gradients.",
+        "takeaway": "This kind of subtraction later reappears in optimization and gradients.",
         "layout": PART2_WORKED_POSTER_LAYOUT,
     },
     {
@@ -293,10 +308,10 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "formulas": [
             "x=(3,2,2)",
             "‖x‖ = √(3^2 + 2^2 + 2^2)",
-            "‖x‖ = √(9 + 4 + 4) = √17",
+            "‖x‖ = √17",
         ],
         "concrete_example_anchor": "Use x=(3,2,2), ‖x‖=√17.",
-        "takeaway": "This is exactly the pattern students should be able to reproduce on their own.",
+        "takeaway": "Students should be able to reproduce this pattern on their own.",
         "layout": PART2_WORKED_POSTER_LAYOUT,
     },
     {
@@ -394,7 +409,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "α = arccos((x·y)/(‖x‖‖y‖))",
         ],
         "concrete_example_anchor": "Use x=[0.4,0.3]ᵀ and y=[−0.15,0.2]ᵀ.",
-        "takeaway": "This is the bridge from raw arithmetic to geometric interpretation.",
+        "takeaway": "This is the bridge from arithmetic to geometric interpretation.",
         "layout": PART2_POSTER_LAYOUT,
     },
     {
@@ -409,20 +424,18 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "mini_visual": "angle_homework_worked",
         "text_explanation": "These vectors are a beautiful example because the dot product becomes zero.",
         "bullets": [
-            "compute first norm",
-            "compute second norm",
-            "compute dot product",
-            "conclude angle",
+            "compute both norms",
+            "compute the dot product",
+            "conclude the angle",
         ],
         "formulas": [
-            "x=[0.4,0.3]ᵀ ⇒ ‖x‖ = √(0.16+0.09) = 0.5",
-            "y=[−0.15,0.2]ᵀ ⇒ ‖y‖ = √(0.0225+0.04) = 0.25",
+            "‖x‖ = 0.5, ‖y‖ = 0.25",
             "x·y = (0.4)(−0.15) + (0.3)(0.2) = 0",
             "cos α = 0 ⇒ α = π/2",
         ],
         "concrete_example_anchor": "This is the homework-style computation students need.",
-        "takeaway": "Everything now comes together: norm, dot product, angle, and geometry.",
-        "layout": PART2_WORKED_POSTER_LAYOUT,
+        "takeaway": "Norm, dot product, angle, and geometry now work together.",
+        "layout": PART2_DENSE_POSTER_LAYOUT,
     },
     {
         "kind": "concept_poster",
@@ -444,13 +457,11 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         ],
         "formulas": [
             "x ⟂ y ⟺ x·y = 0",
-            "x^(1)=[a_1,a_2,a_3]ᵀ, x^(2)=[a_1,−a_2,a_3]ᵀ",
             "x^(1)·x^(2)=a_1^2−a_2^2+a_3^2",
-            "x^(1) ⟂ x^(2) ⟺ a_1^2−a_2^2+a_3^2=0",
         ],
-        "concrete_example_anchor": "Use the exact symbolic homework condition.",
+        "visible_anchor_text": "For the homework pair, orthogonality means a_1^2−a_2^2+a_3^2=0.",
         "takeaway": "Perpendicularity becomes a simple algebraic test.",
-        "layout": PART2_WORKED_POSTER_LAYOUT,
+        "layout": PART2_DENSE_POSTER_LAYOUT,
     },
     {
         "kind": "concept_poster",
@@ -525,11 +536,10 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "p_{x^(1)→x^(2)} = c u",
             "c = (x^(1)·x^(2))/‖x^(2)‖",
             "x^(1)·x^(2)=a_1^2−a_2^2+a_3^2",
-            "‖x^(2)‖=√(a_1^2+a_2^2+a_3^2)",
         ],
-        "concrete_example_anchor": "This is the exact symbolic homework form students need.",
+        "visible_anchor_text": "Also remember: ‖x^(2)‖ = √(a_1^2+a_2^2+a_3^2).",
         "takeaway": "This is the projection question in a form students can actually follow and reproduce.",
-        "layout": PART2_WORKED_POSTER_LAYOUT,
+        "layout": PART2_DENSE_POSTER_LAYOUT,
     },
     {
         "kind": "triple_role",
@@ -546,13 +556,8 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "norm → size / magnitude",
             "dot product → similarity / alignment",
             "projection → directional component",
-            "all three reappear in classifiers, optimization, and neural networks",
         ],
-        "formulas": [
-            "‖x‖",
-            "x·y",
-            "proj_y(x)",
-        ],
+        "formulas": [],
         "concrete_example_anchor": (
             "Mention feature vectors in classification, parameter vectors in linear models, and gradients in optimization."
         ),
