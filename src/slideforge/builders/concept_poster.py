@@ -126,62 +126,59 @@ def _candidate_content_variants(
     formulas_text: str,
     note_text: str,
     takeaway_text: str,
+    required_bullets: bool,
+    required_formulas: bool,
+    required_note: bool,
+    required_takeaway: bool,
 ) -> list[dict[str, str]]:
     """
-    Try denser versions first, then progressively simplify lower bands to
-    protect the main visual when a slide becomes too crowded.
+    Try richer versions first, then progressively simplify optional lower bands.
+    Required content is never dropped here.
     """
-    return [
-        {
-            "explanation": explanation,
-            "bullets": bullets_text,
-            "formulas": formulas_text,
-            "note": note_text,
-            "takeaway": takeaway_text,
-        },
-        {
-            "explanation": explanation,
-            "bullets": bullets_text,
-            "formulas": formulas_text,
-            "note": "",
-            "takeaway": takeaway_text,
-        },
-        {
-            "explanation": explanation,
-            "bullets": bullets_text,
-            "formulas": "",
-            "note": note_text,
-            "takeaway": takeaway_text,
-        },
-        {
-            "explanation": explanation,
-            "bullets": bullets_text,
-            "formulas": "",
-            "note": "",
-            "takeaway": takeaway_text,
-        },
-        {
-            "explanation": explanation,
-            "bullets": "",
-            "formulas": formulas_text,
-            "note": "",
-            "takeaway": takeaway_text,
-        },
-        {
-            "explanation": explanation,
-            "bullets": "",
-            "formulas": "",
-            "note": "",
-            "takeaway": takeaway_text,
-        },
-        {
-            "explanation": explanation,
-            "bullets": "",
-            "formulas": "",
-            "note": "",
-            "takeaway": "",
-        },
-    ]
+    def maybe_drop(text: str, required: bool) -> list[str]:
+        return [text] if required or not text.strip() else [text, ""]
+
+    variants: list[dict[str, str]] = []
+    seen: set[tuple[str, str, str, str, str]] = set()
+
+    bullet_options = maybe_drop(bullets_text, required_bullets)
+    formula_options = maybe_drop(formulas_text, required_formulas)
+    note_options = maybe_drop(note_text, required_note)
+    takeaway_options = maybe_drop(takeaway_text, required_takeaway)
+
+    for bullets in bullet_options:
+        for formulas in formula_options:
+            for note in note_options:
+                for takeaway in takeaway_options:
+                    variant = {
+                        "explanation": explanation,
+                        "bullets": bullets,
+                        "formulas": formulas,
+                        "note": note,
+                        "takeaway": takeaway,
+                    }
+                    key = (
+                        variant["explanation"],
+                        variant["bullets"],
+                        variant["formulas"],
+                        variant["note"],
+                        variant["takeaway"],
+                    )
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    variants.append(variant)
+
+    def richness_score(v: dict[str, str]) -> tuple[int, int, int, int]:
+        return (
+            1 if v["takeaway"].strip() else 0,
+            1 if v["formulas"].strip() else 0,
+            1 if v["bullets"].strip() else 0,
+            1 if v["note"].strip() else 0,
+        )
+
+    variants.sort(key=richness_score, reverse=True)
+    return variants
 
 
 def _choose_best_poster_layout(
@@ -193,6 +190,10 @@ def _choose_best_poster_layout(
     note_text: str,
     takeaway_text: str,
     layout: Mapping[str, Any],
+    required_bullets: bool,
+    required_formulas: bool,
+    required_note: bool,
+    required_takeaway: bool,
 ):
     preferred_visual_share = float(layout.get("preferred_visual_share", 0.68))
 
@@ -202,6 +203,10 @@ def _choose_best_poster_layout(
         formulas_text=formulas_text,
         note_text=note_text,
         takeaway_text=takeaway_text,
+        required_bullets=required_bullets,
+        required_formulas=required_formulas,
+        required_note=required_note,
+        required_takeaway=required_takeaway,
     )
 
     best_variant = variants[0]
@@ -278,6 +283,11 @@ def build_concept_poster_slide(
 
     takeaway = str(spec.get("takeaway", "")).strip()
 
+    required_bullets = bool(spec.get("required_bullets", False))
+    required_formulas = bool(spec.get("required_formulas", False))
+    required_note = bool(spec.get("required_note", False))
+    required_takeaway = bool(spec.get("required_takeaway", True))
+
     header_result = render_header_from_spec(
         slide,
         spec,
@@ -323,6 +333,10 @@ def build_concept_poster_slide(
         note_text=note_text,
         takeaway_text=takeaway,
         layout=layout,
+        required_bullets=required_bullets,
+        required_formulas=required_formulas,
+        required_note=required_note,
+        required_takeaway=required_takeaway,
     )
 
     visual_override = layout.get("visual_box")
