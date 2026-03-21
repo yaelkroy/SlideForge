@@ -13,27 +13,42 @@ PART2_POSTER_LAYOUT: dict[str, Any] = {
     "title_y": 0.42,
     "subtitle_y": 0.98,
     "poster_box": {"x": 0.96, "y": 1.34, "w": 11.10, "h": 4.98},
-    "visual_min_share": 0.64,
-    "visual_max_share": 0.82,
-    "preferred_visual_share": 0.69,
-}
-
-PART2_WORKED_POSTER_LAYOUT: dict[str, Any] = {
-    "title_y": 0.42,
-    "subtitle_y": 0.98,
-    "poster_box": {"x": 0.92, "y": 1.32, "w": 11.18, "h": 5.02},
-    "visual_min_share": 0.60,
-    "visual_max_share": 0.78,
-    "preferred_visual_share": 0.66,
-}
-
-PART2_DENSE_POSTER_LAYOUT: dict[str, Any] = {
-    "title_y": 0.42,
-    "subtitle_y": 0.98,
-    "poster_box": {"x": 0.90, "y": 1.30, "w": 11.22, "h": 5.06},
-    "visual_min_share": 0.58,
+    "visual_min_share": 0.56,
     "visual_max_share": 0.76,
-    "preferred_visual_share": 0.64,
+    "preferred_visual_share": 0.63,
+}
+
+PART2_TEXT_FIRST_POSTER_LAYOUT: dict[str, Any] = _merged_layout(
+    PART2_POSTER_LAYOUT,
+    prioritize_text_over_visual=True,
+    reserve_formula_first=True,
+    stack_formulas=True,
+    visual_min_share=0.44,
+    visual_max_share=0.64,
+    preferred_visual_share=0.52,
+)
+
+PART2_WORKED_EXAMPLE_LAYOUT: dict[str, Any] = {
+    "content_box": {"x": 0.88, "y": 1.34, "w": 11.24, "h": 5.02},
+    "worked_layout_mode": "two_column",
+    "column_gap": 0.24,
+    "visual_share": 0.40,
+    "block_gap": 0.12,
+    "steps_min_h": 2.10,
+    "result_min_h": 0.72,
+    "takeaway_min_h": 0.56,
+}
+
+PART2_DENSE_WORKED_EXAMPLE_LAYOUT: dict[str, Any] = {
+    "content_box": {"x": 0.88, "y": 1.32, "w": 11.24, "h": 5.06},
+    "worked_layout_mode": "top_visual",
+    "top_visual_h": 2.12,
+    "column_gap": 0.22,
+    "lower_right_share": 0.34,
+    "block_gap": 0.12,
+    "result_min_h": 0.86,
+    "result_max_h": 1.30,
+    "takeaway_min_h": 0.92,
 }
 
 PART2_NOTATION_LAYOUT: dict[str, Any] = {
@@ -79,6 +94,13 @@ PART2_THREE_PANEL_LAYOUT: dict[str, Any] = {
     "bottom_text_gap": 0.12,
     "takeaway_min_font": 13,
     "takeaway_max_font": 14,
+    "adaptive_panel_visual": True,
+    "prioritize_text_over_visual": True,
+    "panel_visual_min_share": 0.30,
+    "panel_visual_max_share": 0.58,
+    "panel_visual_preferred_share": 0.40,
+    "takeaway_grow_weight": 2.2,
+    "use_bottom_summary_card": True,
 }
 
 
@@ -95,7 +117,8 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "a second vector with angle marked, and a projection shadow."
         ),
         "text_explanation": (
-            "The geometric language used to represent examples, compare directions, and measure similarity"
+            "The geometric language used to represent examples, compare directions, "
+            "and measure similarity"
         ),
         "bullets": [],
         "formulas": [],
@@ -103,7 +126,8 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "speaker_intent": "This is where the geometry starts becoming operational.",
         "title": "Part II — Points, Vectors, Norms, Dot Products, and Projections",
         "subtitle": (
-            "The geometric language used to represent examples, compare directions, and measure similarity"
+            "The geometric language used to represent examples, compare directions, "
+            "and measure similarity"
         ),
         "layout": {
             "title_region": {"x": 0.92, "y": 1.76, "w": 11.40, "h": 1.02},
@@ -130,12 +154,16 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "background": "Background 10.png",
         "slide_number": 13,
         "slide_title": "Point in Space, Vector from the Origin",
-        "purpose": "Introduce the key idea that the same coordinates can be viewed both as a point and as a vector.",
+        "purpose": (
+            "Introduce the key idea that the same coordinates can be viewed both as a "
+            "point and as a vector."
+        ),
         "title": "Point in Space, Vector from the Origin",
         "subtitle": "",
         "mini_visual": "point_and_vector_same_coords",
         "text_explanation": (
-            "The same coordinates can be interpreted in two ways: as a location in space and as a displacement from the origin."
+            "The same coordinates can be interpreted in two ways: as a location in "
+            "space and as a displacement from the origin."
         ),
         "bullets": [
             "point view: where the object is",
@@ -148,7 +176,10 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         ],
         "required_formulas": True,
         "concrete_example_anchor": "Use x=(3,2,2) as both point and vector.",
-        "takeaway": "This is the first bridge between geometry language and machine-learning representation.",
+        "takeaway": (
+            "This is the first bridge between geometry language and machine-learning "
+            "representation."
+        ),
         "layout": PART2_POSTER_LAYOUT,
     },
     {
@@ -192,9 +223,17 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "background": "Background 10.png",
         "slide_number": 15,
         "slide_title": "Coordinates and the Meaning of x_i",
-        "purpose": "Explain vector notation and indexing clearly enough that later sums and dot products feel natural.",
-        "visual": "A large notation comparison with coordinate-list form, column-vector form, and indexed coordinate meaning.",
-        "text_explanation": "A vector is made of coordinates, and x_i means the i-th coordinate of the vector.",
+        "purpose": (
+            "Explain vector notation and indexing clearly enough that later sums and "
+            "dot products feel natural."
+        ),
+        "visual": (
+            "A large notation comparison with coordinate-list form, column-vector form, "
+            "and indexed coordinate meaning."
+        ),
+        "text_explanation": (
+            "A vector is made of coordinates, and x_i means the i-th coordinate of the vector."
+        ),
         "bullets": [],
         "formulas": [
             "x=[x_1,x_2,x_3]ᵀ",
@@ -203,7 +242,9 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "concrete_example_anchor": "Explicitly highlight x_2=2.",
         "speaker_intent": "Index notation is how vector formulas become manageable.",
         "title": "Coordinates and the Meaning of x_i",
-        "subtitle": "A vector is made of coordinates, and x_i means the i-th coordinate of the vector.",
+        "subtitle": (
+            "A vector is made of coordinates, and x_i means the i-th coordinate of the vector."
+        ),
         "columns": ["symbol", "meaning", "visual example"],
         "rows": [
             {"symbol": "x", "meaning": "the full vector", "example": "x=(3,2,2)"},
@@ -241,30 +282,44 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "layout": PART2_POSTER_LAYOUT,
     },
     {
-        "kind": "concept_poster",
+        "kind": "worked_example",
         "theme": "concept",
         "background": "Background 10.png",
         "slide_number": 17,
         "slide_title": "Worked Example: From One Point to Another",
         "purpose": "Turn vector subtraction into a concrete geometric example.",
         "title": "Worked Example: From One Point to Another",
-        "subtitle": "",
         "mini_visual": "displacement_worked_example",
-        "text_explanation": "To go from A to B, subtract coordinates.",
-        "bullets": [
-            "subtract ending minus starting point",
-            "result is a direction vector",
-            "displacement has both length and direction",
+        "visual_label": "Geometry",
+        "visual_caption": "Displacement vector from A to B",
+        "text_explanation": "To go from A to B, subtract coordinates entry by entry.",
+        "steps": [
+            {
+                "title": "Step 1",
+                "body": "Write the starting and ending points.",
+                "formula": "A=(1,1), B=(4,3)",
+            },
+            {
+                "title": "Step 2",
+                "body": "Use ending minus starting point.",
+                "formula": "C = B − A",
+            },
+            {
+                "title": "Step 3",
+                "body": "Subtract coordinate-wise.",
+                "formula": "C=(4,3)−(1,1)=(3,2)",
+            },
         ],
-        "formulas": [
-            "A=(1,1), B=(4,3)",
-            "C = B − A",
-            "C=(4,3)−(1,1)=(3,2)",
-        ],
-        "required_formulas": True,
-        "concrete_example_anchor": "Use A=(1,1), B=(4,3), C=(3,2).",
-        "takeaway": "This kind of subtraction later reappears in optimization and gradients.",
-        "layout": PART2_WORKED_POSTER_LAYOUT,
+        "result": {
+            "label": "Result",
+            "body": "The displacement from A to B is the vector from the first point to the second.",
+            "formula": "C=(3,2)",
+        },
+        "takeaway": (
+            "This same subtraction pattern returns later in optimization, gradients, and "
+            "error vectors."
+        ),
+        "layout": PART2_WORKED_EXAMPLE_LAYOUT,
     },
     {
         "kind": "concept_poster",
@@ -277,7 +332,8 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "subtitle": "",
         "mini_visual": "norm_triangle",
         "text_explanation": (
-            "The norm tells us how long a vector is. In Euclidean space, length comes from summing squared coordinates and taking a square root."
+            "The norm tells us how long a vector is. In Euclidean space, length comes "
+            "from summing squared coordinates and taking a square root."
         ),
         "bullets": [
             "norm = magnitude",
@@ -294,30 +350,40 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "layout": PART2_POSTER_LAYOUT,
     },
     {
-        "kind": "concept_poster",
+        "kind": "worked_example",
         "theme": "concept",
         "background": "Background 10.png",
         "slide_number": 19,
         "slide_title": "Worked Example: ‖(3,2,2)‖",
         "purpose": "Compute a concrete norm fully, step by step.",
         "title": "Worked Example: ‖(3,2,2)‖",
-        "subtitle": "",
-        "mini_visual": "norm_worked_example",
+        "mini_visual": "norm_worked_geometry",
+        "visual_label": "Geometry",
+        "visual_caption": "The vector x=(3,2,2) with length measured from the origin",
         "text_explanation": "Square each coordinate, add the squares, then take the square root.",
-        "bullets": [
-            "square each entry",
-            "add the squares",
-            "take the square root",
+        "steps": [
+            {
+                "title": "Step 1",
+                "body": "Start from the coordinates of the vector.",
+                "formula": "x=(3,2,2)",
+            },
+            {
+                "title": "Step 2",
+                "body": "Apply the Euclidean norm formula.",
+                "formula": "‖x‖ = √(3^2 + 2^2 + 2^2)",
+            },
+            {
+                "title": "Step 3",
+                "body": "Add the squares under the root.",
+                "formula": "‖x‖ = √(9+4+4) = √17",
+            },
         ],
-        "formulas": [
-            "x=(3,2,2)",
-            "‖x‖ = √(3^2 + 2^2 + 2^2)",
-            "‖x‖ = √17",
-        ],
-        "required_formulas": True,
-        "concrete_example_anchor": "Use x=(3,2,2), ‖x‖=√17.",
-        "takeaway": "Students should be able to reproduce this pattern on their own.",
-        "layout": PART2_WORKED_POSTER_LAYOUT,
+        "result": {
+            "label": "Result",
+            "formula": "‖(3,2,2)‖ = √17",
+        },
+        "takeaway": "Students should be able to repeat this exact norm pattern on their own.",
+        "layout": PART2_WORKED_EXAMPLE_LAYOUT,
     },
     {
         "kind": "concept_poster",
@@ -330,7 +396,8 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "subtitle": "",
         "mini_visual": "dot_product_pairing",
         "text_explanation": (
-            "The dot product combines two vectors into one number. Algebraically, it is the sum of coordinate-wise products."
+            "The dot product combines two vectors into one number. Algebraically, it is "
+            "the sum of coordinate-wise products."
         ),
         "bullets": [
             "multiply corresponding coordinates",
@@ -347,30 +414,40 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "layout": PART2_POSTER_LAYOUT,
     },
     {
-        "kind": "concept_poster",
+        "kind": "worked_example",
         "theme": "concept",
         "background": "Background 10.png",
         "slide_number": 21,
         "slide_title": "Worked Example: (3,2,2)·(1,1,1)",
         "purpose": "Carry out a full numerical dot-product computation.",
         "title": "Worked Example: (3,2,2)·(1,1,1)",
-        "subtitle": "",
-        "mini_visual": "dot_product_worked_example",
+        "mini_visual": "dot_product_worked_geometry",
+        "visual_label": "Geometry",
+        "visual_caption": "Coordinate pairing between x and y",
         "text_explanation": "Dot product is often easiest to compute directly from coordinates.",
-        "bullets": [
-            "first coordinates: 3·1",
-            "second coordinates: 2·1",
-            "third coordinates: 2·1",
+        "steps": [
+            {
+                "title": "Step 1",
+                "body": "Write the two vectors.",
+                "formula": "x=(3,2,2), y=(1,1,1)",
+            },
+            {
+                "title": "Step 2",
+                "body": "Multiply matching coordinates.",
+                "formula": "x·y = 3·1 + 2·1 + 2·1",
+            },
+            {
+                "title": "Step 3",
+                "body": "Add the coordinate products.",
+                "formula": "x·y = 7",
+            },
         ],
-        "formulas": [
-            "x=(3,2,2), y=(1,1,1)",
-            "x·y = 3·1 + 2·1 + 2·1",
-            "x·y = 7",
-        ],
-        "required_formulas": True,
-        "concrete_example_anchor": "(3,2,2)·(1,1,1)=7",
-        "takeaway": "Students should be able to do this one quickly and correctly.",
-        "layout": PART2_WORKED_POSTER_LAYOUT,
+        "result": {
+            "label": "Result",
+            "formula": "(3,2,2)·(1,1,1)=7",
+        },
+        "takeaway": "This is the fast mechanical computation students should be able to do reliably.",
+        "layout": PART2_WORKED_EXAMPLE_LAYOUT,
     },
     {
         "kind": "concept_poster",
@@ -378,11 +455,16 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "background": "Background 10.png",
         "slide_number": 22,
         "slide_title": "Dot Product as Angle and Alignment",
-        "purpose": "Show the geometric meaning of the dot product and connect it to relative orientation.",
+        "purpose": (
+            "Show the geometric meaning of the dot product and connect it to relative orientation."
+        ),
         "title": "Dot Product as Angle and Alignment",
         "subtitle": "",
         "mini_visual": "dot_alignment_angle",
-        "text_explanation": "Geometrically, dot product measures alignment. It depends on both length and angle.",
+        "text_explanation": (
+            "Geometrically, dot product measures alignment. It depends on both length "
+            "and angle."
+        ),
         "bullets": [
             "large positive: similar direction",
             "zero: perpendicular",
@@ -419,60 +501,80 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "required_formulas": True,
         "concrete_example_anchor": "Use x=[0.4,0.3]ᵀ and y=[−0.15,0.2]ᵀ.",
         "takeaway": "This is the bridge from arithmetic to geometric interpretation.",
-        "layout": PART2_POSTER_LAYOUT,
+        "layout": PART2_TEXT_FIRST_POSTER_LAYOUT,
     },
     {
-        "kind": "concept_poster",
+        "kind": "worked_example",
         "theme": "concept",
         "background": "Background 10.png",
         "slide_number": 24,
         "slide_title": "Worked Example: Norms and Angle in 2D",
         "purpose": "Give a full worked example close to the homework.",
         "title": "Worked Example: Norms and Angle in 2D",
-        "subtitle": "",
-        "mini_visual": "angle_homework_worked",
-        "text_explanation": "These vectors are a beautiful example because the dot product becomes zero.",
-        "bullets": [
-            "compute both norms",
-            "compute the dot product",
-            "conclude the angle",
+        "mini_visual": "angle_homework_geometry",
+        "visual_label": "Geometry",
+        "visual_caption": "Two vectors in 2D whose angle will turn out to be 90°",
+        "steps": [
+            {
+                "title": "Step 1",
+                "body": "Compute each norm.",
+                "formula": "‖x‖ = 0.5, ‖y‖ = 0.25",
+            },
+            {
+                "title": "Step 2",
+                "body": "Compute the dot product.",
+                "formula": "x·y = (0.4)(−0.15) + (0.3)(0.2) = 0",
+            },
+            {
+                "title": "Step 3",
+                "body": "Recover the angle from the geometric dot-product formula.",
+                "formula": "cos α = 0/(0.5·0.25) = 0 ⇒ α = π/2",
+            },
         ],
-        "formulas": [
-            "‖x‖ = 0.5, ‖y‖ = 0.25",
-            "x·y = (0.4)(−0.15) + (0.3)(0.2) = 0",
-            "cos α = 0 ⇒ α = π/2",
-        ],
-        "required_formulas": True,
-        "concrete_example_anchor": "This is the homework-style computation students need.",
-        "takeaway": "Norm, dot product, angle, and geometry now work together.",
-        "layout": PART2_DENSE_POSTER_LAYOUT,
+        "result": {
+            "label": "Result",
+            "body": "The vectors are orthogonal because the dot product vanishes.",
+            "formula": "α = π/2",
+        },
+        "takeaway": "Norm, dot product, angle, and geometry now work together in one computation.",
+        "layout": PART2_DENSE_WORKED_EXAMPLE_LAYOUT,
     },
     {
-        "kind": "concept_poster",
+        "kind": "worked_example",
         "theme": "concept",
         "background": "Background 10.png",
         "slide_number": 25,
         "slide_title": "Orthogonal Vectors",
-        "purpose": "Define perpendicularity in vector language and connect it directly to the dot product.",
-        "title": "Orthogonal Vectors",
-        "subtitle": "",
-        "mini_visual": "orthogonal_vectors_symbolic",
-        "text_explanation": (
-            "Two vectors are orthogonal when the angle between them is 90°, which means their dot product is zero."
+        "purpose": (
+            "Define perpendicularity in vector language and connect it directly to the dot product."
         ),
-        "bullets": [
-            "orthogonal = perpendicular",
-            "test by checking dot product",
-            "zero dot product is the criterion",
+        "title": "Orthogonal Vectors",
+        "mini_visual": "orthogonal_vectors_geometry",
+        "visual_label": "Geometry",
+        "visual_caption": "Perpendicular vectors with the dot product criterion shown separately as text",
+        "steps": [
+            {
+                "title": "Criterion",
+                "body": "Orthogonal means perpendicular in vector language.",
+                "formula": "x ⟂ y ⟺ x·y = 0",
+            },
+            {
+                "title": "Homework pair",
+                "body": "For the symbolic vectors from the homework, compute the dot product.",
+                "formula": "x^(1)·x^(2) = a_1^2 − a_2^2 + a_3^2",
+            },
+            {
+                "title": "Test",
+                "body": "Set the dot product equal to zero to enforce orthogonality.",
+                "formula": "a_1^2 − a_2^2 + a_3^2 = 0",
+            },
         ],
-        "formulas": [
-            "x ⟂ y ⟺ x·y = 0",
-            "x^(1)·x^(2)=a_1^2−a_2^2+a_3^2",
-        ],
-        "required_formulas": True,
-        "visible_anchor_text": "For the homework pair, orthogonality means a_1^2−a_2^2+a_3^2=0.",
-        "takeaway": "Perpendicularity becomes a simple algebraic test.",
-        "layout": PART2_DENSE_POSTER_LAYOUT,
+        "result": {
+            "label": "Result",
+            "formula": "x^(1) ⟂ x^(2) ⟺ a_1^2 − a_2^2 + a_3^2 = 0",
+        },
+        "takeaway": "Perpendicularity becomes a direct algebraic test instead of a purely visual fact.",
+        "layout": PART2_DENSE_WORKED_EXAMPLE_LAYOUT,
     },
     {
         "kind": "concept_poster",
@@ -510,7 +612,8 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "subtitle": "",
         "mini_visual": "projection_geometry",
         "text_explanation": (
-            "Projection asks what part of one vector points along another. It isolates the directional component."
+            "Projection asks what part of one vector points along another. It isolates "
+            "the directional component."
         ),
         "bullets": [
             "result points along target direction",
@@ -527,33 +630,48 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "layout": PART2_POSTER_LAYOUT,
     },
     {
-        "kind": "concept_poster",
+        "kind": "worked_example",
         "theme": "concept",
         "background": "Background 10.png",
         "slide_number": 28,
         "slide_title": "Projection of x^(1) Onto x^(2)",
         "purpose": "Make the homework projection question fully understandable.",
         "title": "Projection of x^(1) Onto x^(2)",
-        "subtitle": "",
-        "mini_visual": "projection_symbolic_homework",
-        "text_explanation": (
-            "The projection must point in the direction of x^(2). If u is the unit direction, then projection can be written as c u."
+        "mini_visual": "projection_homework_geometry",
+        "visual_label": "Geometry",
+        "visual_caption": "The projected vector points along x^(2), not in an arbitrary direction",
+        "steps": [
+            {
+                "title": "Step 1",
+                "body": "Write the unit direction of the target vector.",
+                "formula": "u = x^(2)/‖x^(2)‖",
+            },
+            {
+                "title": "Step 2",
+                "body": "The projection has the form “scalar times target direction.”",
+                "formula": "p_{x^(1)→x^(2)} = c u",
+            },
+            {
+                "title": "Step 3",
+                "body": "Compute the signed magnitude from a dot product.",
+                "formula": "c = (x^(1)·x^(2))/‖x^(2)‖",
+            },
+            {
+                "title": "Step 4",
+                "body": "Substitute the symbolic homework dot product.",
+                "formula": "x^(1)·x^(2)=a_1^2−a_2^2+a_3^2",
+            },
+        ],
+        "result": {
+            "label": "Result",
+            "body": "Equivalent direct formula:",
+            "formula": "proj_{x^(2)}(x^(1)) = ((x^(1)·x^(2))/‖x^(2)‖^2) x^(2)",
+        },
+        "takeaway": (
+            "Projection is controlled by direction and alignment together, which is exactly "
+            "why dot products matter."
         ),
-        "bullets": [
-            "direction is x^(2)",
-            "unit direction is u = x^(2)/‖x^(2)‖",
-            "signed magnitude comes from a dot product",
-        ],
-        "formulas": [
-            "u = x^(2)/‖x^(2)‖",
-            "p_{x^(1)→x^(2)} = c u",
-            "c = (x^(1)·x^(2))/‖x^(2)‖",
-            "x^(1)·x^(2)=a_1^2−a_2^2+a_3^2",
-        ],
-        "required_formulas": True,
-        "visible_anchor_text": "Also remember: ‖x^(2)‖ = √(a_1^2+a_2^2+a_3^2).",
-        "takeaway": "This is the projection question in a form students can actually follow and reproduce.",
-        "layout": PART2_DENSE_POSTER_LAYOUT,
+        "layout": PART2_DENSE_WORKED_EXAMPLE_LAYOUT,
     },
     {
         "kind": "triple_role",
@@ -573,14 +691,17 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         ],
         "formulas": [],
         "concrete_example_anchor": (
-            "Mention feature vectors in classification, parameter vectors in linear models, and gradients in optimization."
+            "Mention feature vectors in classification, parameter vectors in linear models, "
+            "and gradients in optimization."
         ),
         "speaker_intent": (
-            "This geometry is not background decoration — it is the operating language of machine learning."
+            "This geometry is not background decoration — it is the operating language of "
+            "machine learning."
         ),
         "title": "Why Norms, Dot Products, and Projections Matter in ML",
         "subtitle": (
-            "Norms measure size, dot products measure alignment, and projections isolate directional components."
+            "Norms measure size, dot products measure alignment, and projections isolate "
+            "directional components."
         ),
         "panels": [
             {
