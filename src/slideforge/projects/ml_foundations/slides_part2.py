@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 
+
 def _merged_layout(base: dict[str, Any], **overrides: Any) -> dict[str, Any]:
     merged = dict(base)
     merged.update(overrides)
@@ -12,43 +13,79 @@ def _merged_layout(base: dict[str, Any], **overrides: Any) -> dict[str, Any]:
 PART2_POSTER_LAYOUT: dict[str, Any] = {
     "title_y": 0.42,
     "subtitle_y": 0.98,
-    "poster_box": {"x": 0.96, "y": 1.34, "w": 11.10, "h": 4.98},
+    "poster_box": {"x": 0.94, "y": 1.32, "w": 11.14, "h": 5.02},
     "visual_min_share": 0.56,
     "visual_max_share": 0.76,
     "preferred_visual_share": 0.63,
 }
+
+PART2_COMPACT_CONCEPT_LAYOUT: dict[str, Any] = _merged_layout(
+    PART2_POSTER_LAYOUT,
+    compact_concept_mode=True,
+    compact_visual_min_share=0.64,
+    compact_visual_max_share=0.82,
+    compact_preferred_visual_share=0.74,
+    visual_min_share=0.60,
+    visual_max_share=0.80,
+    preferred_visual_share=0.70,
+)
 
 PART2_TEXT_FIRST_POSTER_LAYOUT: dict[str, Any] = _merged_layout(
     PART2_POSTER_LAYOUT,
     prioritize_text_over_visual=True,
     reserve_formula_first=True,
     stack_formulas=True,
-    visual_min_share=0.44,
-    visual_max_share=0.64,
-    preferred_visual_share=0.52,
+    visual_min_share=0.42,
+    visual_max_share=0.62,
+    preferred_visual_share=0.50,
+)
+
+PART2_COMPACT_TEXT_FIRST_LAYOUT: dict[str, Any] = _merged_layout(
+    PART2_TEXT_FIRST_POSTER_LAYOUT,
+    compact_concept_mode=True,
+    compact_visual_min_share=0.52,
+    compact_visual_max_share=0.72,
+    compact_preferred_visual_share=0.64,
 )
 
 PART2_WORKED_EXAMPLE_LAYOUT: dict[str, Any] = {
-    "content_box": {"x": 0.88, "y": 1.34, "w": 11.24, "h": 5.02},
+    "content_box": {"x": 0.88, "y": 1.30, "w": 11.24, "h": 5.08},
     "worked_layout_mode": "two_column",
-    "column_gap": 0.24,
-    "visual_share": 0.40,
-    "block_gap": 0.12,
-    "steps_min_h": 2.10,
-    "result_min_h": 0.72,
-    "takeaway_min_h": 0.56,
+    "column_gap": 0.22,
+    "visual_share": 0.34,
+    "block_gap": 0.10,
+    "steps_min_h": 2.34,
+    "result_min_h": 0.62,
+    "result_max_h": 0.96,
+    "takeaway_min_h": 0.44,
+    "takeaway_max_h": 0.80,
 }
 
-PART2_DENSE_WORKED_EXAMPLE_LAYOUT: dict[str, Any] = {
-    "content_box": {"x": 0.88, "y": 1.32, "w": 11.24, "h": 5.06},
+PART2_SYMBOLIC_WORKED_EXAMPLE_LAYOUT: dict[str, Any] = {
+    "content_box": {"x": 0.88, "y": 1.28, "w": 11.24, "h": 5.10},
+    "worked_layout_mode": "two_column",
+    "column_gap": 0.20,
+    "visual_share": 0.30,
+    "block_gap": 0.10,
+    "steps_min_h": 2.58,
+    "result_min_h": 0.66,
+    "result_max_h": 1.02,
+    "takeaway_min_h": 0.42,
+    "takeaway_max_h": 0.74,
+}
+
+PART2_TOP_VISUAL_WORKED_LAYOUT: dict[str, Any] = {
+    "content_box": {"x": 0.88, "y": 1.28, "w": 11.24, "h": 5.10},
     "worked_layout_mode": "top_visual",
-    "top_visual_h": 2.12,
-    "column_gap": 0.22,
-    "lower_right_share": 0.34,
-    "block_gap": 0.12,
-    "result_min_h": 0.86,
-    "result_max_h": 1.30,
-    "takeaway_min_h": 0.92,
+    "top_visual_h": 1.84,
+    "column_gap": 0.20,
+    "lower_right_share": 0.36,
+    "block_gap": 0.10,
+    "steps_min_h": 1.92,
+    "result_min_h": 0.84,
+    "result_max_h": 1.18,
+    "takeaway_min_h": 0.70,
+    "takeaway_max_h": 1.04,
 }
 
 PART2_NOTATION_LAYOUT: dict[str, Any] = {
@@ -88,18 +125,18 @@ PART2_THREE_PANEL_LAYOUT: dict[str, Any] = {
     "title_max_font": 25,
     "subtitle_h": 0.42,
     "subtitle_max_lines": 2,
-    "panel_region": {"x": 0.88, "y": 1.98, "w": 11.24, "h": 2.88},
-    "panel_gap": 0.24,
-    "footer_clearance_top": 6.46,
-    "bottom_text_gap": 0.12,
+    "panel_region": {"x": 0.86, "y": 1.94, "w": 11.28, "h": 3.04},
+    "panel_gap": 0.22,
+    "footer_clearance_top": 6.48,
+    "bottom_text_gap": 0.10,
     "takeaway_min_font": 13,
     "takeaway_max_font": 14,
     "adaptive_panel_visual": True,
     "prioritize_text_over_visual": True,
-    "panel_visual_min_share": 0.30,
-    "panel_visual_max_share": 0.58,
-    "panel_visual_preferred_share": 0.40,
-    "takeaway_grow_weight": 2.2,
+    "panel_visual_min_share": 0.34,
+    "panel_visual_max_share": 0.62,
+    "panel_visual_preferred_share": 0.46,
+    "takeaway_grow_weight": 2.4,
     "use_bottom_summary_card": True,
 }
 
@@ -130,8 +167,8 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "and measure similarity"
         ),
         "layout": {
-            "title_region": {"x": 0.92, "y": 1.76, "w": 11.40, "h": 1.02},
-            "subtitle_region": {"x": 1.14, "y": 2.82, "w": 10.96, "h": 0.42},
+            "title_region": {"x": 0.86, "y": 1.72, "w": 11.52, "h": 1.06},
+            "subtitle_region": {"x": 1.06, "y": 2.82, "w": 11.06, "h": 0.44},
         },
         "section_visual": {
             "type": "wide_concept_band",
@@ -139,10 +176,10 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "elements": [
                 {
                     "kind": "point_vector_projection_hero",
-                    "x": 1.20,
-                    "y": 3.34,
-                    "w": 9.90,
-                    "h": 1.86,
+                    "x": 0.96,
+                    "y": 3.12,
+                    "w": 10.56,
+                    "h": 2.18,
                     "label": "",
                 },
             ],
@@ -176,11 +213,8 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         ],
         "required_formulas": True,
         "concrete_example_anchor": "Use x=(3,2,2) as both point and vector.",
-        "takeaway": (
-            "This is the first bridge between geometry language and machine-learning "
-            "representation."
-        ),
-        "layout": PART2_POSTER_LAYOUT,
+        "takeaway": "One coordinate list can act as either a location or a direction.",
+        "layout": _merged_layout(PART2_COMPACT_CONCEPT_LAYOUT, compact_preferred_visual_share=0.77),
     },
     {
         "kind": "triple_role",
@@ -214,7 +248,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "takeaway": "Same coordinates. Different role.",
         "layout": _merged_layout(
             PART2_TWO_PANEL_LAYOUT,
-            panel_region={"x": 0.88, "y": 1.94, "w": 11.24, "h": 3.06},
+            panel_region={"x": 0.88, "y": 1.92, "w": 11.24, "h": 3.12},
         ),
     },
     {
@@ -279,7 +313,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "required_formulas": True,
         "concrete_example_anchor": "Use generic labeled geometry with A, B, C.",
         "takeaway": "Subtraction tells us how to move from one vector to another.",
-        "layout": PART2_POSTER_LAYOUT,
+        "layout": _merged_layout(PART2_COMPACT_CONCEPT_LAYOUT, compact_preferred_visual_share=0.76),
     },
     {
         "kind": "worked_example",
@@ -319,7 +353,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "This same subtraction pattern returns later in optimization, gradients, and "
             "error vectors."
         ),
-        "layout": PART2_WORKED_EXAMPLE_LAYOUT,
+        "layout": _merged_layout(PART2_WORKED_EXAMPLE_LAYOUT, visual_share=0.35),
     },
     {
         "kind": "concept_poster",
@@ -347,7 +381,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "required_formulas": True,
         "concrete_example_anchor": "General n-dimensional vector.",
         "takeaway": "This is the first standard measurement tool for vectors.",
-        "layout": PART2_POSTER_LAYOUT,
+        "layout": _merged_layout(PART2_COMPACT_CONCEPT_LAYOUT, compact_preferred_visual_share=0.72),
     },
     {
         "kind": "worked_example",
@@ -383,7 +417,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "formula": "‖(3,2,2)‖ = √17",
         },
         "takeaway": "Students should be able to repeat this exact norm pattern on their own.",
-        "layout": PART2_WORKED_EXAMPLE_LAYOUT,
+        "layout": _merged_layout(PART2_WORKED_EXAMPLE_LAYOUT, visual_share=0.33),
     },
     {
         "kind": "concept_poster",
@@ -411,7 +445,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "required_formulas": True,
         "concrete_example_anchor": "Generic x,y∈R^n.",
         "takeaway": "Dot product is one of the central operations in all of machine learning.",
-        "layout": PART2_POSTER_LAYOUT,
+        "layout": _merged_layout(PART2_COMPACT_CONCEPT_LAYOUT, compact_preferred_visual_share=0.72),
     },
     {
         "kind": "worked_example",
@@ -447,7 +481,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "formula": "(3,2,2)·(1,1,1)=7",
         },
         "takeaway": "This is the fast mechanical computation students should be able to do reliably.",
-        "layout": PART2_WORKED_EXAMPLE_LAYOUT,
+        "layout": _merged_layout(PART2_WORKED_EXAMPLE_LAYOUT, visual_share=0.33),
     },
     {
         "kind": "concept_poster",
@@ -476,7 +510,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "required_formulas": True,
         "concrete_example_anchor": "Generic angle diagram with α.",
         "takeaway": "This is where the algebra starts to acquire geometric meaning.",
-        "layout": PART2_POSTER_LAYOUT,
+        "layout": _merged_layout(PART2_COMPACT_CONCEPT_LAYOUT, compact_preferred_visual_share=0.76),
     },
     {
         "kind": "concept_poster",
@@ -501,7 +535,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "required_formulas": True,
         "concrete_example_anchor": "Use x=[0.4,0.3]ᵀ and y=[−0.15,0.2]ᵀ.",
         "takeaway": "This is the bridge from arithmetic to geometric interpretation.",
-        "layout": PART2_TEXT_FIRST_POSTER_LAYOUT,
+        "layout": _merged_layout(PART2_COMPACT_TEXT_FIRST_LAYOUT, compact_preferred_visual_share=0.58),
     },
     {
         "kind": "worked_example",
@@ -537,7 +571,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "formula": "α = π/2",
         },
         "takeaway": "Norm, dot product, angle, and geometry now work together in one computation.",
-        "layout": PART2_DENSE_WORKED_EXAMPLE_LAYOUT,
+        "layout": PART2_TOP_VISUAL_WORKED_LAYOUT,
     },
     {
         "kind": "worked_example",
@@ -551,7 +585,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "title": "Orthogonal Vectors",
         "mini_visual": "orthogonal_vectors_geometry",
         "visual_label": "Geometry",
-        "visual_caption": "Perpendicular vectors with the dot product criterion shown separately as text",
+        "visual_caption": "Perpendicular vectors with the algebraic criterion stated in native text",
         "steps": [
             {
                 "title": "Criterion",
@@ -574,7 +608,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "formula": "x^(1) ⟂ x^(2) ⟺ a_1^2 − a_2^2 + a_3^2 = 0",
         },
         "takeaway": "Perpendicularity becomes a direct algebraic test instead of a purely visual fact.",
-        "layout": PART2_DENSE_WORKED_EXAMPLE_LAYOUT,
+        "layout": PART2_SYMBOLIC_WORKED_EXAMPLE_LAYOUT,
     },
     {
         "kind": "concept_poster",
@@ -599,7 +633,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "required_formulas": True,
         "concrete_example_anchor": "Generic x, plus optional x=(3,2,2).",
         "takeaway": "This is how we isolate pure direction.",
-        "layout": PART2_POSTER_LAYOUT,
+        "layout": _merged_layout(PART2_COMPACT_CONCEPT_LAYOUT, compact_preferred_visual_share=0.74),
     },
     {
         "kind": "concept_poster",
@@ -627,7 +661,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "required_formulas": True,
         "concrete_example_anchor": "Generic projection picture.",
         "takeaway": "Projection is one of the most useful geometric decompositions in the deck.",
-        "layout": PART2_POSTER_LAYOUT,
+        "layout": _merged_layout(PART2_COMPACT_TEXT_FIRST_LAYOUT, compact_preferred_visual_share=0.60),
     },
     {
         "kind": "worked_example",
@@ -671,7 +705,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "Projection is controlled by direction and alignment together, which is exactly "
             "why dot products matter."
         ),
-        "layout": PART2_DENSE_WORKED_EXAMPLE_LAYOUT,
+        "layout": PART2_SYMBOLIC_WORKED_EXAMPLE_LAYOUT,
     },
     {
         "kind": "triple_role",

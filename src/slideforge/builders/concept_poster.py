@@ -78,11 +78,44 @@ def _infer_dense_math_mode(
     )
 
 
+def _infer_compact_concept_mode(
+    *,
+    spec: Mapping[str, Any],
+    layout: Mapping[str, Any],
+    dense_math_mode: bool,
+    formulas: list[str],
+    bullets: list[str],
+    explanation: str,
+    takeaway: str,
+    note_text: str,
+) -> bool:
+    explicit = layout.get("compact_concept_mode", spec.get("compact_concept_mode"))
+    if explicit is not None:
+        return _as_bool(explicit)
+
+    if dense_math_mode:
+        return False
+
+    formula_count = len(_clean_items(formulas))
+    bullet_count = len(_clean_items(bullets))
+    char_load = len(explanation) + len(takeaway) + len(note_text) + sum(len(item) for item in formulas) + sum(
+        len(item) for item in bullets
+    )
+
+    return (
+        char_load <= 240
+        and bullet_count <= 2
+        and formula_count <= 2
+        and bool(str(spec.get("mini_visual", "")).strip())
+    )
+
+
 def _resolve_priority_options(
     *,
     spec: Mapping[str, Any],
     layout: Mapping[str, Any],
     dense_math_mode: bool,
+    compact_concept_mode: bool,
     formulas: list[str],
 ) -> dict[str, Any]:
     prioritize_text_over_visual = _as_bool(
@@ -104,24 +137,34 @@ def _resolve_priority_options(
 
     if prioritize_text_over_visual:
         visual_min_share = float(layout.get("text_priority_visual_min_share", 0.40))
-        visual_max_share = float(layout.get("text_priority_visual_max_share", 0.62))
-        preferred_visual_share = float(layout.get("text_priority_preferred_visual_share", 0.50))
+        visual_max_share = float(layout.get("text_priority_visual_max_share", 0.60))
+        preferred_visual_share = float(layout.get("text_priority_preferred_visual_share", 0.48))
+        layout_mode = "worked_math"
     elif dense_math_mode:
-        visual_min_share = float(layout.get("dense_math_visual_min_share", 0.46))
-        visual_max_share = float(layout.get("dense_math_visual_max_share", 0.68))
-        preferred_visual_share = float(layout.get("dense_math_preferred_visual_share", 0.56))
+        visual_min_share = float(layout.get("dense_math_visual_min_share", 0.44))
+        visual_max_share = float(layout.get("dense_math_visual_max_share", 0.66))
+        preferred_visual_share = float(layout.get("dense_math_preferred_visual_share", 0.54))
+        layout_mode = "worked_math"
+    elif compact_concept_mode:
+        visual_min_share = float(layout.get("compact_visual_min_share", 0.66))
+        visual_max_share = float(layout.get("compact_visual_max_share", 0.84))
+        preferred_visual_share = float(layout.get("compact_preferred_visual_share", 0.74))
+        layout_mode = "compact_concept"
     else:
-        visual_min_share = float(layout.get("visual_min_share", 0.62))
-        visual_max_share = float(layout.get("visual_max_share", 0.80))
-        preferred_visual_share = float(layout.get("preferred_visual_share", 0.68))
+        visual_min_share = float(layout.get("visual_min_share", 0.60))
+        visual_max_share = float(layout.get("visual_max_share", 0.82))
+        preferred_visual_share = float(layout.get("preferred_visual_share", 0.70))
+        layout_mode = "concept"
 
     return {
         "dense_math_mode": dense_math_mode,
+        "compact_concept_mode": compact_concept_mode,
         "prioritize_text_over_visual": prioritize_text_over_visual,
         "stack_formulas": stack_formulas,
         "visual_min_share": visual_min_share,
         "visual_max_share": visual_max_share,
         "preferred_visual_share": preferred_visual_share,
+        "layout_mode": layout_mode,
     }
 
 
@@ -236,11 +279,6 @@ def _candidate_content_variants(
     required_note: bool,
     required_takeaway: bool,
 ) -> list[dict[str, str]]:
-    """
-    Try richer versions first, then progressively simplify optional lower bands.
-    Required content is never dropped here.
-    """
-
     def maybe_drop(text: str, required: bool) -> list[str]:
         return [text] if required or not text.strip() else [text, ""]
 
@@ -315,9 +353,11 @@ def _choose_best_poster_layout(
     required_takeaway: bool,
     prioritize_text_over_visual: bool,
     dense_math_mode: bool,
+    compact_concept_mode: bool,
     visual_min_share: float,
     visual_max_share: float,
     preferred_visual_share: float,
+    layout_mode: str,
 ):
     variants = _candidate_content_variants(
         explanation=explanation,
@@ -349,6 +389,12 @@ def _choose_best_poster_layout(
             side_pad=float(layout.get("side_pad", 0.22)),
             visual_min_share=visual_min_share,
             visual_max_share=visual_max_share,
+            preferred_visual_share=preferred_visual_share,
+            layout_mode=layout_mode,
+            dense_math_mode=dense_math_mode,
+            prioritize_text_over_visual=prioritize_text_over_visual,
+            reserve_formula_first=prioritize_text_over_visual or dense_math_mode,
+            compact_concept_mode=compact_concept_mode,
         )
 
         kept_count, text_chars = _variant_text_stats(variant)
@@ -358,6 +404,11 @@ def _choose_best_poster_layout(
             for fit in poster_layout.text_fits.values()
             if getattr(fit, "fits", False)
         )
+        unreadable_penalty = sum(
+            1
+            for fit in poster_layout.text_fits.values()
+            if getattr(fit, "fits", True) is False
+        )
 
         if prioritize_text_over_visual:
             score = (
@@ -366,6 +417,7 @@ def _choose_best_poster_layout(
                 + text_share * 100.0
                 + min(text_chars, 600) * 0.02
                 - poster_layout.visual_share * 18.0
+                - unreadable_penalty * 20.0
             )
         elif dense_math_mode:
             score = (
@@ -374,9 +426,24 @@ def _choose_best_poster_layout(
                 + text_share * 55.0
                 + min(text_chars, 600) * 0.012
                 + poster_layout.visual_share * 18.0
+                - unreadable_penalty * 14.0
+            )
+        elif compact_concept_mode:
+            score = (
+                poster_layout.visual_share * 115.0
+                + fit_bonus * 5.0
+                + kept_count * 5.0
+                - abs(poster_layout.visual_share - preferred_visual_share) * 45.0
+                - unreadable_penalty * 16.0
             )
         else:
-            score = poster_layout.visual_share * 100.0 + kept_count * 3.0 + fit_bonus * 2.0
+            score = (
+                poster_layout.visual_share * 100.0
+                + kept_count * 3.0
+                + fit_bonus * 2.0
+                - abs(poster_layout.visual_share - preferred_visual_share) * 24.0
+                - unreadable_penalty * 12.0
+            )
 
         if prioritize_text_over_visual:
             if kept_count == 4 and poster_layout.visual_share <= preferred_visual_share:
@@ -386,8 +453,11 @@ def _choose_best_poster_layout(
                 return variant, poster_layout
             if poster_layout.visual_share >= preferred_visual_share and fit_bonus >= max(1, kept_count - 1):
                 return variant, poster_layout
+        elif compact_concept_mode:
+            if fit_bonus >= max(1, kept_count) and abs(poster_layout.visual_share - preferred_visual_share) <= 0.05:
+                return variant, poster_layout
         else:
-            if poster_layout.visual_share >= preferred_visual_share:
+            if poster_layout.visual_share >= preferred_visual_share and fit_bonus >= max(1, kept_count - 1):
                 return variant, poster_layout
 
         if score > best_score:
@@ -442,10 +512,21 @@ def build_concept_poster_slide(
         takeaway=takeaway,
         note_text=note_text,
     )
+    compact_concept_mode = _infer_compact_concept_mode(
+        spec=spec,
+        layout=layout,
+        dense_math_mode=dense_math_mode,
+        formulas=formulas,
+        bullets=bullets,
+        explanation=explanation,
+        takeaway=takeaway,
+        note_text=note_text,
+    )
     priority_options = _resolve_priority_options(
         spec=spec,
         layout=layout,
         dense_math_mode=dense_math_mode,
+        compact_concept_mode=compact_concept_mode,
         formulas=formulas,
     )
 
@@ -512,9 +593,11 @@ def build_concept_poster_slide(
         required_takeaway=required_takeaway,
         prioritize_text_over_visual=priority_options["prioritize_text_over_visual"],
         dense_math_mode=priority_options["dense_math_mode"],
+        compact_concept_mode=priority_options["compact_concept_mode"],
         visual_min_share=priority_options["visual_min_share"],
         visual_max_share=priority_options["visual_max_share"],
         preferred_visual_share=priority_options["preferred_visual_share"],
+        layout_mode=priority_options["layout_mode"],
     )
 
     visual_override = layout.get("visual_box")
