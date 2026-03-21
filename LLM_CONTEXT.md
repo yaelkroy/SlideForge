@@ -1,9 +1,3 @@
-
----
-
-# `LLM_CONTEXT.md`
-
-```md
 # LLM_CONTEXT.md
 
 ## Project Identity
@@ -12,16 +6,16 @@
 
 **Project name:** SlideForge  
 **Project type:** Python presentation generation engine  
-**Primary role:** Universal presentation engine  
-**Current example domain:** Machine learning and mathematics lecture slides  
+**Primary role:** General-purpose, spec-driven slide and presentation engine  
+**Current example project:** Machine Learning Foundations lecture deck  
 **Primary output today:** `.pptx`  
-**Planned future outputs:** `.pptx`, `.pdf`, preview images, AI-generated images, diagrams, charts, and richer media assets
+**Longer-term direction:** richer outputs may later include PDFs, previews, images, diagrams, charts, and other media-oriented assets, but the repo should always be documented first in terms of the code that actually exists now.
 
 ---
 
 ## One-Sentence Mission
 
-Build a **Python-native, spec-driven, modular presentation engine** that can generate **any kind of presentation**, while staying easy for an LLM to understand, edit, and extend across long-running development.
+Build a **Python-native, spec-driven, modular presentation engine** that can generate polished presentations while staying easy for an LLM to understand, edit, extend, and recover with limited context.
 
 ---
 
@@ -30,17 +24,39 @@ Build a **Python-native, spec-driven, modular presentation engine** that can gen
 This project must be designed for **small-context recovery**.
 
 That means:
-
 - many small modules
 - stable file names
-- one responsibility per file
+- one responsibility per file when practical
 - explicit registries
 - explicit project specs
-- explicit docs
+- explicit documentation
 - minimal hidden conventions
 - minimal giant files
+- minimal “magic” wiring that only makes sense after reading the entire repo
 
 If something can be made more explicit for future LLM understanding, do it.
+
+---
+
+## Current Strategy
+
+The project is moving away from:
+- one large script
+- hardcoded coordinates everywhere
+- mixed layout / render / content logic
+- duplicated helpers
+- one-off slide-specific special cases
+
+and toward:
+- builder-driven slide generation
+- reusable rendering primitives
+- reusable mini-visual families
+- shared theme and header systems
+- reusable layout and text-fit helpers
+- clearer project-level slide spec organization
+- many small files with explicit responsibilities
+
+This directional section is important, but it must never be confused with a claim that every long-term target has already been fully implemented.
 
 ---
 
@@ -48,203 +64,151 @@ If something can be made more explicit for future LLM understanding, do it.
 
 SlideForge must be treated as a **general presentation engine**, not as a machine-learning-specific product.
 
-Machine learning is the current example deck, not the architectural boundary.
+The ML lecture deck is the current example project in the repository, not the architectural boundary of the engine.
 
 ### This means
-
 - builders should represent reusable slide patterns
 - layout helpers should be domain-agnostic
-- theme systems should be presentation-agnostic
-- asset modules should be organized by visual family
-- projects should live above the engine layer, not inside it
-- naming should support reuse across many deck types
+- theme systems should remain presentation-agnostic
+- render helpers should stay reusable across many deck types
+- asset modules should be organized by visual family, not by one lecture only
+- projects should live above the engine layer, not inside the engine core
+- naming should support reuse across many kinds of presentations
 
 ### Good engine-oriented naming
-
 Prefer names like:
-
 - `concept_poster`
 - `pipeline`
 - `dependency_map`
-- `mini_visuals_geometry`
-- `mini_visuals_probability`
-- `mini_visuals_architecture`
+- `notation_panel`
+- `card_grid`
+- `title_composite`
+- `render/header.py`
+- `layout/poster.py`
+- `layout/table.py`
 
-Avoid shared engine names like:
-
-- `mini_visuals_part2`
-- `ml_section_bridge`
-- `week3_slide_assets`
-
----
-
-## Documentation Sync Rule
-
-This project must keep documentation synchronized with the actual codebase.
-
-Whenever the code structure, module responsibilities, file layout, build flow, naming conventions, builder inventory, theme system, header/layout behavior, slide-spec rules, project architecture, or asset-generation rules change in a way that affects repo understanding, the LLM should explicitly check whether the following files also need updates:
-
-- `README.md`
-- `LLM_CONTEXT.md`
-- `SLIDE_SPEC_RULES.md`
-
-### Required LLM behavior
-
-When making or proposing meaningful repo changes, the LLM should also:
-
-1. determine whether the change affects user-facing or contributor-facing documentation
-2. determine whether the change affects architecture or repo understanding
-3. explicitly propose corresponding updates to `README.md`
-4. explicitly propose corresponding updates to `LLM_CONTEXT.md`
-5. explicitly propose corresponding updates to `SLIDE_SPEC_RULES.md` when slide-spec writing or visual design rules changed
-6. mention documentation drift if code and docs no longer match
-
-### Practical rule
-
-Update `README.md` when the change affects:
-
-- how to run the project
-- current folder structure
-- current entrypoints
-- current workflow
-- current module locations
-- current builder inventory
-- current project status
-- the stated platform scope
-
-Update `LLM_CONTEXT.md` when the change affects:
-
-- architecture
-- module responsibilities
-- design rules
-- refactoring direction
-- project conventions
-- future roadmap assumptions
-- engine scope
-
-Update `SLIDE_SPEC_RULES.md` when the change affects:
-
-- how slide spec files should be written
-- visual density expectations
-- readability rules
-- builder selection rules
-- anti-patterns in slide structure
-- how metadata/guidance fields should behave
-
-### Anti-drift rule
-
-The LLM should never assume documentation is still correct after a refactor.  
-It should actively compare intended architecture with actual code organization and call out mismatches.
+Avoid names like:
+- `ml_only_layout`
+- `week2_cards`
+- `part2_assets`
+- `lecture_specific_renderer`
+- `temporary_final_builder`
 
 ---
 
 ## Current Repo Reality
 
-The repository is working, modular, and mid-refactor.
+Describe the repo according to the code that exists now, not only according to aspirational architecture.
+
+The current codebase is a real modular repo under `src/slideforge/`, including at least:
+- `app/`
+- `assets/`
+- `builders/`
+- `config/`
+- `io/`
+- `layout/`
+- `projects/`
+- `render/`
+- `utils/`
+
+This is not just a one-file prototype anymore. It is a working modular codebase that is still evolving and still needs disciplined cleanup.
+
+---
+
+## Current Entrypoint and Build Flow
+
+Current top-level run command:
+
+```bash
+python src/slideforge_app.py
+```
+
+### What the current entrypoint does
+`src/slideforge_app.py` currently:
+1. ensures runtime directories exist
+2. validates backgrounds against the selected slides
+3. creates a presentation object
+4. loops through the slide specs
+5. dispatches on `spec["kind"]` through the builder registry
+6. saves the output deck
+
+### Important current detail
+The current entrypoint imports **`ML_FOUNDATIONS_SLIDES`** from `slideforge.projects.ml_foundations`, not `ML_FOUNDATIONS_PART1_SLIDES` directly.
+
+That means the current top-level build path is aligned with the project package export layer rather than bypassing it.
 
 ### Current practical build flow
-
 Current build flow is:
 
-**project slide specs -> builder registry -> slide builders -> theme/header/layout helpers -> rendering primitives / mini visuals -> pptx output**
+**project slide specs -> builder registry -> slide builders -> theme / header / layout helpers -> rendering primitives / mini visuals -> pptx output**
 
-At the moment:
+A useful compatibility detail also exists here:
+- `slideforge.app.build_deck` is a thin compatibility wrapper
+- `slideforge.app.presentation_factory` is the single source of truth for presentation creation
 
-- `src/slideforge_app.py` is the executable deck-building entrypoint
-- slide content is stored as Python dictionaries inside `projects/`
-- builders are explicit functions, one per slide family
-- the system already produces useful slides and should be extended incrementally, not rewritten wholesale
-- layout is increasingly being treated as a measurable geometry problem rather than repeated manual tweaking
-- visual styling is increasingly being treated as a theme/token problem rather than hardcoded builder-local colors
-- generated PNG mini-visuals use a separate font policy from PowerPoint text
-
-### Current important principle
-
-The repo currently contains an ML example project, but the engine must remain suitable for:
-
-- academic decks
-- technical decks
-- business decks
-- architecture decks
-- onboarding decks
-- training decks
-- research decks
-- mixed storytelling presentations
+That wrapper pattern is intentional and should not be “cleaned up” in a way that breaks stable imports without a deliberate migration plan.
 
 ---
 
-## Current Active Modules
+## Current Practical Repository Structure
 
-Important current modules include:
+This is the practical structure future edits should stay aligned with unless the repo is intentionally reorganized.
 
-- `src/slideforge_app.py`
-- `src/slideforge/config/constants.py`
-- `src/slideforge/config/paths.py`
-- `src/slideforge/config/themes.py`
-- `src/slideforge/io/backgrounds.py`
-- `src/slideforge/render/primitives.py`
-- `src/slideforge/render/header.py`
-- `src/slideforge/assets/mini_visuals.py`
-- `src/slideforge/assets/mini_visuals_common.py`
-- `src/slideforge/assets/mini_visuals_core.py`
-- `src/slideforge/assets/mini_visuals_geometry.py`
-- `src/slideforge/layout/base.py`
-- `src/slideforge/layout/text_fit.py`
-- `src/slideforge/layout/grid.py`
-- `src/slideforge/layout/stack.py`
-- `src/slideforge/layout/poster.py`
-- `src/slideforge/layout/table.py`
-- `src/slideforge/layout/cards.py`
-- `src/slideforge/layout/dependency.py`
-- `src/slideforge/layout/autofit.py`
-- `src/slideforge/app/build_deck.py`
-- `src/slideforge/app/presentation_factory.py`
-- `src/slideforge/app/slide_utils.py`
-- `src/slideforge/builders/basic.py`
-- `src/slideforge/builders/common.py`
-- `src/slideforge/builders/builder_registry.py`
-- `src/slideforge/builders/title_composite.py`
-- `src/slideforge/builders/section_divider.py`
-- `src/slideforge/builders/dependency_map.py`
-- `src/slideforge/builders/pipeline.py`
-- `src/slideforge/builders/prereq_grid.py`
-- `src/slideforge/builders/example_pipeline.py`
-- `src/slideforge/builders/card_grid.py`
-- `src/slideforge/builders/notation_panel.py`
-- `src/slideforge/builders/triple_role.py`
-- `src/slideforge/builders/integrated_bridge.py`
-- `src/slideforge/builders/concept_poster.py`
-- `src/slideforge/projects/ml_foundations/slides_part1.py`
-- `src/slideforge/projects/ml_foundations/slides_part2.py`
-- `src/slideforge/projects/ml_foundations/__init__.py`
-- `SLIDE_SPEC_RULES.md`
+```text
+SlideForge/
+├─ README.md
+├─ LLM_CONTEXT.md
+├─ SLIDE_SPEC_RULES.md
+├─ pyproject.toml
+├─ src/
+│  ├─ slideforge_app.py
+│  └─ slideforge/
+│     ├─ app/
+│     ├─ assets/
+│     ├─ builders/
+│     ├─ config/
+│     ├─ io/
+│     ├─ layout/
+│     ├─ projects/
+│     ├─ render/
+│     └─ utils/
+```
+
+When documenting the repo, prefer this real package-oriented structure over imaginary future trees.
 
 ---
 
-## Builder Model
+## Current Package Responsibilities
 
-The active architecture is builder-driven.
+### `src/slideforge/app/`
+Application-level orchestration.
 
-The builder registry maps `kind` values from slide specs to builder functions.  
-That is the preferred extension point.
+Use this layer for:
+- deck-building orchestration
+- presentation factory setup
+- top-level slide processing utilities
+- compatibility shims that preserve stable import paths during refactors
 
-When extending the system, prefer:
+Do not bury reusable rendering logic here.
 
-- adding a new small builder file for a new slide family
-- registering it in `builder_registry.py`
-- adding specs in `projects/...`
-- reusing rendering primitives
-- reusing mini-visual motifs
-- reusing layout helpers
-- reusing theme/header helpers
-- avoiding logic growth in `slideforge_app.py`
+### `src/slideforge/assets/`
+Reusable visual assets and generated mini-illustration helpers.
 
-Do **not** move slide-specific rendering logic back into the top-level app entrypoint.
+Current reality:
+- `mini_visuals.py` remains the public entrypoint for the mini-visual system
+- support has already been split into smaller modules such as:
+  - `mini_visuals_common.py`
+  - `mini_visuals_core.py`
+  - `mini_visuals_geometry.py`
 
-### Current builder families
+Asset modules should stay focused on reusable visuals and visual families, not builder orchestration.
 
-The builder registry is expected to include reusable slide-pattern builders such as:
+### `src/slideforge/builders/`
+Slide-pattern builder layer.
 
+This is where each stable slide pattern gets its own builder module.
+
+Current active builder kinds in the registry include:
 - `title`
 - `title_composite`
 - `section`
@@ -260,173 +224,143 @@ The builder registry is expected to include reusable slide-pattern builders such
 - `card_grid`
 - `notation_panel`
 - `triple_role`
-- `integrated_bridge`
 - `concept_poster`
 
-### Builder rule
+### Important current nuance
+`integrated_bridge` is **not currently an active registered builder kind**.
 
-When a new slide pattern repeats, prefer adding a new builder rather than overloading one builder with many unrelated branches.
+The repository tree still contains `integrated_bridge.py.bak`, and `builder_registry.py` shows the `integrated_bridge` import and registry entry commented out. Treat that as an inactive or parked builder, not as a healthy active module.
 
-### Platform rule
-
-A builder should correspond to a **reusable presentation pattern**, not to a single domain-specific slide.
-
----
-
-## Theme System
-
-A major design direction is the theme layer in:
-
-- `src/slideforge/config/themes.py`
-
-This layer exists because many prior builder issues came from hardcoded colors, fills, text colors, divider colors, and dark/light assumptions scattered across builders.
-
-### Design rule
-
-Builders should increasingly consume a theme object or theme-derived style map rather than hardcoding colors directly.
-
-### Theme responsibilities
-
-The theme layer should define and normalize:
-
-- title color
-- subtitle color
-- body color
-- muted/footer color
-- divider color
-- connector color
-- box fill and line colors
-- panel fill and line colors
-- pill/callout/ghost label colors
-- dark/light footer behavior
-- mini-visual variant defaults such as:
-  - `dark_on_light`
-  - `light_on_dark`
-
-### Preferred usage
-
-Builders should prefer:
-
-- `get_theme(...)`
-- theme-level defaults
-- spec-level style overrides
-
-Avoid:
-
-- builder-local raw RGB values
-- hidden assumptions that all cards are light
-- hidden assumptions that all text is dark navy
-- repeating identical style maps across many builders
-
----
-
-## Shared Header Layer
-
-A major design direction is the shared header layer in:
-
-- `src/slideforge/render/header.py`
-
-This layer exists because many slide failures are header geometry failures rather than content failures.
+### Builder-layer intent
+A builder should represent a **reusable visual pattern**, not merely one lecture topic.
 
 Examples:
+- `concept_poster.py` = poster-like concept explanation pattern
+- `notation_panel.py` = structured notation explanation pattern
+- `card_grid.py` = repeated-card content pattern
+- `triple_role.py` = multi-panel comparison pattern
 
-- title collides with divider
-- divider crosses subtitle
-- long title wraps into the content area
-- one builder uses a safe header stack while another reintroduces overlap
-- subtitle placement differs unpredictably across builders
+### `src/slideforge/config/`
+Configuration and presentation-wide semantics.
 
-### Design rule
+Current reality:
+- `constants.py` holds core constants
+- `paths.py` handles path / output / runtime path concerns
+- `themes.py` is now a real architectural layer, not just a future idea
 
-Header layout should be computed once and reused, not manually reimplemented in every builder.
+### `src/slideforge/io/`
+I/O-adjacent helpers.
 
-### Preferred usage
+Current reality:
+- `backgrounds.py` handles background selection / validation behavior
 
-Builders that have a standard header should prefer:
+### `src/slideforge/layout/`
+This is a **first-class package** and must be treated as such in documentation and future edits.
 
-- `render_header_from_spec(...)`
+Use this package for geometry, sizing, text fitting, region calculation, vertical stacking, table layout, and similar mathematically grounded placement logic.
 
-Avoid:
+Current reality includes split modules such as:
+- `autofit.py`
+- `base.py`
+- `cards.py`
+- `dependency.py`
+- `grid.py`
+- `poster.py`
+- `stack.py`
+- `table.py`
+- `text_fit.py`
 
-- manually drawing title, divider, subtitle in each builder
-- fixed divider Y values unrelated to actual title height
-- repeated title-box logic across many builder files
+`layout/__init__.py` acts as a compatibility/export surface by re-exporting commonly used layout helpers.
+
+Do not re-scatter reusable layout logic back into individual builders unless there is a very strong reason.
+
+### `src/slideforge/projects/`
+Project-level slide specs.
+
+Projects define **content** and project-specific defaults.
+
+They should not become dumping grounds for reusable rendering logic.
+
+### `src/slideforge/projects/ml_foundations/`
+Current example project.
+
+Current reality:
+- `slides_part1.py` exists
+- `slides_part2.py` exists
+- `__init__.py` exports:
+  - `ML_FOUNDATIONS_PART1_SLIDES`
+  - `ML_FOUNDATIONS_PART2_SLIDES`
+  - `ML_FOUNDATIONS_SLIDES`
+
+The ML deck is the current working example, not the engine boundary.
+
+### `src/slideforge/render/`
+Low-level reusable PowerPoint rendering helpers.
+
+Current reality:
+- `primitives.py` handles core shape / text rendering primitives
+- `header.py` is now a reusable header system rather than a one-off builder detail
+
+### `src/slideforge/utils/`
+Smaller reusable helpers that do not clearly belong in layout, render, or config.
+
+Current reality includes:
+- `units.py`
+- `text_layout.py`
 
 ---
 
-## Layout Layer
+## Theme System Reality
 
-The layout layer has been deliberately split to keep files below the repo file-size threshold and to keep responsibilities explicit.
+The theme system is real and should be treated as a stable part of repo understanding.
 
-### `base.py`
+Current reality in `config/themes.py`:
+- `SlideTheme` exists as a dataclass
+- theme presets exist
+- current named presets include:
+  - `light_academic`
+  - `dark_hero`
+  - `dark_section`
+- theme lookup and override logic already exists
+- slide-level theme naming is mapped to concrete theme presets
 
-Shared geometry primitives such as:
+### Theme rule
+Future LLM edits should prefer routing color and styling behavior through the theme system instead of duplicating ad hoc styling constants inside every builder.
 
-- `Box`
-- `SlideSize`
+---
 
-### `text_fit.py`
+## Header System Reality
 
-Handles:
+The header system is also real and reusable.
 
-- wrapping
-- line counts
-- height estimation
-- font-size fitting
-- note-height heuristics
+Current reality in `render/header.py`:
+- header layout is computed through reusable logic
+- title and subtitle fitting are handled through explicit structures
+- the header result exposes a `content_top_y` / content-top region concept
+- builders can render headers from spec instead of manually reimplementing title/subtitle placement
 
-### `grid.py`
+### Header rule
+When a builder uses a conventional title / subtitle / divider flow, prefer the reusable header functions rather than copying a custom title block unless the slide pattern genuinely requires a different composition.
 
-Handles:
+---
 
-- row distribution
-- column distribution
+## Layout and Autofit Rule
 
-### `stack.py`
+A major part of the current architecture is moving placement from guesswork to explicit layout helpers.
 
-Handles:
+That means future changes should favor:
+- layout boxes
+- content regions
+- text-fitting helpers
+- calculated stacking and distribution
+- card / poster / table layout utilities
 
-- vertical stacking of text blocks
-- auto-sized stacked text regions
+Avoid regressing toward:
+- arbitrary hand-tuned coordinates repeated in many files
+- duplicated text-fit logic in each builder
+- repeated “magic numbers” with no semantic grouping
 
-### `poster.py`
-
-Handles:
-
-- concept-poster visual/text balancing
-
-### `table.py`
-
-Handles:
-
-- notation-table geometry
-- row-based body/header sizing
-
-### `cards.py`
-
-Handles:
-
-- centered visuals inside card-like layouts
-- note box estimation
-
-### `dependency.py`
-
-Handles:
-
-- dependency-map geometry
-- right-column reservation
-- explanation box placement
-- formula/takeaway placement below the lowest occupied region
-
-### `autofit.py`
-
-This is a compatibility/export layer that re-exports the split layout API so builders can continue importing from one stable module path.
-
-### Layout rule
-
-The layout layer should stay **presentation-agnostic**.
-
-It should solve geometry problems, not encode one course’s content assumptions.
+Hardcoded coordinates are still allowed where necessary, but they should be minimized or grouped into meaningful layout dictionaries.
 
 ---
 
@@ -435,47 +369,31 @@ It should solve geometry problems, not encode one course’s content assumptions
 A central design direction is the reusable mini-visual system.
 
 ### Why it exists
-
-Slides fail when they rely only on text boxes and labels.
-
-This repo explicitly supports explanatory diagrams and reusable motifs.
+Slides become weak when they rely only on text boxes. The repo explicitly supports lightweight explanatory diagrams and reusable motifs.
 
 ### Design rule
-
 Mini visuals should be:
-
 - reusable
 - lightweight
-- transparent-background assets
 - style-consistent
-- explanatory
 - builder-agnostic when possible
+- organized by visual family rather than deck section
 
 ### Asset organization rule
-
-Mini-visual modules should be organized by **visual family**, not by **deck section**.
-
 Good examples:
-
+- `mini_visuals_core.py`
 - `mini_visuals_geometry.py`
-- `mini_visuals_probability.py`
-- `mini_visuals_architecture.py`
 
 Bad examples:
-
 - `mini_visuals_part2.py`
-- `mini_visuals_ml_section_b.py`
+- `ml_section_bridge_assets.py`
 
 ### Font rule for generated assets
-
-PowerPoint text fonts and Matplotlib-generated asset fonts are separate concerns.
+PowerPoint text fonts and generated asset fonts are separate concerns.
 
 Prefer:
-
 - PowerPoint text fonts for `.pptx` text
-- Matplotlib-safe fonts for generated PNGs:
-  - `DejaVu Sans`
-  - `DejaVu Sans Mono`
+- Matplotlib-safe fonts or other explicitly controlled fonts for generated image assets
 
 Avoid relying on fragile special glyphs in generated assets unless the font is explicitly controlled.
 
@@ -487,35 +405,29 @@ The preferred slide philosophy remains:
 
 **One slide = one dominant idea + one dominant visual**
 
-This applies across many presentation types, not only academic decks.
+This applies broadly, not only to academic decks.
 
 That means:
-
 - concept slide -> one large explanatory visual
 - comparison slide -> one strong structured comparison
 - workflow slide -> one readable process picture
-- business summary slide -> one dominant structural takeaway
+- summary slide -> one dominant structural takeaway
 - example slide -> one main example
 
 ---
 
 ## Slide Metadata vs Visible Content Rule
 
-Some slide-spec fields are content.  
-Some are guidance.  
-They must not be treated the same.
+Some slide-spec fields are content. Some are guidance. They must not be treated the same.
 
 ### Usually metadata only
-
 Examples:
-
 - `purpose`
 - `visual`
 - `speaker_intent`
 - `concrete_example_anchor`
 
-These fields are usually for:
-
+These are usually for:
 - the human author
 - the LLM
 - future editing continuity
@@ -524,37 +436,58 @@ These fields are usually for:
 They should **not automatically become visible slide text**.
 
 ### Visible-content rule
-
 A guidance field should only be rendered when explicitly intended.
 
-Preferred explicit mechanisms:
-
+Prefer explicit mechanisms such as:
 - `visible_anchor_text`
 - `show_anchor_text: True`
 
 ---
 
-## Current Project-Spec Reality
+## Slide Spec Reality
 
-Slide content is currently stored as Python dictionaries in `projects/...`.
+Slide specs are still Python dictionaries today.
 
-That is acceptable and still the active model.
+That is acceptable.
 
-### Current practical rule for project specs
+The important rule is that slide specs should remain:
+- readable
+- explicit
+- visually intentioned
+- builder-compatible
+- easy for an LLM to edit safely
 
-Project spec files should contain:
+### Current spec expectation
+A slide spec usually defines:
+- `kind`
+- title / subtitle fields
+- theme / background fields
+- layout overrides when needed
+- content fields expected by the chosen builder
 
-- declarative slide content
-- builder `kind`
-- explicit layout overrides only where needed
-- explicit theme/style overrides only where needed
+The builder should consume a spec in a way that is predictable and discoverable from code.
 
-### Project rule
+---
 
-Projects are examples or applications of the engine.  
-They are **not** the engine itself.
+## Builder Registry Rule
 
-The engine should remain reusable even when one current project dominates repo activity.
+The builder registry is a core recovery mechanism.
+
+### Required behavior
+- every stable active slide kind should be wired through `builder_registry.py`
+- builders should be imported explicitly
+- the registry should remain readable in one glance
+- avoid large hidden dispatch systems or dynamic import magic unless there is a compelling reason
+
+### Important nuance
+Do not create a new builder kind for every one-off slide.
+
+Create a new builder only when:
+- the visual pattern is recurring
+- the required content structure is stable
+- multiple slides benefit from the same layout / render logic
+
+Otherwise, prefer expressing variation through spec data and layout overrides inside an existing builder family.
 
 ---
 
@@ -563,14 +496,31 @@ The engine should remain reusable even when one current project dominates repo a
 This repository should avoid oversized Python source files and oversized documentation files where practical.
 
 ### Hard guideline
-
 - **Python files with code should stay under 500 lines whenever practical.**
+- **Most logic / helper / builder / layout files should preferably stay around 200 lines or less when practical.**
 - If a Python file grows large or starts mixing multiple responsibilities, it should be refactored into several smaller modules.
 
+### Scope of this rule
+This size rule applies **primarily to logic files** such as:
+- builders
+- layout helpers
+- render helpers
+- config helpers
+- registry files
+- utility modules
+- asset-generation logic
+
+It does **not** mean every presentation-content file must be tiny.
+
+Project slide-spec files and other declarative presentation-content files may be longer when:
+- they are primarily content rather than reusable engine logic
+- splitting them would make the deck harder to read or maintain
+- a deck part naturally belongs in one file
+
+Even then, long content files should still be split when doing so improves clarity, such as splitting a deck into `slides_part1.py` and `slides_part2.py`.
+
 ### Preferred split patterns
-
 When refactoring, prefer splitting by:
-
 - responsibility
 - builder family
 - asset family
@@ -579,9 +529,7 @@ When refactoring, prefer splitting by:
 - helper type
 
 ### Anti-monolith rule
-
 Do not allow a Python file to become a dumping ground for:
-
 - unrelated helpers
 - multiple rendering systems
 - multiple deck definitions
@@ -590,12 +538,45 @@ Do not allow a Python file to become a dumping ground for:
 
 ---
 
+## Documentation Sync Rule
+
+This project must keep documentation synchronized with the actual codebase.
+
+Whenever the code structure, module responsibilities, file layout, build flow, naming conventions, builder inventory, theme system, header / layout behavior, slide-spec rules, or project architecture change in a way that affects repo understanding, the LLM should explicitly check whether these files also need updates:
+- `README.md`
+- `LLM_CONTEXT.md`
+- `SLIDE_SPEC_RULES.md`
+
+### Required LLM behavior
+When making or proposing meaningful repo changes, the LLM should also:
+1. determine whether the change affects contributor understanding
+2. determine whether the change affects architecture or repo structure
+3. determine whether `README.md` should be updated
+4. determine whether `LLM_CONTEXT.md` should be updated
+5. determine whether `SLIDE_SPEC_RULES.md` should be updated
+6. mention documentation drift if code and docs no longer match
+7. avoid silently changing architecture without corresponding documentation changes
+
+### Default assumption
+If a refactor changes repository structure or responsibilities across modules, documentation updates should be proposed automatically even if the user did not explicitly ask for them.
+
+### Anti-drift rule
+The LLM should never assume documentation is still correct after a refactor.
+
+It should actively compare intended architecture with actual code organization and call out mismatches.
+
+### Priority rule
+If there is a conflict:
+- `README.md` should describe the repo as it currently exists
+- `LLM_CONTEXT.md` should describe the governing rules, current architecture, and explicitly labeled longer-term direction
+- `SLIDE_SPEC_RULES.md` should describe how slide spec files should be authored for the current visual system
+
+---
+
 ## Architecture Principles
 
 ### 1. Separate concerns
-
 Always separate:
-
 - what the slide says
 - where elements go
 - how elements are drawn
@@ -605,9 +586,7 @@ Always separate:
 - which output backend is used
 
 ### 2. Prefer explicit structure over cleverness
-
 Favor:
-
 - explicit modules
 - explicit registries
 - explicit project slide lists
@@ -618,18 +597,22 @@ Favor:
 over compact but opaque abstractions.
 
 ### 3. Prefer many small files
-
 Target:
-
-- most files under ~200 lines when practical
-- Python code files under 500 lines
+- most logic files under ~200 lines when practical
+- Python code files under 500 lines when practical
 - many files in predictable directories
 - one concept or subsystem per file
 
+This guideline is strongest for reusable engine logic, not for declarative presentation content.
+
+Avoid:
+- giant utility files
+- giant builder files
+- giant config files
+- giant schema files
+
 ### 4. Prefer registries over branching logic
-
 Use registries for:
-
 - slide builders
 - asset generators
 - mini visuals
@@ -639,44 +622,59 @@ Use registries for:
 - exporters
 
 ### 5. Prefer compatibility shims during refactors
-
 When a module path is already used by the app, prefer a small compatibility wrapper instead of breaking imports immediately.
 
 ### 6. Prefer progressive hardening
-
 The next architectural improvements should usually be:
+- reducing helper duplication
+- normalizing repeated slide-spec patterns
+- keeping theme logic centralized
+- keeping header logic centralized
+- extracting reusable layout families
+- validating more of the repo gradually
 
-- reduce helper duplication
-- make imports more consistent
-- extract reusable layout families
-- normalize repeated slide-spec patterns
-- add validation gradually
-
-Do not stop useful presentation generation work for a massive framework rewrite.
+Do not stop useful slide-generation work for a massive framework rewrite.
 
 ---
 
 ## Current Cleanup Priorities
 
 Good cleanup targets include:
-
-1. remove dead or weak slide families
-2. reduce helper duplication
-3. move style decisions into `config/themes.py`
-4. centralize standard headers in `render/header.py`
+1. reduce helper duplication
+2. keep style decisions centralized in `config/themes.py`
+3. keep standard header behavior centralized in `render/header.py`
+4. keep fragile spacing out of builders where reusable layout helpers can solve it
 5. keep mini-visuals split by reusable family
-6. keep fragile spacing out of builders
+6. keep builder logic pattern-based rather than topic-based
 7. stop rendering metadata by default
-8. keep project specs project-specific
-9. keep docs synchronized
-10. keep Python files below 500 lines when practical
+8. keep docs synchronized
+9. keep Python logic files below the repo size threshold where practical
+10. retire or restore parked builder paths explicitly rather than leaving ambiguous half-states
+
+---
+
+## Long-Term Target Architecture
+
+The long-term pipeline should be:
+
+**source content -> normalized content spec -> layout plan -> asset generation -> renderer output -> validation -> export**
+
+This supports many presentation domains, not one subject area.
+
+### Important scope note
+This is a **target direction**, not a claim that the current repo has already fully implemented all of:
+- typed schemas everywhere
+- formal manifest layers everywhere
+- backend-neutral renderers everywhere
+- a fully generalized validation pipeline
+
+Those ideas remain valid longer-term direction, but current repo documentation must clearly label them as direction rather than present-day fact.
 
 ---
 
 ## Extension Rules for Future LLM Sessions
 
 When continuing work in this repo:
-
 - first inspect current builders and project specs
 - extend the builder layer rather than bypassing it
 - reuse existing primitives before adding new drawing helpers
@@ -688,29 +686,25 @@ When continuing work in this repo:
 - keep project-specific content in `projects/`
 - keep generated artifacts out of source directories
 - check whether `README.md`, `LLM_CONTEXT.md`, and `SLIDE_SPEC_RULES.md` need updates after structural changes
-- check whether any Python file is becoming too large and should be split
+- check whether any Python logic file is becoming too large and should be split
 
 If the user asks to continue slide generation, the default assumption should be:
-
 - keep the existing architecture
-- improve it only where it meaningfully reduces duplication or fragility
+- improve it where it meaningfully reduces duplication or fragility
 - avoid unnecessary churn
-
----
-
-## Long-Term Target Architecture
-
-The long-term pipeline should be:
-
-**source content -> normalized content spec -> layout plan -> asset generation -> renderer output -> validation -> export**
-
-This should support many presentation domains, not one subject area.
 
 ---
 
 ## Short Guidance for Contributors
 
 If you are unsure what to do next, choose the smallest useful improvement that satisfies both:
-
 - it helps generate the next presentation
 - it leaves the repo easier to understand than before
+
+---
+
+## Final Principle
+
+The repository should become more modular, more explicit, and more reusable over time **without losing contact with the actual code that exists now**.
+
+That balance is the core purpose of this file.
