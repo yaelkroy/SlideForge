@@ -15,9 +15,114 @@ from slideforge.render.header import render_header_from_spec
 from slideforge.render.primitives import add_footer, add_rounded_box, add_textbox
 
 
-def _join_items(items: list[str]) -> str:
-    cleaned = [item.strip() for item in items if item and item.strip()]
-    return "   •   ".join(cleaned)
+def _clean_items(items: list[str]) -> list[str]:
+    return [item.strip() for item in items if item and item.strip()]
+
+
+def _join_items(items: list[str], *, separator: str = "   •   ") -> str:
+    return separator.join(_clean_items(items))
+
+
+def _format_formulas(
+    formulas: list[str],
+    *,
+    stack_formulas: bool,
+    stacked_separator: str = "\n",
+    inline_separator: str = "   •   ",
+) -> str:
+    cleaned = _clean_items(formulas)
+    if not cleaned:
+        return ""
+    if stack_formulas:
+        return stacked_separator.join(cleaned)
+    return inline_separator.join(cleaned)
+
+
+def _as_bool(value: Any, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "y", "on"}:
+            return True
+        if lowered in {"0", "false", "no", "n", "off"}:
+            return False
+    return bool(value)
+
+
+def _infer_dense_math_mode(
+    *,
+    spec: Mapping[str, Any],
+    layout: Mapping[str, Any],
+    formulas: list[str],
+    bullets: list[str],
+    explanation: str,
+    takeaway: str,
+    note_text: str,
+) -> bool:
+    explicit = layout.get("dense_math_mode", spec.get("dense_math_mode"))
+    if explicit is not None:
+        return _as_bool(explicit)
+
+    formula_count = len(_clean_items(formulas))
+    bullet_count = len(_clean_items(bullets))
+    char_load = sum(len(item) for item in formulas) + len(explanation) + len(note_text) + len(takeaway)
+
+    return (
+        formula_count >= 2
+        or (formula_count >= 1 and bullet_count >= 3)
+        or char_load >= 300
+        or _as_bool(spec.get("required_formulas"), False)
+    )
+
+
+def _resolve_priority_options(
+    *,
+    spec: Mapping[str, Any],
+    layout: Mapping[str, Any],
+    dense_math_mode: bool,
+    formulas: list[str],
+) -> dict[str, Any]:
+    prioritize_text_over_visual = _as_bool(
+        layout.get(
+            "prioritize_text_over_visual",
+            spec.get("prioritize_text_over_visual", False),
+        )
+    )
+
+    stack_formulas = _as_bool(
+        layout.get(
+            "stack_formulas",
+            spec.get(
+                "stack_formulas",
+                prioritize_text_over_visual or dense_math_mode or len(_clean_items(formulas)) > 1,
+            ),
+        )
+    )
+
+    if prioritize_text_over_visual:
+        visual_min_share = float(layout.get("text_priority_visual_min_share", 0.40))
+        visual_max_share = float(layout.get("text_priority_visual_max_share", 0.62))
+        preferred_visual_share = float(layout.get("text_priority_preferred_visual_share", 0.50))
+    elif dense_math_mode:
+        visual_min_share = float(layout.get("dense_math_visual_min_share", 0.46))
+        visual_max_share = float(layout.get("dense_math_visual_max_share", 0.68))
+        preferred_visual_share = float(layout.get("dense_math_preferred_visual_share", 0.56))
+    else:
+        visual_min_share = float(layout.get("visual_min_share", 0.62))
+        visual_max_share = float(layout.get("visual_max_share", 0.80))
+        preferred_visual_share = float(layout.get("preferred_visual_share", 0.68))
+
+    return {
+        "dense_math_mode": dense_math_mode,
+        "prioritize_text_over_visual": prioritize_text_over_visual,
+        "stack_formulas": stack_formulas,
+        "visual_min_share": visual_min_share,
+        "visual_max_share": visual_max_share,
+        "preferred_visual_share": preferred_visual_share,
+    }
 
 
 def _add_fitted_text(
@@ -135,6 +240,7 @@ def _candidate_content_variants(
     Try richer versions first, then progressively simplify optional lower bands.
     Required content is never dropped here.
     """
+
     def maybe_drop(text: str, required: bool) -> list[str]:
         return [text] if required or not text.strip() else [text, ""]
 
@@ -181,6 +287,19 @@ def _candidate_content_variants(
     return variants
 
 
+def _variant_text_stats(variant: Mapping[str, str]) -> tuple[int, int]:
+    kept_count = sum(
+        1
+        for key in ("bullets", "formulas", "note", "takeaway")
+        if str(variant.get(key, "")).strip()
+    )
+    text_chars = sum(
+        len(str(variant.get(key, "")).strip())
+        for key in ("explanation", "bullets", "formulas", "note", "takeaway")
+    )
+    return kept_count, text_chars
+
+
 def _choose_best_poster_layout(
     *,
     outer_box: Box,
@@ -194,9 +313,12 @@ def _choose_best_poster_layout(
     required_formulas: bool,
     required_note: bool,
     required_takeaway: bool,
+    prioritize_text_over_visual: bool,
+    dense_math_mode: bool,
+    visual_min_share: float,
+    visual_max_share: float,
+    preferred_visual_share: float,
 ):
-    preferred_visual_share = float(layout.get("preferred_visual_share", 0.68))
-
     variants = _candidate_content_variants(
         explanation=explanation,
         bullets_text=bullets_text,
@@ -225,19 +347,48 @@ def _choose_best_poster_layout(
             bottom_pad=float(layout.get("bottom_pad", 0.14)),
             gap=float(layout.get("content_gap", 0.08)),
             side_pad=float(layout.get("side_pad", 0.22)),
-            visual_min_share=float(layout.get("visual_min_share", 0.62)),
-            visual_max_share=float(layout.get("visual_max_share", 0.80)),
+            visual_min_share=visual_min_share,
+            visual_max_share=visual_max_share,
         )
 
-        kept_count = sum(
+        kept_count, text_chars = _variant_text_stats(variant)
+        text_share = max(0.0, 1.0 - poster_layout.visual_share)
+        fit_bonus = sum(
             1
-            for key in ("bullets", "formulas", "note", "takeaway")
-            if variant.get(key, "").strip()
+            for fit in poster_layout.text_fits.values()
+            if getattr(fit, "fits", False)
         )
-        score = poster_layout.visual_share * 100.0 + kept_count * 3.0
 
-        if poster_layout.visual_share >= preferred_visual_share:
-            return variant, poster_layout
+        if prioritize_text_over_visual:
+            score = (
+                kept_count * 18.0
+                + fit_bonus * 6.0
+                + text_share * 100.0
+                + min(text_chars, 600) * 0.02
+                - poster_layout.visual_share * 18.0
+            )
+        elif dense_math_mode:
+            score = (
+                kept_count * 12.0
+                + fit_bonus * 4.0
+                + text_share * 55.0
+                + min(text_chars, 600) * 0.012
+                + poster_layout.visual_share * 18.0
+            )
+        else:
+            score = poster_layout.visual_share * 100.0 + kept_count * 3.0 + fit_bonus * 2.0
+
+        if prioritize_text_over_visual:
+            if kept_count == 4 and poster_layout.visual_share <= preferred_visual_share:
+                return variant, poster_layout
+        elif dense_math_mode:
+            if kept_count == 4 and poster_layout.visual_share <= preferred_visual_share:
+                return variant, poster_layout
+            if poster_layout.visual_share >= preferred_visual_share and fit_bonus >= max(1, kept_count - 1):
+                return variant, poster_layout
+        else:
+            if poster_layout.visual_share >= preferred_visual_share:
+                return variant, poster_layout
 
         if score > best_score:
             best_score = score
@@ -272,7 +423,6 @@ def build_concept_poster_slide(
     bullets_text = _join_items(bullets)
 
     formulas = list(spec.get("formulas", []) or [])
-    formulas_text = _join_items(formulas)
 
     anchor_text = str(spec.get("concrete_example_anchor", "")).strip()
     visible_anchor_text = str(spec.get("visible_anchor_text", "")).strip()
@@ -283,8 +433,31 @@ def build_concept_poster_slide(
 
     takeaway = str(spec.get("takeaway", "")).strip()
 
+    dense_math_mode = _infer_dense_math_mode(
+        spec=spec,
+        layout=layout,
+        formulas=formulas,
+        bullets=bullets,
+        explanation=explanation,
+        takeaway=takeaway,
+        note_text=note_text,
+    )
+    priority_options = _resolve_priority_options(
+        spec=spec,
+        layout=layout,
+        dense_math_mode=dense_math_mode,
+        formulas=formulas,
+    )
+
+    formulas_text = _format_formulas(
+        formulas,
+        stack_formulas=priority_options["stack_formulas"],
+        stacked_separator=str(layout.get("stacked_formula_separator", "\n")),
+        inline_separator=str(layout.get("formula_separator", "   •   ")),
+    )
+
     required_bullets = bool(spec.get("required_bullets", False))
-    required_formulas = bool(spec.get("required_formulas", False))
+    required_formulas = bool(spec.get("required_formulas", False)) or dense_math_mode
     required_note = bool(spec.get("required_note", False))
     required_takeaway = bool(spec.get("required_takeaway", True))
 
@@ -337,6 +510,11 @@ def build_concept_poster_slide(
         required_formulas=required_formulas,
         required_note=required_note,
         required_takeaway=required_takeaway,
+        prioritize_text_over_visual=priority_options["prioritize_text_over_visual"],
+        dense_math_mode=priority_options["dense_math_mode"],
+        visual_min_share=priority_options["visual_min_share"],
+        visual_max_share=priority_options["visual_max_share"],
+        preferred_visual_share=priority_options["preferred_visual_share"],
     )
 
     visual_override = layout.get("visual_box")
@@ -391,6 +569,7 @@ def build_concept_poster_slide(
             align=layout.get("bullets_align", PP_ALIGN.CENTER),
         )
 
+    formula_align_default = PP_ALIGN.LEFT if priority_options["stack_formulas"] else PP_ALIGN.CENTER
     if "formulas" in boxes and "formulas" in fits:
         _add_fitted_text(
             slide,
@@ -403,7 +582,7 @@ def build_concept_poster_slide(
             ),
             color=poster_style["formulas_color"],
             bold=False,
-            align=layout.get("formulas_align", PP_ALIGN.CENTER),
+            align=layout.get("formulas_align", formula_align_default),
         )
 
     if "note" in boxes and "note" in fits:

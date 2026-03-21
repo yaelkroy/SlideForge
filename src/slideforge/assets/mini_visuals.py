@@ -2,6 +2,11 @@ from __future__ import annotations
 
 from pptx.enum.text import PP_ALIGN
 
+from slideforge.assets.mini_visual_contracts import (
+    get_visual_contract,
+    normalize_visual_kind,
+    visual_requires_builder_text,
+)
 from slideforge.assets.mini_visuals_common import (
     BODY_FONT,
     FORMULA_FONT,
@@ -26,8 +31,26 @@ ALIASES = {
 }
 
 
+def resolve_visual_kind(kind: str) -> str:
+    requested = str(kind or "").strip()
+    aliased = ALIASES.get(requested, requested)
+    return normalize_visual_kind(aliased)
+
+
+def describe_visual_kind(kind: str) -> dict[str, object]:
+    contract = get_visual_contract(resolve_visual_kind(kind))
+    return {
+        "requested_kind": contract.requested_kind,
+        "canonical_kind": contract.canonical_kind,
+        "geometry_only": contract.geometry_only,
+        "builder_should_render_formulas": contract.builder_should_render_formulas,
+        "notes": contract.notes,
+        "used_legacy_formula_alias": contract.used_legacy_formula_alias,
+    }
+
+
 def _render_visual(kind: str, suffix: str, variant: str):
-    canonical = ALIASES.get(kind, kind)
+    canonical = resolve_visual_kind(kind)
     if canonical not in DRAWERS:
         raise KeyError(f"Unknown mini visual kind: {kind}")
     safe_name = canonical.replace("/", "_").replace(" ", "_")
@@ -116,3 +139,14 @@ def add_visual_with_caption(
         bold=False,
         align=PP_ALIGN.CENTER,
     )
+
+
+__all__ = [
+    "DRAWERS",
+    "ALIASES",
+    "add_mini_visual",
+    "add_visual_with_caption",
+    "describe_visual_kind",
+    "resolve_visual_kind",
+    "visual_requires_builder_text",
+]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
@@ -49,6 +50,78 @@ PALETTES = {
 }
 
 
+_LATEX_TO_UNICODE = {
+    r"\\alpha": "α",
+    r"\\beta": "β",
+    r"\\gamma": "γ",
+    r"\\delta": "δ",
+    r"\\theta": "θ",
+    r"\\lambda": "λ",
+    r"\\mu": "μ",
+    r"\\pi": "π",
+    r"\\sigma": "σ",
+    r"\\phi": "φ",
+    r"\\psi": "ψ",
+    r"\\omega": "ω",
+    r"\\cdot": "·",
+    r"\\times": "×",
+    r"\\sum": "Σ",
+    r"\\perp": "⟂",
+    r"\\iff": "⟺",
+    r"\\to": "→",
+    r"\\rightarrow": "→",
+    r"\\leftarrow": "←",
+    r"\\geq": "≥",
+    r"\\leq": "≤",
+    r"\\neq": "≠",
+}
+
+_SUBSCRIPT_MAP = str.maketrans(
+    {
+        "0": "₀",
+        "1": "₁",
+        "2": "₂",
+        "3": "₃",
+        "4": "₄",
+        "5": "₅",
+        "6": "₆",
+        "7": "₇",
+        "8": "₈",
+        "9": "₉",
+        "+": "₊",
+        "-": "₋",
+        "=": "₌",
+        "(": "₍",
+        ")": "₎",
+        "i": "ᵢ",
+        "j": "ⱼ",
+        "n": "ₙ",
+    }
+)
+
+_SUPERSCRIPT_MAP = str.maketrans(
+    {
+        "0": "⁰",
+        "1": "¹",
+        "2": "²",
+        "3": "³",
+        "4": "⁴",
+        "5": "⁵",
+        "6": "⁶",
+        "7": "⁷",
+        "8": "⁸",
+        "9": "⁹",
+        "+": "⁺",
+        "-": "⁻",
+        "=": "⁼",
+        "(": "⁽",
+        ")": "⁾",
+        "i": "ⁱ",
+        "n": "ⁿ",
+    }
+)
+
+
 def palette_for(variant: str) -> dict:
     return PALETTES.get(variant, PALETTES["dark_on_light"])
 
@@ -81,6 +154,92 @@ def _save(fig, path: Path) -> Path:
     return path
 
 
+def _normalize_symbolic_text(text: str) -> str:
+    """Normalize lightweight symbolic labels to Unicode for safer raster rendering.
+
+    This helper is intentionally conservative. It is meant for short labels inside
+    mini-visual PNGs, not for rich derivations. Dense formulas should be rendered
+    as native PowerPoint text by the builder layer instead.
+    """
+    normalized = text.strip()
+    for source, target in _LATEX_TO_UNICODE.items():
+        normalized = normalized.replace(source, target)
+
+    normalized = normalized.replace("**", "^")
+    normalized = normalized.replace("<=>", "⟺")
+    normalized = normalized.replace("->", "→")
+    normalized = normalized.replace("<-", "←")
+
+    def _sub_replace(match: re.Match[str]) -> str:
+        base = match.group(1)
+        suffix = match.group(2).translate(_SUBSCRIPT_MAP)
+        return f"{base}{suffix}"
+
+    def _sup_replace(match: re.Match[str]) -> str:
+        base = match.group(1)
+        suffix = match.group(2).translate(_SUPERSCRIPT_MAP)
+        return f"{base}{suffix}"
+
+    normalized = re.sub(r"([A-Za-zα-ωΑ-Ω])_\{?([0-9ijn+\-=()]+)\}?", _sub_replace, normalized)
+    normalized = re.sub(r"([A-Za-zα-ωΑ-Ω])\^\{?([0-9in+\-=()]+)\}?", _sup_replace, normalized)
+    normalized = re.sub(r"\s+", " ", normalized)
+    return normalized
+
+
+def _is_rich_formula_text(text: str) -> bool:
+    """Heuristic for formulas that should not live inside raster mini-visuals."""
+    text = text.strip()
+    if not text:
+        return False
+
+    rich_markers = (
+        "=",
+        "/",
+        "Σ",
+        "∑",
+        "⟺",
+        "⇔",
+        "∀",
+        "∈",
+        "lim",
+        "arccos",
+        "sqrt",
+        "√",
+        "matrix",
+        "[",
+        "]",
+        "{",
+        "}",
+    )
+    if any(marker in text for marker in rich_markers):
+        return True
+    if " " in text and len(text) > 12:
+        return True
+    if len(text) > 18:
+        return True
+    return False
+
+
+def _choose_label_font_family(text: str, *, formula: bool, rich_formula: bool) -> str:
+    """Use the broadest-coverage font for PNG labels.
+
+    DejaVu Sans renders Greek, subscripts/superscripts, and mixed symbolic labels
+    more reliably than the previous formula-mono choice. We keep MPL_FORMULA_FONT
+    only for very small/simple tokens when the text is not rich.
+    """
+    if not formula:
+        return MPL_BODY_FONT
+    if rich_formula:
+        return MPL_BODY_FONT
+
+    simple_token = (
+        len(text) <= 6
+        and " " not in text
+        and not any(ch in text for ch in ("=", "/", "[", "]", "{", "}"))
+    )
+    return MPL_FORMULA_FONT if simple_token else MPL_BODY_FONT
+
+
 def _label_text(
     ax,
     x: float,
@@ -93,16 +252,37 @@ def _label_text(
     ha: str = "center",
     va: str = "center",
     color=None,
+    allow_rich_formula: bool = False,
+    fallback_text: str | None = None,
 ) -> None:
+    """Render a short label inside a mini-visual PNG.
+
+    Rich derivations should not be placed in raster assets. If such a label slips
+    through, we either swap to a caller-provided fallback or normalize the text and
+    render it with the safer sans font stack.
+    """
+    render_text = _normalize_symbolic_text(text) if formula else text
+    rich_formula = formula and _is_rich_formula_text(render_text)
+
+    if rich_formula and not allow_rich_formula:
+        render_text = fallback_text or _normalize_symbolic_text(render_text)
+
+    font_family = _choose_label_font_family(render_text, formula=formula, rich_formula=rich_formula)
+    fontsize = size * (0.94 if rich_formula else 1.0)
+
     ax.text(
         x,
         y,
-        text,
+        render_text,
         ha=ha,
         va=va,
-        fontsize=size,
+        fontsize=fontsize,
         color=p["fg"] if color is None else color,
-        fontfamily=MPL_FORMULA_FONT if formula else MPL_BODY_FONT,
+        fontfamily=font_family,
+        fontstyle="normal",
+        math_fontfamily="dejavusans",
+        linespacing=1.0,
+        clip_on=False,
     )
 
 

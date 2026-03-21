@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import matplotlib.patches as mpatches
-import numpy as np
 
 from slideforge.assets.mini_visuals_common import (
     _axes_2d,
@@ -17,6 +16,12 @@ from slideforge.assets.mini_visuals_common import (
     _vector_strip,
     palette_for,
 )
+
+
+# NOTE:
+# Dense worked-example and homework visuals in this module should stay mostly
+# geometric. Long formulas and derivation steps should be rendered as native
+# PowerPoint text by the builder layer, not rasterized into the PNG.
 
 
 def _make_point_vector_projection_hero(path: Path, variant: str) -> Path:
@@ -94,7 +99,7 @@ def _make_displacement_worked_example(path: Path, variant: str) -> Path:
 
     ax.add_patch(mpatches.Circle(A, 0.15, edgecolor=p["fg"], facecolor=p["soft"], lw=1.1))
     ax.add_patch(mpatches.Circle(B, 0.15, edgecolor=p["fg"], facecolor=p["accent"], lw=1.1))
-    _vector_arrow(ax, A, B, p, color=p["accent"], lw=2.3, label="C=(3,2)", label_dx=0.18, label_dy=0.00)
+    _vector_arrow(ax, A, B, p, color=p["accent"], lw=2.3, label="C", label_dx=0.18, label_dy=0.00)
 
     _label_text(ax, A[0], A[1] - 0.32, "A=(1,1)", p, size=8.2, formula=True)
     _label_text(ax, B[0], B[1] + 0.30, "B=(4,3)", p, size=8.2, formula=True)
@@ -124,21 +129,20 @@ def _make_norm_worked_example(path: Path, variant: str) -> Path:
     p = palette_for(variant)
     fig, ax = _canvas(path, figsize=(4.6, 2.6))
 
-    _soft_panel(ax, 0.6, 0.9, 4.0, 4.2, p)
-    _soft_panel(ax, 5.0, 0.9, 4.3, 4.2, p)
+    _soft_panel(ax, 0.7, 0.9, 8.5, 4.2, p)
 
-    _vector_arrow(ax, (1.2, 1.5), (3.7, 4.0), p, color=p["accent"], lw=2.2, label="x")
-    _label_text(ax, 2.6, 1.05, "x=(3,2,2)", p, size=8.3, formula=True)
+    origin = (1.7, 1.4)
+    tip = (6.1, 4.0)
+    foot = (6.1, 1.4)
 
-    steps = [
-        "x = (3,2,2)",
-        "‖x‖ = √(3²+2²+2²)",
-        "‖x‖ = √(9+4+4)",
-        "‖x‖ = √17",
-    ]
-    for i, s in enumerate(steps):
-        _label_text(ax, 7.15, 4.35 - i * 0.82, s, p, size=8.6, formula=True)
+    _vector_arrow(ax, origin, tip, p, color=p["accent"], lw=2.3, label="x")
+    ax.plot([tip[0], foot[0]], [tip[1], foot[1]], color=p["ghost"], lw=1.0, linestyle="--")
+    ax.plot([origin[0], foot[0]], [origin[1], foot[1]], color=p["ghost"], lw=1.0, linestyle="--")
+    ax.add_patch(mpatches.Rectangle((5.8, 1.4), 0.3, 0.3, fill=False, edgecolor=p["ghost"], lw=0.9))
 
+    _label_text(ax, 7.55, 4.2, "worked example", p, size=8.0, color=p["soft"], ha="center")
+    _label_text(ax, 7.55, 3.2, "geometry only", p, size=8.2, color=p["fg"], ha="center")
+    _label_text(ax, 7.55, 2.3, "steps in text", p, size=7.8, color=p["soft"], ha="center")
     return _save(fig, path)
 
 
@@ -161,27 +165,26 @@ def _make_dot_product_pairing(path: Path, variant: str) -> Path:
     for yy in ys:
         ax.plot([2.45, 4.95], [yy, yy], color=p["ghost"], lw=1.0)
 
-    _label_text(ax, 7.8, 3.1, "x·y", p, size=10, formula=True)
-    _label_text(ax, 7.8, 2.35, "= Σ x_i y_i", p, size=9, formula=True)
+    _label_text(ax, 7.8, 3.0, "pairwise", p, size=8.3, color=p["soft"])
+    _label_text(ax, 7.8, 2.25, "multiply", p, size=8.6, color=p["fg"])
     return _save(fig, path)
 
 
 def _make_dot_product_worked_example(path: Path, variant: str) -> Path:
     p = palette_for(variant)
-    fig, ax = _canvas(path, figsize=(4.6, 2.6))
+    fig, ax = _canvas(path, figsize=(4.8, 2.8))
 
-    _soft_panel(ax, 0.8, 1.0, 8.5, 4.2, p)
+    _soft_panel(ax, 0.7, 0.9, 8.6, 4.2, p)
 
-    steps = [
-        "x=(3,2,2), y=(1,1,1)",
-        "x·y = 3·1 + 2·1 + 2·1",
-        "x·y = 3 + 2 + 2",
-        "x·y = 7",
-    ]
-    for i, s in enumerate(steps):
-        _label_text(ax, 5.05, 4.55 - i * 0.92, s, p, size=9.4, formula=True)
+    _vector_strip(ax, 1.0, 3.35, 3.0, 0.72, p, ["3", "2", "2"], labels=["x₁", "x₂", "x₃"])
+    _vector_strip(ax, 1.0, 1.95, 3.0, 0.72, p, ["1", "1", "1"], labels=["y₁", "y₂", "y₃"])
 
-    ax.plot([2.0, 8.0], [2.15, 2.15], color=p["ghost"], lw=1.0)
+    for x in [1.48, 2.49, 3.50]:
+        ax.plot([x, x], [2.67, 3.35], color=p["ghost"], lw=0.9)
+
+    _label_text(ax, 6.4, 3.95, "pairwise products", p, size=8.0, color=p["soft"], ha="center")
+    _label_text(ax, 6.4, 2.95, "sum outside image", p, size=8.2, color=p["fg"], ha="center")
+    _label_text(ax, 6.4, 1.95, "builder renders math", p, size=7.8, color=p["soft"], ha="center")
     return _save(fig, path)
 
 
@@ -222,8 +225,8 @@ def _make_angle_recovery_geometry(path: Path, variant: str) -> Path:
     ax.add_patch(mpatches.Arc(origin, 1.3, 1.1, angle=0, theta1=22, theta2=70, color=p["ghost"], lw=1.0))
     _label_text(ax, 2.45, 2.35, "α", p, size=8.5, formula=True)
 
-    _label_text(ax, 7.1, 3.45, "cos α = (x·y)/(‖x‖‖y‖)", p, size=8.8, formula=True)
-    _label_text(ax, 7.1, 2.35, "α = arccos(...)", p, size=8.8, formula=True)
+    _label_text(ax, 7.1, 3.45, "recover angle", p, size=8.2, color=p["soft"])
+    _label_text(ax, 7.1, 2.35, "formula in text", p, size=8.4, color=p["fg"])
     return _save(fig, path)
 
 
@@ -233,15 +236,18 @@ def _make_angle_homework_worked(path: Path, variant: str) -> Path:
 
     _soft_panel(ax, 0.7, 0.8, 8.7, 4.5, p)
 
-    steps = [
-        "x=[0.4,0.3]ᵀ  ⇒  ‖x‖ = 0.5",
-        "y=[−0.15,0.2]ᵀ ⇒ ‖y‖ = 0.25",
-        "x·y = (0.4)(−0.15) + (0.3)(0.2) = 0",
-        "cos α = 0  ⇒  α = π/2",
-    ]
-    for i, s in enumerate(steps):
-        _label_text(ax, 5.0, 4.65 - i * 0.95, s, p, size=8.8, formula=True)
+    origin = (2.0, 1.55)
+    x_tip = (5.5, 4.15)
+    y_tip = (6.45, 1.55)
 
+    _vector_arrow(ax, origin, x_tip, p, color=p["accent"], lw=2.2, label="x")
+    _vector_arrow(ax, origin, y_tip, p, color=p["soft"], lw=2.0, label="y")
+    ax.add_patch(mpatches.Rectangle((5.28, 1.55), 0.27, 0.27, fill=False, edgecolor=p["ghost"], lw=0.9))
+
+    ax.plot([x_tip[0], x_tip[0]], [x_tip[1], origin[1]], color=p["ghost"], lw=0.9, linestyle="--")
+    _label_text(ax, 7.85, 3.65, "homework geometry", p, size=8.0, color=p["soft"], ha="center")
+    _label_text(ax, 7.85, 2.65, "numeric steps", p, size=8.2, color=p["fg"], ha="center")
+    _label_text(ax, 7.85, 1.75, "outside image", p, size=7.8, color=p["soft"], ha="center")
     return _save(fig, path)
 
 
@@ -249,17 +255,21 @@ def _make_orthogonal_vectors_symbolic(path: Path, variant: str) -> Path:
     p = palette_for(variant)
     fig, ax = _canvas(path, figsize=(4.8, 2.6))
 
-    _soft_panel(ax, 0.6, 1.0, 3.8, 4.1, p)
-    _soft_panel(ax, 4.9, 1.0, 4.4, 4.1, p)
+    _soft_panel(ax, 0.7, 0.9, 8.5, 4.2, p)
 
-    origin = (1.6, 1.8)
-    _vector_arrow(ax, origin, (3.5, 1.8), p, color=p["soft"], lw=2.1, label="x")
-    _vector_arrow(ax, origin, (1.6, 4.1), p, color=p["accent"], lw=2.1, label="y")
-    ax.add_patch(mpatches.Rectangle((1.6, 1.8), 0.35, 0.35, fill=False, edgecolor=p["ghost"], lw=0.9))
+    origin = (2.1, 1.55)
+    x_tip = (6.2, 1.55)
+    y_tip = (2.1, 4.45)
 
-    _label_text(ax, 7.1, 3.85, "x ⟂ y  ⟺  x·y = 0", p, size=9.3, formula=True)
-    _label_text(ax, 7.1, 2.95, "x^(1)·x^(2)=a₁²−a₂²+a₃²", p, size=8.7, formula=True)
-    _label_text(ax, 7.1, 2.05, "orthogonal if this equals 0", p, size=8.4, color=p["soft"])
+    _vector_arrow(ax, origin, x_tip, p, color=p["soft"], lw=2.1, label="x")
+    _vector_arrow(ax, origin, y_tip, p, color=p["accent"], lw=2.1, label="y")
+    ax.add_patch(mpatches.Rectangle((2.1, 1.55), 0.38, 0.38, fill=False, edgecolor=p["ghost"], lw=0.9))
+
+    ax.plot([6.55, 8.35], [1.55, 1.55], color=p["ghost"], lw=1.0)
+    ax.plot([6.55, 6.55], [1.55, 3.85], color=p["ghost"], lw=1.0)
+    _label_text(ax, 7.45, 4.25, "90°", p, size=9.0, formula=True)
+    _label_text(ax, 7.45, 3.25, "orthogonal", p, size=8.1, color=p["soft"])
+    _label_text(ax, 7.45, 2.25, "formula in text", p, size=7.9, color=p["fg"])
     return _save(fig, path)
 
 
@@ -301,28 +311,21 @@ def _make_projection_symbolic_homework(path: Path, variant: str) -> Path:
     p = palette_for(variant)
     fig, ax = _canvas(path, figsize=(4.9, 2.8))
 
-    _soft_panel(ax, 0.6, 1.0, 3.7, 4.2, p)
-    _soft_panel(ax, 4.8, 1.0, 4.5, 4.2, p)
+    _soft_panel(ax, 0.7, 0.9, 8.6, 4.2, p)
 
-    origin = (1.4, 1.6)
-    y_tip = (3.8, 2.1)
-    x_tip = (2.8, 4.4)
+    origin = (1.5, 1.55)
+    y_tip = (7.85, 2.1)
+    x_tip = (4.15, 4.35)
     proj = _tip_projection(x_tip, origin, y_tip)
 
-    _vector_arrow(ax, origin, x_tip, p, color=p["accent"], lw=2.2, label="x^(1)")
-    _vector_arrow(ax, origin, y_tip, p, color=p["soft"], lw=2.0, label="x^(2)")
+    _vector_arrow(ax, origin, x_tip, p, color=p["accent"], lw=2.2, label="x")
+    _vector_arrow(ax, origin, y_tip, p, color=p["soft"], lw=2.0, label="y")
     ax.plot([x_tip[0], proj[0]], [x_tip[1], proj[1]], color=p["ghost"], lw=1.0, linestyle="--")
     _vector_arrow(ax, origin, proj, p, color=p["fg"], lw=2.0, label="p")
 
-    formulas = [
-        "u = x^(2)/‖x^(2)‖",
-        "p = c u",
-        "c = (x^(1)·x^(2))/‖x^(2)‖",
-        "x^(1)·x^(2)=a₁²−a₂²+a₃²",
-    ]
-    for i, s in enumerate(formulas):
-        _label_text(ax, 7.05, 4.2 - i * 0.8, s, p, size=8.4, formula=True)
-
+    _label_text(ax, 7.95, 4.15, "projection", p, size=8.0, color=p["soft"], ha="center")
+    _label_text(ax, 7.95, 3.15, "onto a direction", p, size=8.2, color=p["fg"], ha="center")
+    _label_text(ax, 7.95, 2.15, "formula in text", p, size=7.8, color=p["soft"], ha="center")
     return _save(fig, path)
 
 
@@ -377,18 +380,18 @@ DRAWERS_GEOMETRY = {
     "point_vector_projection_hero": _make_point_vector_projection_hero,
     "point_and_vector_same_coords": _make_point_and_vector_same_coords,
     "vector_difference_geometry": _make_vector_difference_geometry,
-    "displacement_worked_example": _make_displacement_worked_example,
+    "displacement_geometry": _make_displacement_worked_example,
     "norm_triangle": _make_norm_triangle,
-    "norm_worked_example": _make_norm_worked_example,
+    "norm_worked_geometry": _make_norm_worked_example,
     "dot_product_pairing": _make_dot_product_pairing,
-    "dot_product_worked_example": _make_dot_product_worked_example,
+    "dot_product_worked_geometry": _make_dot_product_worked_example,
     "dot_alignment_angle": _make_dot_alignment_angle,
     "angle_recovery_geometry": _make_angle_recovery_geometry,
-    "angle_homework_worked": _make_angle_homework_worked,
-    "orthogonal_vectors_symbolic": _make_orthogonal_vectors_symbolic,
+    "angle_homework_geometry": _make_angle_homework_worked,
+    "orthogonal_vectors_geometry": _make_orthogonal_vectors_symbolic,
     "unit_vector_normalization": _make_unit_vector_normalization,
     "projection_geometry": _make_projection_geometry,
-    "projection_symbolic_homework": _make_projection_symbolic_homework,
+    "projection_homework_geometry": _make_projection_symbolic_homework,
     "ml_norm_bridge": _make_ml_norm_bridge,
     "ml_dot_bridge": _make_ml_dot_bridge,
     "ml_projection_bridge": _make_ml_projection_bridge,
@@ -398,16 +401,27 @@ ALIASES_GEOMETRY = {
     "point_vector_hero": "point_vector_projection_hero",
     "same_coordinates_two_roles": "point_and_vector_same_coords",
     "difference_as_displacement": "vector_difference_geometry",
-    "worked_displacement": "displacement_worked_example",
+    "worked_displacement": "displacement_geometry",
+    "displacement_worked_example": "displacement_geometry",
     "vector_norm_geometry": "norm_triangle",
-    "worked_norm_geometry": "norm_worked_example",
+    "worked_norm_geometry": "norm_worked_geometry",
+    "norm_worked_example": "norm_worked_geometry",
+    "worked_norm_geometry_only": "norm_worked_geometry",
     "dot_product_coordinates": "dot_product_pairing",
-    "worked_dot_product": "dot_product_worked_example",
+    "worked_dot_product": "dot_product_worked_geometry",
+    "dot_product_worked_example": "dot_product_worked_geometry",
+    "worked_dot_product_geometry_only": "dot_product_worked_geometry",
     "dot_product_alignment": "dot_alignment_angle",
     "angle_from_dot_product": "angle_recovery_geometry",
-    "worked_angle_homework": "angle_homework_worked",
-    "orthogonal_geometry_symbolic": "orthogonal_vectors_symbolic",
+    "worked_angle_homework": "angle_homework_geometry",
+    "angle_homework_worked": "angle_homework_geometry",
+    "worked_angle_geometry_only": "angle_homework_geometry",
+    "orthogonal_geometry_symbolic": "orthogonal_vectors_geometry",
+    "orthogonal_vectors_symbolic": "orthogonal_vectors_geometry",
+    "orthogonal_geometry_only": "orthogonal_vectors_geometry",
     "normalized_vector": "unit_vector_normalization",
     "vector_projection": "projection_geometry",
-    "homework_projection_symbolic": "projection_symbolic_homework",
+    "homework_projection_symbolic": "projection_homework_geometry",
+    "projection_symbolic_homework": "projection_homework_geometry",
+    "homework_projection_geometry_only": "projection_homework_geometry",
 }
