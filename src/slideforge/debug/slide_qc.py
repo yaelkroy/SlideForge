@@ -4,8 +4,6 @@ from dataclasses import dataclass, field
 import re
 from typing import Any, Iterable, Mapping, Sequence
 
-from pptx.enum.text import PP_ALIGN
-
 try:
     from slideforge.assets.mini_visual_contracts import get_visual_contract
 except Exception:  # pragma: no cover - optional dependency while bootstrapping
@@ -26,6 +24,12 @@ try:
 except Exception:  # pragma: no cover - optional dependency while bootstrapping
     _nda_visual_metadata = None
 
+try:
+    from slideforge.layout.analytic_panel import layout_analytic_panel
+    from slideforge.layout.autofit import Box as _QCBox
+except Exception:  # pragma: no cover - optional dependency while bootstrapping
+    layout_analytic_panel = None
+    _QCBox = None
 
 
 @dataclass(frozen=True)
@@ -47,93 +51,6 @@ class SlideQCThresholds:
     max_visual_aspect_ratio_over_preferred: float = 1.18
     min_visual_preferred_height_ratio: float = 0.95
     max_visual_aspect_ratio_over_preferred: float = 1.18
-
-_ALIGN_LOOKUP = {
-    "left": PP_ALIGN.LEFT,
-    "l": PP_ALIGN.LEFT,
-    "center": PP_ALIGN.CENTER,
-    "centre": PP_ALIGN.CENTER,
-    "c": PP_ALIGN.CENTER,
-    "right": PP_ALIGN.RIGHT,
-    "r": PP_ALIGN.RIGHT,
-    "justify": PP_ALIGN.JUSTIFY,
-    "justified": PP_ALIGN.JUSTIFY,
-}
-
-
-def _normalize_align(value: Any, default=PP_ALIGN.CENTER):
-    if value is None:
-        return default
-    if isinstance(value, str):
-        return _ALIGN_LOOKUP.get(value.strip().lower(), default)
-    try:
-        return PP_ALIGN(value)
-    except Exception:
-        return default
-
-
-def _dominant_concept_poster_alignment(spec: Mapping[str, Any] | None):
-    spec = spec or {}
-    if _clean_text(spec.get("kind")) != "concept_poster":
-        return None
-    layout = dict(spec.get("layout", {}) or {})
-    weighted: list[Any] = []
-    for key, align_key, default_align, weight in (
-        ("text_explanation", "explanation_align", PP_ALIGN.CENTER, 3),
-        ("bullets", "bullets_align", PP_ALIGN.CENTER, 2),
-        ("visible_anchor_text", "note_align", PP_ALIGN.CENTER, 1),
-        ("takeaway", "takeaway_align", PP_ALIGN.CENTER, 3),
-    ):
-        value = spec.get(key)
-        if key == "visible_anchor_text" and not _clean_text(value):
-            show_anchor = spec.get("show_anchor_text")
-            if show_anchor:
-                value = spec.get("concrete_example_anchor")
-        if _extract_strings(value):
-            align = _normalize_align(layout.get(align_key), default_align)
-            weighted.extend([align] * weight)
-    if not weighted:
-        return PP_ALIGN.CENTER
-    order = [PP_ALIGN.CENTER, PP_ALIGN.LEFT, PP_ALIGN.RIGHT, PP_ALIGN.JUSTIFY]
-    counts = {align: weighted.count(align) for align in set(weighted)}
-    return max(order, key=lambda align: (counts.get(align, 0), 1 if align == PP_ALIGN.CENTER else 0))
-
-
-def check_poster_formula_alignment_harmony(
-    spec: Mapping[str, Any] | None,
-    *,
-    slide_title: str = "",
-) -> list[SlideQCIssue]:
-    spec = spec or {}
-    if _clean_text(spec.get("kind")) != "concept_poster" or not _extract_strings(spec.get("formulas")):
-        return []
-    layout = dict(spec.get("layout", {}) or {})
-    dominant = _dominant_concept_poster_alignment(spec)
-    if dominant is None:
-        return []
-    explicit = layout.get("formulas_align")
-    if explicit is None:
-        return []
-    resolved = _normalize_align(explicit, PP_ALIGN.CENTER)
-    if resolved == dominant:
-        return []
-    return [
-        SlideQCIssue(
-            code="poster_formula_alignment_off_context",
-            severity="warning",
-            message=(
-                "Concept-poster formulas override the dominant poster text alignment. "
-                "Unless this is an intentional text-first reading layout, keep formulas aligned "
-                "with the surrounding poster text."
-            ),
-            slide_title=slide_title,
-            block_key="formulas",
-            context={
-                "dominant_alignment": str(dominant),
-                "formulas_alignment": str(resolved),
-            },
-        )
-    ]
 
 
 def _clean_text(value: Any) -> str:
@@ -643,6 +560,114 @@ def check_visual_contracts(
     return issues
 
 
+
+
+def _qc_clean_steps_text(spec: Mapping[str, Any]) -> str:
+    blocks: list[str] = []
+    for idx, step in enumerate(spec.get("steps") or [], start=1):
+        if isinstance(step, Mapping):
+            parts = [
+                _clean_text(step.get("title") or step.get("label") or f"Step {idx}"),
+                _clean_text(step.get("body") or step.get("text") or step.get("explanation")),
+                _clean_text(step.get("formula") or step.get("equation") or step.get("result")),
+                _clean_text(step.get("note")),
+            ]
+        else:
+            parts = [f"Step {idx}", _clean_text(step)]
+        block = "\n".join(part for part in parts if part)
+        if block:
+            blocks.append(block)
+    return "\n\n".join(blocks)
+
+
+def check_analytic_panel_balance(
+    spec: Mapping[str, Any] | None,
+    *,
+    slide_title: str = "",
+) -> list[SlideQCIssue]:
+    if not spec or layout_analytic_panel is None or _QCBox is None:
+        return []
+
+    kind = _clean_text(spec.get("kind"))
+    if kind not in {"analytic_panel", "worked_example", "worked_example_panel"}:
+        return []
+
+    layout = dict(spec.get("layout", {}) or {})
+    content_box = dict(layout.get("content_box", {}) or {})
+    outer = _QCBox(
+        float(content_box.get("x", 0.86)),
+        float(content_box.get("y", 1.34)),
+        float(content_box.get("w", 11.30)),
+        float(content_box.get("h", 5.18)),
+    )
+
+    explanation = _clean_text(spec.get("text_explanation") or spec.get("explanation"))
+    result = spec.get("result")
+    if isinstance(result, Mapping):
+        result_text = "\n".join([part for part in [
+            _clean_text(result.get("body") or result.get("text") or result.get("explanation")),
+            _clean_text(result.get("formula") or result.get("equation")),
+            _clean_text(result.get("note")),
+        ] if part])
+    else:
+        result_text = _clean_text(result)
+    steps_text = _qc_clean_steps_text(spec)
+    takeaway = _clean_text(spec.get("takeaway"))
+
+    result_layout = layout_analytic_panel(
+        outer,
+        explanation_text=explanation,
+        steps_text=steps_text,
+        result_text=result_text,
+        takeaway_text=takeaway,
+        layout_mode=_clean_text(layout.get("worked_layout_mode") or layout.get("layout_mode") or "two_column") or "two_column",
+        visual_kind=_clean_text(spec.get("mini_visual")),
+        top_pad=float(layout.get("top_pad", 0.16)),
+        bottom_pad=float(layout.get("bottom_pad", 0.14)),
+        side_pad=float(layout.get("side_pad", 0.20)),
+        gap=float(layout.get("gap", 0.10)),
+        col_gap=float(layout.get("col_gap", layout.get("column_gap", 0.20))),
+        min_steps_h=float(layout.get("min_steps_h", 2.0)),
+        explanation_min_h=float(layout.get("explanation_min_h", 0.34)),
+        explanation_max_h=float(layout.get("explanation_max_h", 0.62)),
+        result_min_h=float(layout.get("result_min_h", 0.72)),
+        result_max_h=float(layout.get("result_max_h", 1.08)),
+        takeaway_min_h=float(layout.get("takeaway_min_h", 0.50)),
+        takeaway_max_h=float(layout.get("takeaway_max_h", 0.84)),
+    )
+
+    issues: list[SlideQCIssue] = []
+    metadata = _lookup_visual_metadata(_clean_text(spec.get("mini_visual")))
+    preferred_aspect = float(metadata.get("preferred_aspect_ratio", 0.0) or 0.0)
+    derivation_like = (not explanation) and bool(result_text.strip()) and (not takeaway)
+    if derivation_like and 0.0 < preferred_aspect <= 1.15 and result_layout.diagram_share < 0.31:
+        issues.append(
+            SlideQCIssue(
+                code="analytic_panel_diagram_share_too_small",
+                severity="warning",
+                message=(
+                    f"Analytic-panel visual '{_clean_text(spec.get('mini_visual'))}' is likely too narrow "
+                    f"for a derivation layout (diagram share {result_layout.diagram_share:.2f})."
+                ),
+                slide_title=slide_title,
+                context={"diagram_share": result_layout.diagram_share, "candidate": result_layout.candidate_name},
+            )
+        )
+    if any(note in {"diagram_share_too_small_for_square_derivation_visual", "hard_diagram_aspect_far_from_preference"} for note in result_layout.notes):
+        issues.append(
+            SlideQCIssue(
+                code="analytic_panel_layout_balance_risk",
+                severity="warning",
+                message=(
+                    "Analytic-panel layout has a diagram/text balance risk; consider giving the visual more width "
+                    "or relaxing the text column density."
+                ),
+                slide_title=slide_title,
+                context={"candidate": result_layout.candidate_name, "notes": list(result_layout.notes)},
+            )
+        )
+    return issues
+
 def run_slide_qc(
     *,
     spec: Mapping[str, Any] | None = None,
@@ -661,7 +686,7 @@ def run_slide_qc(
     issues.extend(check_raster_symbol_health(raster_labels, slide_title=slide_title))
     issues.extend(check_visual_contracts(spec, slide_title=slide_title))
     issues.extend(check_section_visual_box_contracts(spec, slide_title=slide_title, thresholds=thresholds))
-    issues.extend(check_poster_formula_alignment_harmony(spec, slide_title=slide_title))
+    issues.extend(check_analytic_panel_balance(spec, slide_title=slide_title))
     return issues
 
 
@@ -684,6 +709,7 @@ __all__ = [
     "check_raster_symbol_health",
     "check_visual_contracts",
     "check_section_visual_box_contracts",
+    "check_analytic_panel_balance",
     "run_slide_qc",
     "summarize_qc_issues",
 ]

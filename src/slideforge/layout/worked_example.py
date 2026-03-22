@@ -147,11 +147,15 @@ def _content_specs(
     takeaway_min_h: Unit,
     takeaway_max_h: Unit,
     min_steps_h: Unit,
+    steps_min_font: int = 11,
+    steps_max_font: int = 15,
+    result_min_font: int = 13,
+    result_max_font: int = 18,
 ) -> list[_SectionSpec]:
     return [
         _SectionSpec("explanation", explanation_text, 14, 18, 4, explanation_min_h, explanation_max_h, 1.14, 0.04, 2),
-        _SectionSpec("steps", steps_text, 11, 15, None, min_steps_h, None, 1.14, 0.06, 0),
-        _SectionSpec("result", result_text, 13, 18, 5, result_min_h, result_max_h, 1.12, 0.04, 3),
+        _SectionSpec("steps", steps_text, steps_min_font, steps_max_font, None, min_steps_h, None, 1.14, 0.06, 0),
+        _SectionSpec("result", result_text, result_min_font, result_max_font, 5, result_min_h, result_max_h, 1.12, 0.04, 3),
         _SectionSpec("takeaway", takeaway_text, 12, 15, 4, takeaway_min_h, takeaway_max_h, 1.12, 0.04, 4),
     ]
 
@@ -250,6 +254,10 @@ def layout_worked_example_two_column(
     takeaway_min_h: Unit = 0.22,
     takeaway_max_h: Unit = 0.56,
     min_diagram_h_share: float = 0.62,
+    steps_min_font: int = 11,
+    steps_max_font: int = 15,
+    result_min_font: int = 13,
+    result_max_font: int = 18,
 ) -> WorkedExampleLayoutResult:
     usable = _usable_box(outer_box, top_pad=top_pad, bottom_pad=bottom_pad, side_pad=side_pad)
     if usable.w <= 0 or usable.h <= 0:
@@ -268,6 +276,10 @@ def layout_worked_example_two_column(
         takeaway_min_h=takeaway_min_h,
         takeaway_max_h=takeaway_max_h,
         min_steps_h=min_steps_h,
+        steps_min_font=steps_min_font,
+        steps_max_font=steps_max_font,
+        result_min_font=result_min_font,
+        result_max_font=result_max_font,
     )
     share, diagram_w, right_w, heights, fits = _choose_two_column_share(
         usable=usable,
@@ -320,6 +332,10 @@ def layout_worked_example_top_visual(
     result_max_h: Unit = 0.62,
     takeaway_min_h: Unit = 0.20,
     takeaway_max_h: Unit = 0.50,
+    steps_min_font: int = 11,
+    steps_max_font: int = 15,
+    result_min_font: int = 13,
+    result_max_font: int = 18,
 ) -> WorkedExampleLayoutResult:
     usable = _usable_box(outer_box, top_pad=top_pad, bottom_pad=bottom_pad, side_pad=side_pad)
     if usable.w <= 0 or usable.h <= 0:
@@ -338,6 +354,10 @@ def layout_worked_example_top_visual(
         takeaway_min_h=takeaway_min_h,
         takeaway_max_h=takeaway_max_h,
         min_steps_h=min_steps_h,
+        steps_min_font=steps_min_font,
+        steps_max_font=steps_max_font,
+        result_min_font=result_min_font,
+        result_max_font=result_max_font,
     )
 
     content_heights, fits = _evaluate_column(width=usable.w, specs=specs, available_h=usable.h, gap=gap)

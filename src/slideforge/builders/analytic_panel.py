@@ -21,6 +21,16 @@ SAFE_TEXT_WIDTH_RATIO = 0.96
 CAPTION_MIN_H_TO_SHOW = 1.55
 VISUAL_MIN_W_FOR_CAPTION = 3.25
 
+CARD_LABEL_X_PAD = 0.14
+CARD_LABEL_Y_PAD = 0.09
+CARD_LABEL_W_PAD = 0.28
+CARD_BODY_X_PAD = 0.16
+CARD_BODY_TOP_Y = 0.38
+CARD_BODY_BOTTOM_PAD = 0.18
+VISUAL_IMAGE_X_PAD = 0.12
+VISUAL_IMAGE_TOP_Y = 0.29
+VISUAL_IMAGE_BOTTOM_PAD = 0.14
+
 
 def _clean(value: Any) -> str:
     return str(value or "").strip()
@@ -184,23 +194,23 @@ def _text_card(slide, box: Box, label: str, text: str, style: Mapping[str, Any],
     if box.w <= 0 or box.h <= 0 or not _clean(text):
         return
     _card(slide, box, style)
-    add_box_title(slide, x=box.x + 0.12, y=box.y + 0.06, w=max(0.0, box.w - 0.24), text=label, color=style["label_color"], font_size=11)
-    inner = Box(box.x + 0.16, box.y + 0.34, max(0.0, box.w - 0.32), max(0.0, box.h - 0.52))
+    add_box_title(slide, x=box.x + CARD_LABEL_X_PAD, y=box.y + CARD_LABEL_Y_PAD, w=max(0.0, box.w - CARD_LABEL_W_PAD), text=label, color=style["label_color"], font_size=11)
+    inner = Box(box.x + CARD_BODY_X_PAD, box.y + CARD_BODY_TOP_Y, max(0.0, box.w - 2 * CARD_BODY_X_PAD), max(0.0, box.h - CARD_BODY_TOP_Y - CARD_BODY_BOTTOM_PAD))
     add_textbox(slide, x=inner.x, y=inner.y, w=inner.w, h=inner.h, text=text, font_name=BODY_FONT, font_size=_fit(text, inner, min_font, max_font, max_lines), color=color, bold=bold, align=PP_ALIGN.LEFT)
 
 
 def _visual_card(slide, box: Box, content: Mapping[str, Any], style: Mapping[str, Any], *, suppress_caption: bool = False) -> None:
     _card(slide, box, style)
-    add_box_title(slide, x=box.x + 0.12, y=box.y + 0.06, w=max(0.0, box.w - 0.24), text=content["visual_label"], color=style["label_color"], font_size=11)
+    add_box_title(slide, x=box.x + CARD_LABEL_X_PAD, y=box.y + CARD_LABEL_Y_PAD, w=max(0.0, box.w - CARD_LABEL_W_PAD), text=content["visual_label"], color=style["label_color"], font_size=11)
     caption_h = 0.0
     caption = "" if suppress_caption else content["visual_caption"]
     if caption:
-        caption_h = max(0.18, min(0.34, _estimate(caption, max(0.1, box.w - 0.36), 9, 11, 2, extra=0.02)))
-    img_box = Box(box.x + 0.16, box.y + 0.30, max(0.0, box.w - 0.32), max(0.0, box.h - 0.46 - caption_h))
+        caption_h = max(0.18, min(0.34, _estimate(caption, max(0.1, box.w - 2 * VISUAL_IMAGE_X_PAD), 9, 11, 2, extra=0.02)))
+    img_box = Box(box.x + VISUAL_IMAGE_X_PAD, box.y + VISUAL_IMAGE_TOP_Y, max(0.0, box.w - 2 * VISUAL_IMAGE_X_PAD), max(0.0, box.h - VISUAL_IMAGE_TOP_Y - VISUAL_IMAGE_BOTTOM_PAD - caption_h))
     if content["mini_visual"]:
         add_mini_visual(slide, kind=content["mini_visual"], x=img_box.x, y=img_box.y, w=img_box.w, h=img_box.h, suffix="_analytic_panel", variant=style["visual_variant"])
     if caption_h > 0:
-        cap = Box(box.x + 0.16, img_box.y + img_box.h + 0.03, max(0.0, box.w - 0.32), caption_h)
+        cap = Box(box.x + VISUAL_IMAGE_X_PAD, img_box.y + img_box.h + 0.03, max(0.0, box.w - 2 * VISUAL_IMAGE_X_PAD), caption_h)
         add_textbox(slide, x=cap.x, y=cap.y, w=cap.w, h=cap.h, text=caption, font_name=BODY_FONT, font_size=_fit(caption, cap, 9, 11, 2), color=style["body_color"], align=PP_ALIGN.CENTER)
 
 
@@ -216,7 +226,7 @@ def _fallback_layout(outer: Box, content: Mapping[str, Any], layout: Mapping[str
         takeaway_text=content["takeaway"],
         layout_mode="two_column",
         visual_kind=content["mini_visual"],
-        force_candidates=["two_column_text_heavy", "two_column", "two_column_requested"],
+        force_candidates=["two_column_square_visual", "two_column_square_visual_relaxed", "two_column", "two_column_requested", "two_column_text_heavy"],
         top_pad=float(layout.get("top_pad", 0.16)),
         bottom_pad=float(layout.get("bottom_pad", 0.14)),
         side_pad=float(layout.get("side_pad", 0.20)),
@@ -277,8 +287,8 @@ def _render_layout(slide, content: Mapping[str, Any], style: Mapping[str, Any], 
 
     if layout_result.steps_box.h > 0 and content["steps"]:
         _card(slide, layout_result.steps_box, style)
-        add_box_title(slide, x=layout_result.steps_box.x + 0.12, y=layout_result.steps_box.y + 0.06, w=max(0.0, layout_result.steps_box.w - 0.24), text=content["steps_label"], color=style["label_color"], font_size=11)
-        inner = Box(layout_result.steps_box.x + 0.16, layout_result.steps_box.y + 0.34, max(0.0, layout_result.steps_box.w - 0.32), max(0.0, layout_result.steps_box.h - 0.54))
+        add_box_title(slide, x=layout_result.steps_box.x + CARD_LABEL_X_PAD, y=layout_result.steps_box.y + CARD_LABEL_Y_PAD, w=max(0.0, layout_result.steps_box.w - CARD_LABEL_W_PAD), text=content["steps_label"], color=style["label_color"], font_size=11)
+        inner = Box(layout_result.steps_box.x + CARD_BODY_X_PAD, layout_result.steps_box.y + CARD_BODY_TOP_Y, max(0.0, layout_result.steps_box.w - 2 * CARD_BODY_X_PAD), max(0.0, layout_result.steps_box.h - CARD_BODY_TOP_Y - CARD_BODY_BOTTOM_PAD))
         render_compact_derivation_stack(
             slide,
             box=inner,
@@ -381,7 +391,7 @@ def _render_derivation_slide(prs: Presentation, spec: dict[str, Any], bg: str, s
         takeaway_text=derivation["takeaway"],
         layout_mode="two_column",
         visual_kind=derivation["mini_visual"],
-        force_candidates=["two_column_text_heavy", "two_column", "two_column_requested"],
+        force_candidates=["two_column_square_visual", "two_column_square_visual_relaxed", "two_column", "two_column_requested", "two_column_text_heavy"],
         **layout,
     )
     _render_layout(slide, derivation, style, layout_result)

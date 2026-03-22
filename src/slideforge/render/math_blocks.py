@@ -360,10 +360,10 @@ def render_result_callout(
     if draw_card:
         add_rounded_box(slide, box.x, box.y, box.w, box.h, line_color=style.card_line_color, fill_color=style.card_fill_color, line_width_pt=1.25)
 
-    label_box = Box(box.x + 0.16, box.y + 0.08, max(0.0, box.w - 0.32), 0.20)
+    label_box = Box(box.x + 0.18, box.y + 0.09, max(0.0, box.w - 0.36), 0.20)
     add_box_title(slide, x=label_box.x, y=label_box.y, w=label_box.w, text=label, color=style.label_color, font_size=11, bold=True, align=PP_ALIGN.LEFT)
 
-    body_box = Box(box.x + 0.18, box.y + 0.34, max(0.0, box.w - 0.36), max(0.0, box.h - 0.46))
+    body_box = Box(box.x + 0.18, box.y + 0.33, max(0.0, box.w - 0.36), max(0.0, box.h - 0.45))
     # Stronger safety for result boxes, especially last line.
     font_size = _fit_font_size(
         "\n".join(lines),

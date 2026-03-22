@@ -40,18 +40,18 @@ def _make_projection_geometry(path: Path, variant: str) -> Path:
 
 def _make_projection_homework_geometry(path: Path, variant: str) -> Path:
     p = palette_for(variant)
-    fig, ax = _canvas(path, figsize=(4.95, 2.95))
-    _mini_panel(ax, 0.90, 1.00, 8.15, 4.00, p)
-    origin = (1.45, 1.62)
-    y_tip = (8.05, 2.18)
-    x_tip = (4.25, 4.25)
+    fig, ax = _canvas(path, figsize=(5.10, 3.05))
+    _mini_panel(ax, 0.62, 0.82, 8.75, 4.40, p)
+    origin = (1.05, 1.52)
+    y_tip = (8.28, 2.08)
+    x_tip = (4.85, 4.30)
     proj = _tip_projection(x_tip, origin, y_tip)
-    _vector_arrow(ax, origin, x_tip, p, color=p["accent"], lw=2.25, label="x")
-    _vector_arrow(ax, origin, y_tip, p, color=p["soft"], lw=2.05, label="y")
-    ax.plot([x_tip[0], proj[0]], [x_tip[1], proj[1]], color=p["ghost"], lw=1.0, linestyle="--")
-    _vector_arrow(ax, origin, proj, p, color=p["fg"], lw=2.05, label="p")
+    _vector_arrow(ax, origin, x_tip, p, color=p["accent"], lw=2.30, label="x")
+    _vector_arrow(ax, origin, y_tip, p, color=p["soft"], lw=2.10, label="y")
+    ax.plot([x_tip[0], proj[0]], [x_tip[1], proj[1]], color=p["ghost"], lw=1.08, linestyle="--")
+    _vector_arrow(ax, origin, proj, p, color=p["fg"], lw=2.10, label="p")
     ax.add_patch(mpatches.Circle((proj[0], proj[1]), 0.11, edgecolor=p["fg"], facecolor=p["fg"], lw=0.8))
-    _label_text(ax, 7.62, 4.45, "projection", p, size=7.7, color=p["soft"])
+    _label_text(ax, 7.82, 4.66, "projection", p, size=8.0, color=p["soft"])
     return _save(fig, path)
 
 
