@@ -37,6 +37,71 @@ LONG_HEADER_LAYOUT_TABLE: dict[str, Any] = {
 }
 
 
+PART1_COMPACT_CONCEPT_LAYOUT: dict[str, Any] = {
+    "title_y": 0.42,
+    "subtitle_y": 0.98,
+    "poster_box": {"x": 0.94, "y": 1.32, "w": 11.14, "h": 5.02},
+    "poster_profile": "compact_concept",
+    "layout_profile": "compact_concept",
+    "compact_concept_mode": True,
+    "compact_visual_min_share": 0.66,
+    "compact_visual_max_share": 0.84,
+    "compact_preferred_visual_share": 0.76,
+    "visual_min_share": 0.62,
+    "visual_max_share": 0.82,
+    "preferred_visual_share": 0.72,
+}
+
+PART1_TEXT_FORWARD_CONCEPT_LAYOUT: dict[str, Any] = _merged_layout(
+    PART1_COMPACT_CONCEPT_LAYOUT,
+    poster_profile="text_priority",
+    layout_profile="text_priority",
+    prioritize_text_over_visual=True,
+    reserve_formula_first=True,
+    stack_formulas=True,
+    visual_min_share=0.48,
+    visual_max_share=0.68,
+    preferred_visual_share=0.58,
+)
+
+PART1_PIPELINE_LAYOUT: dict[str, Any] = {
+    "title_y": 0.42,
+    "subtitle_y": 0.98,
+    "pipeline_region": {"x": 0.78, "y": 1.74, "w": 11.44, "h": 2.82},
+    "pipeline_gap": 0.24,
+    "takeaway_box": {"x": 0.98, "y": 5.28, "w": 10.96, "h": 0.82},
+}
+
+PART1_ANNOTATED_PIPELINE_LAYOUT: dict[str, Any] = {
+    "title_y": 0.42,
+    "subtitle_y": 0.98,
+    "pipeline_region": {"x": 0.78, "y": 1.72, "w": 11.44, "h": 3.08},
+    "pipeline_gap": 0.26,
+    "bullets_y": 5.06,
+    "takeaway_y": 5.54,
+}
+
+PART1_MULTI_PANEL_SUMMARY_LAYOUT: dict[str, Any] = {
+    "title_y": 0.42,
+    "title_h": 0.84,
+    "title_max_lines": 2,
+    "title_max_font": 25,
+    "subtitle_h": 0.40,
+    "subtitle_max_lines": 1,
+    "panel_region": {"x": 0.82, "y": 1.92, "w": 11.36, "h": 3.06},
+    "panel_gap": 0.24,
+    "adaptive_panel_visual": True,
+    "prioritize_text_over_visual": True,
+    "panel_visual_min_share": 0.34,
+    "panel_visual_max_share": 0.60,
+    "panel_visual_preferred_share": 0.44,
+    "bottom_text_gap": 0.10,
+    "takeaway_grow_weight": 2.2,
+    "use_bottom_summary_card": True,
+    "footer_clearance_top": 6.46,
+}
+
+
 ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
     {
         "kind": "title_composite",
@@ -312,11 +377,7 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
         ],
         "concrete_example_anchor": "point/vector x=(3,2,2) and boundary 3x₁+x₂−1=0",
         "takeaway": "Without geometry, there is no meaningful space in which learning can happen.",
-        "layout": {
-            "title_y": 0.42,
-            "subtitle_y": 0.98,
-            "poster_box": {"x": 0.96, "y": 1.34, "w": 11.10, "h": 4.98},
-        },
+        "layout": _merged_layout(PART1_COMPACT_CONCEPT_LAYOUT, compact_preferred_visual_share=0.79),
     },
     {
         "kind": "concept_poster",
@@ -342,11 +403,7 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
         ],
         "concrete_example_anchor": "Use a visible bowl surface or 1D loss curve.",
         "takeaway": "Optimization is how a model changes from a bad fit into a better fit.",
-        "layout": {
-            "title_y": 0.42,
-            "subtitle_y": 0.98,
-            "poster_box": {"x": 0.96, "y": 1.34, "w": 11.10, "h": 4.98},
-        },
+        "layout": _merged_layout(PART1_COMPACT_CONCEPT_LAYOUT, compact_preferred_visual_share=0.77),
     },
     {
         "kind": "concept_poster",
@@ -371,11 +428,7 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
         ],
         "concrete_example_anchor": "Use one Gaussian with clear mean and spread.",
         "takeaway": "Real data is not perfectly clean, so machine learning must reason probabilistically.",
-        "layout": {
-            "title_y": 0.42,
-            "subtitle_y": 0.98,
-            "poster_box": {"x": 0.96, "y": 1.34, "w": 11.10, "h": 4.98},
-        },
+        "layout": _merged_layout(PART1_COMPACT_CONCEPT_LAYOUT, compact_preferred_visual_share=0.76),
     },
     {
         "kind": "concept_poster",
@@ -400,11 +453,7 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
         ],
         "concrete_example_anchor": "Use a clear matrix-vector visual or array layout.",
         "takeaway": "Without computation, the formulas stay on paper.",
-        "layout": {
-            "title_y": 0.42,
-            "subtitle_y": 0.98,
-            "poster_box": {"x": 0.96, "y": 1.34, "w": 11.10, "h": 4.98},
-        },
+        "layout": _merged_layout(PART1_TEXT_FORWARD_CONCEPT_LAYOUT, compact_preferred_visual_share=0.68),
     },
     {
         "kind": "pipeline",
@@ -460,16 +509,10 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
         },
         "examples": [],
         "takeaway": "Representation comes first: objects become vectors, vectors enter geometry, and geometry supports prediction.",
-        "layout": {
-            "title_y": 0.42,
-            "subtitle_y": 0.98,
-            "pipeline_region": {"x": 0.86, "y": 1.84, "w": 11.28, "h": 2.48},
-            "pipeline_gap": 0.22,
-            "takeaway_box": {"x": 1.00, "y": 5.40, "w": 10.90, "h": 0.70},
-        },
+        "layout": PART1_PIPELINE_LAYOUT,
     },
     {
-        "kind": "example_pipeline",
+        "kind": "annotated_pipeline",
         "theme": "concept",
         "background": "Background 10.png",
         "slide_number": 9,
@@ -504,17 +547,10 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
             ]
         },
         "takeaway": "Representation means converting a real object into a vector that a model can use.",
-        "layout": {
-            "title_y": 0.42,
-            "subtitle_y": 0.98,
-            "pipeline_region": {"x": 0.82, "y": 1.78, "w": 11.32, "h": 2.92},
-            "pipeline_gap": 0.30,
-            "bullets_y": 5.02,
-            "takeaway_y": 5.46,
-        },
+        "layout": PART1_ANNOTATED_PIPELINE_LAYOUT,
     },
     {
-        "kind": "example_pipeline",
+        "kind": "annotated_pipeline",
         "theme": "concept",
         "background": "Background 10.png",
         "slide_number": 10,
@@ -549,17 +585,10 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
             ]
         },
         "takeaway": "A prediction is made only after the object has been turned into a vector.",
-        "layout": {
-            "title_y": 0.42,
-            "subtitle_y": 0.98,
-            "pipeline_region": {"x": 0.82, "y": 1.78, "w": 11.32, "h": 2.92},
-            "pipeline_gap": 0.30,
-            "bullets_y": 5.02,
-            "takeaway_y": 5.46,
-        },
+        "layout": PART1_ANNOTATED_PIPELINE_LAYOUT,
     },
     {
-        "kind": "example_pipeline",
+        "kind": "annotated_pipeline",
         "theme": "concept",
         "background": "Background 10.png",
         "slide_number": 11,
@@ -594,17 +623,10 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
             ]
         },
         "takeaway": "The same representation idea works for images too.",
-        "layout": {
-            "title_y": 0.42,
-            "subtitle_y": 0.98,
-            "pipeline_region": {"x": 0.82, "y": 1.78, "w": 11.32, "h": 2.92},
-            "pipeline_gap": 0.30,
-            "bullets_y": 5.02,
-            "takeaway_y": 5.46,
-        },
+        "layout": PART1_ANNOTATED_PIPELINE_LAYOUT,
     },
     {
-        "kind": "example_pipeline",
+        "kind": "annotated_pipeline",
         "theme": "concept",
         "background": "Background 10.png",
         "slide_number": 12,
@@ -639,14 +661,7 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
             ]
         },
         "takeaway": "A class prediction is made after the image becomes a vector in a geometric space.",
-        "layout": {
-            "title_y": 0.42,
-            "subtitle_y": 0.98,
-            "pipeline_region": {"x": 0.82, "y": 1.78, "w": 11.32, "h": 2.92},
-            "pipeline_gap": 0.30,
-            "bullets_y": 5.02,
-            "takeaway_y": 5.46,
-        },
+        "layout": PART1_ANNOTATED_PIPELINE_LAYOUT,
     },
     {
         "kind": "card_grid",
@@ -830,7 +845,7 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
         ),
     },
     {
-        "kind": "triple_role",
+        "kind": "multi_panel_summary",
         "theme": "concept",
         "background": "Background 10.png",
         "slide_number": 17,
@@ -882,19 +897,9 @@ ML_FOUNDATIONS_PART1_SLIDES: list[dict[str, Any]] = [
             },
         ],
         "takeaway": "same coordinates • different role • context changes meaning",
-        "layout": {
-            "title_y": 0.42,
-            "title_h": 0.84,
-            "title_max_lines": 2,
-            "title_max_font": 25,
-            "subtitle_h": 0.40,
-            "subtitle_max_lines": 1,
-            "panel_region": {"x": 0.88, "y": 1.96, "w": 11.24, "h": 2.86},
-            "panel_gap": 0.24,
-            "bullets_y": 5.08,
-            "formula_y": 5.44,
-            "takeaway_y": 5.84,
-            "takeaway_h": 0.24,
-        },
+        "layout": _merged_layout(
+            PART1_MULTI_PANEL_SUMMARY_LAYOUT,
+            panel_region={"x": 0.82, "y": 1.92, "w": 11.36, "h": 3.02},
+        ),
     },
 ]

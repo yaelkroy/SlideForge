@@ -21,6 +21,8 @@ PART2_POSTER_LAYOUT: dict[str, Any] = {
 
 PART2_COMPACT_CONCEPT_LAYOUT: dict[str, Any] = _merged_layout(
     PART2_POSTER_LAYOUT,
+    poster_profile="compact_concept",
+    layout_profile="compact_concept",
     compact_concept_mode=True,
     compact_visual_min_share=0.64,
     compact_visual_max_share=0.82,
@@ -32,6 +34,8 @@ PART2_COMPACT_CONCEPT_LAYOUT: dict[str, Any] = _merged_layout(
 
 PART2_TEXT_FIRST_POSTER_LAYOUT: dict[str, Any] = _merged_layout(
     PART2_POSTER_LAYOUT,
+    poster_profile="text_priority",
+    layout_profile="text_priority",
     prioritize_text_over_visual=True,
     reserve_formula_first=True,
     stack_formulas=True,
@@ -42,6 +46,8 @@ PART2_TEXT_FIRST_POSTER_LAYOUT: dict[str, Any] = _merged_layout(
 
 PART2_COMPACT_TEXT_FIRST_LAYOUT: dict[str, Any] = _merged_layout(
     PART2_TEXT_FIRST_POSTER_LAYOUT,
+    poster_profile="text_priority",
+    layout_profile="text_priority",
     compact_concept_mode=True,
     compact_visual_min_share=0.52,
     compact_visual_max_share=0.72,
@@ -77,7 +83,7 @@ PART2_SYMBOLIC_WORKED_EXAMPLE_LAYOUT: dict[str, Any] = {
 PART2_TOP_VISUAL_WORKED_LAYOUT: dict[str, Any] = {
     "content_box": {"x": 0.88, "y": 1.28, "w": 11.24, "h": 5.10},
     "worked_layout_mode": "top_visual",
-    "top_visual_h": 1.84,
+    "top_visual_h": 1.74,
     "column_gap": 0.20,
     "lower_right_share": 0.36,
     "block_gap": 0.10,
@@ -176,10 +182,10 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "elements": [
                 {
                     "kind": "point_vector_projection_hero",
-                    "x": 0.96,
-                    "y": 3.12,
-                    "w": 10.56,
-                    "h": 2.18,
+                    "x": 0.84,
+                    "y": 3.02,
+                    "w": 10.92,
+                    "h": 2.38,
                     "label": "",
                 },
             ],
@@ -217,7 +223,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "layout": _merged_layout(PART2_COMPACT_CONCEPT_LAYOUT, compact_preferred_visual_share=0.77),
     },
     {
-        "kind": "triple_role",
+        "kind": "multi_panel_summary",
         "theme": "concept",
         "background": "Background 10.png",
         "slide_number": 14,
@@ -248,7 +254,11 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "takeaway": "Same coordinates. Different role.",
         "layout": _merged_layout(
             PART2_TWO_PANEL_LAYOUT,
-            panel_region={"x": 0.88, "y": 1.92, "w": 11.24, "h": 3.12},
+            panel_region={"x": 0.82, "y": 1.90, "w": 11.36, "h": 3.18},
+            adaptive_panel_visual=True,
+            panel_visual_min_share=0.40,
+            panel_visual_max_share=0.64,
+            panel_visual_preferred_share=0.50,
         ),
     },
     {
@@ -316,7 +326,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "layout": _merged_layout(PART2_COMPACT_CONCEPT_LAYOUT, compact_preferred_visual_share=0.76),
     },
     {
-        "kind": "worked_example",
+        "kind": "analytic_panel",
         "theme": "concept",
         "background": "Background 10.png",
         "slide_number": 17,
@@ -353,7 +363,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "This same subtraction pattern returns later in optimization, gradients, and "
             "error vectors."
         ),
-        "layout": _merged_layout(PART2_WORKED_EXAMPLE_LAYOUT, visual_share=0.35),
+        "layout": _merged_layout(PART2_WORKED_EXAMPLE_LAYOUT, visual_share=0.32, steps_min_h=2.46),
     },
     {
         "kind": "concept_poster",
@@ -384,7 +394,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "layout": _merged_layout(PART2_COMPACT_CONCEPT_LAYOUT, compact_preferred_visual_share=0.72),
     },
     {
-        "kind": "worked_example",
+        "kind": "analytic_panel",
         "theme": "concept",
         "background": "Background 10.png",
         "slide_number": 19,
@@ -417,7 +427,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "formula": "‖(3,2,2)‖ = √17",
         },
         "takeaway": "Students should be able to repeat this exact norm pattern on their own.",
-        "layout": _merged_layout(PART2_WORKED_EXAMPLE_LAYOUT, visual_share=0.33),
+        "layout": _merged_layout(PART2_WORKED_EXAMPLE_LAYOUT, visual_share=0.31, steps_min_h=2.42),
     },
     {
         "kind": "concept_poster",
@@ -448,7 +458,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "layout": _merged_layout(PART2_COMPACT_CONCEPT_LAYOUT, compact_preferred_visual_share=0.72),
     },
     {
-        "kind": "worked_example",
+        "kind": "analytic_panel",
         "theme": "concept",
         "background": "Background 10.png",
         "slide_number": 21,
@@ -481,7 +491,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "formula": "(3,2,2)·(1,1,1)=7",
         },
         "takeaway": "This is the fast mechanical computation students should be able to do reliably.",
-        "layout": _merged_layout(PART2_WORKED_EXAMPLE_LAYOUT, visual_share=0.33),
+        "layout": _merged_layout(PART2_WORKED_EXAMPLE_LAYOUT, visual_share=0.31, steps_min_h=2.42),
     },
     {
         "kind": "concept_poster",
@@ -538,7 +548,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "layout": _merged_layout(PART2_COMPACT_TEXT_FIRST_LAYOUT, compact_preferred_visual_share=0.58),
     },
     {
-        "kind": "worked_example",
+        "kind": "analytic_panel",
         "theme": "concept",
         "background": "Background 10.png",
         "slide_number": 24,
@@ -574,7 +584,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "layout": PART2_TOP_VISUAL_WORKED_LAYOUT,
     },
     {
-        "kind": "worked_example",
+        "kind": "analytic_panel",
         "theme": "concept",
         "background": "Background 10.png",
         "slide_number": 25,
@@ -664,7 +674,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "layout": _merged_layout(PART2_COMPACT_TEXT_FIRST_LAYOUT, compact_preferred_visual_share=0.60),
     },
     {
-        "kind": "worked_example",
+        "kind": "analytic_panel",
         "theme": "concept",
         "background": "Background 10.png",
         "slide_number": 28,
@@ -708,7 +718,7 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "layout": PART2_SYMBOLIC_WORKED_EXAMPLE_LAYOUT,
     },
     {
-        "kind": "triple_role",
+        "kind": "multi_panel_summary",
         "theme": "concept",
         "background": "Background 10.png",
         "slide_number": 29,
@@ -758,6 +768,11 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             },
         ],
         "takeaway": "This geometry is the operating language of machine learning.",
-        "layout": PART2_THREE_PANEL_LAYOUT,
+        "layout": _merged_layout(
+            PART2_THREE_PANEL_LAYOUT,
+            panel_region={"x": 0.82, "y": 1.90, "w": 11.36, "h": 3.10},
+            panel_visual_preferred_share=0.44,
+            takeaway_grow_weight=2.8,
+        ),
     },
 ]

@@ -1,8 +1,8 @@
 # SlideForge
 
-SlideForge is a Python-native, spec-driven presentation engine for generating polished PowerPoint decks.
+SlideForge is a **Python-native, spec-driven presentation engine** for generating polished PowerPoint decks from structured slide specifications.
 
-It is designed to generate many kinds of presentations, including:
+It is designed to support many kinds of presentations, including:
 - academic lecture decks
 - technical presentations
 - business presentations
@@ -17,19 +17,35 @@ The current example project in the repository is a machine-learning lecture deck
 
 ---
 
-## Current Status
+## Current Direction
 
-SlideForge is a real modular deck-generation codebase, not just a static template repo.
+SlideForge should be treated as a **universal presentation platform**.
 
-The current architecture already includes:
-- project slide specs under `src/slideforge/projects/`
-- explicit builder dispatch through a builder registry
-- reusable theme, header, layout, and primitive rendering layers
-- reusable mini-visual generation for diagrams and concept visuals
-- modular builder families for repeated slide patterns
-- generation of a final `.pptx` deck from Python slide specs
+That means:
+- engine modules should be reusable across many domains
+- builders should represent reusable composition families
+- layouts should allocate regions generically instead of encoding deck semantics
+- render helpers should stay reusable across many deck types
+- domain visuals should be organized as packs
+- project specs should live above the engine layer
+- the entrypoint should render arbitrary slide specs, not one hardcoded deck
 
-The repo is also still mid-refactor. Some proposed cleanup work has not yet landed in `main`, so the documentation below is written to match the code that actually exists now.
+The ML lecture deck is the current example project, not the architectural boundary of the platform.
+
+---
+
+## Core Build Flow
+
+The intended build flow is:
+
+**project slide specs -> builder registry -> slide builders -> theme/header/layout helpers -> rendering helpers / mini visuals -> pptx output**
+
+In the refactored architecture:
+- `src/slideforge/app/build_deck.py` is the generic engine entrypoint
+- `build_deck(slides, output_file, theme_overrides=None)` is the primary programmatic API
+- the CLI or launcher chooses the project spec target
+- `src/slideforge_app.py` becomes an example launcher, not the engine core
+- builder dispatch is handled by a declarative registry with manifest support and compatibility aliases
 
 ---
 
@@ -41,172 +57,189 @@ SlideForge/
 ├─ LLM_CONTEXT.md
 ├─ SLIDE_SPEC_RULES.md
 ├─ pyproject.toml
-├─ ML_Foundations_Auto.pdf
-├─ ML_Foundations_Auto.pptx
-└─ src/
-   ├─ slideforge_app.py
-   ├─ slideforge.egg-info/
-   └─ slideforge/
-      ├─ app/
-      │  ├─ build_deck.py
-      │  ├─ presentation_factory.py
-      │  └─ slide_utils.py
-      ├─ assets/
-      │  ├─ mini_visuals.py
-      │  ├─ mini_visuals_common.py
-      │  ├─ mini_visuals_core.py
-      │  └─ mini_visuals_geometry.py
-      ├─ builders/
-      │  ├─ basic.py
-      │  ├─ builder_registry.py
-      │  ├─ card_grid.py
-      │  ├─ common.py
-      │  ├─ concept_poster.py
-      │  ├─ dependency_map.py
-      │  ├─ example_pipeline.py
-      │  ├─ notation_panel.py
-      │  ├─ pipeline.py
-      │  ├─ prereq_grid.py
-      │  ├─ section_divider.py
-      │  ├─ title_composite.py
-      │  ├─ triple_role.py
-      │  ├─ triple_role_bands.py
-      │  ├─ triple_role_panels.py
-      │  ├─ triple_role_style.py
-      │  └─ integrated_bridge.py.bak
-      ├─ config/
-      │  ├─ constants.py
-      │  ├─ paths.py
-      │  └─ themes.py
-      ├─ io/
-      │  └─ backgrounds.py
-      ├─ layout/
-      │  ├─ autofit.py
-      │  ├─ base.py
-      │  ├─ cards.py
-      │  ├─ dependency.py
-      │  ├─ grid.py
-      │  ├─ poster.py
-      │  ├─ stack.py
-      │  ├─ table.py
-      │  └─ text_fit.py
-      ├─ projects/
-      │  └─ ml_foundations/
-      │     ├─ __init__.py
-      │     ├─ slides_part1.py
-      │     └─ slides_part2.py
-      ├─ render/
-      │  ├─ header.py
-      │  └─ primitives.py
-      └─ utils/
-         ├─ text_layout.py
-         └─ units.py
+├─ src/
+│  ├─ slideforge_app.py
+│  └─ slideforge/
+│     ├─ app/
+│     │  ├─ build_deck.py
+│     │  ├─ presentation_factory.py
+│     │  └─ slide_utils.py
+│     ├─ assets/
+│     │  ├─ mini_visuals.py
+│     │  ├─ mini_visuals_common.py
+│     │  ├─ mini_visuals_core.py
+│     │  ├─ mini_visuals_geometry.py
+│     │  └─ packs/
+│     │     └─ geometry/
+│     │        ├─ heroes.py
+│     │        ├─ points_vectors.py
+│     │        ├─ norms_dots_angles.py
+│     │        └─ projections_orthogonality.py
+│     ├─ builders/
+│     │  ├─ analytic_panel.py
+│     │  ├─ annotated_pipeline.py
+│     │  ├─ basic.py
+│     │  ├─ builder_registry.py
+│     │  ├─ card_grid.py
+│     │  ├─ common.py
+│     │  ├─ concept_poster.py
+│     │  ├─ dependency_map.py
+│     │  ├─ multi_panel_summary.py
+│     │  ├─ notation_panel.py
+│     │  ├─ pipeline.py
+│     │  ├─ prereq_grid.py
+│     │  ├─ section_divider.py
+│     │  ├─ title_composite.py
+│     │  └─ compatibility aliases such as:
+│     │     ├─ worked_example_panel.py
+│     │     ├─ example_pipeline.py
+│     │     └─ triple_role.py
+│     ├─ config/
+│     │  ├─ constants.py
+│     │  ├─ paths.py
+│     │  └─ themes.py
+│     ├─ io/
+│     │  └─ backgrounds.py
+│     ├─ layout/
+│     │  ├─ analytic_panel.py
+│     │  ├─ poster.py
+│     │  ├─ dependency.py
+│     │  ├─ grid.py
+│     │  ├─ stack.py
+│     │  ├─ table.py
+│     │  ├─ text_fit.py
+│     │  └─ other generic layout helpers
+│     ├─ projects/
+│     │  └─ ml_foundations/
+│     │     ├─ __init__.py
+│     │     ├─ slides_part1.py
+│     │     └─ slides_part2.py
+│     ├─ render/
+│     │  ├─ header.py
+│     │  ├─ text.py
+│     │  ├─ cards.py
+│     │  ├─ connectors.py
+│     │  ├─ decorations.py
+│     │  ├─ primitives.py
+│     │  ├─ title_panels.py
+│     │  ├─ pipeline_blocks.py
+│     │  ├─ multi_panel_cards.py
+│     │  └─ math_blocks.py
+│     ├─ spec/
+│     │  ├─ pipeline_normalization.py
+│     │  └─ other spec-normalization helpers
+│     ├─ style/
+│     │  ├─ title_style.py
+│     │  ├─ multi_panel_summary_style.py
+│     │  └─ other family style helpers
+│     └─ utils/
+│        ├─ text_layout.py
+│        └─ units.py
 ```
 
----
-
-## Core Principle
-
-SlideForge should be treated as a universal presentation platform.
-
-That means:
-- engine modules should be reusable across many domains
-- builder families should represent reusable slide patterns
-- shared visual modules should be organized by visual family, not one deck section
-- project specs should live above the engine layer
-- machine learning is an example project, not the boundary of the platform
+This tree reflects the intended post-refactor organization: **generic engine modules first, project specs second, compatibility aliases where needed**.
 
 ---
 
-## How It Works
+## Composition Families
 
-The intended build flow is:
+SlideForge should prefer **composition-semantic names** over lecture-semantic names.
 
-**project slide specs -> builder registry -> slide builders -> theme/header/layout helpers -> rendering primitives / mini visuals -> pptx output**
-
-In the current repo:
-- `src/slideforge_app.py` is the executable entrypoint
-- `builder_registry.py` maps slide `kind` values to concrete builder functions
-- project content lives in `src/slideforge/projects/`
-- headers, themes, and layout helpers are increasingly centralized rather than reimplemented in every builder
-
----
-
-## Current Builder Families
-
-The active builder registry currently supports these slide kinds:
-- `title`
+### Primary composition names
 - `title_composite`
-- `section`
 - `section_divider`
-- `bullets`
-- `formula`
-- `two_column`
-- `image`
-- `dependency_map`
-- `pipeline`
-- `prereq_grid`
-- `example_pipeline`
-- `card_grid`
-- `notation_panel`
-- `triple_role`
 - `concept_poster`
+- `pipeline`
+- `annotated_pipeline`
+- `dependency_map`
+- `notation_panel`
+- `card_grid`
+- `analytic_panel`
+- `multi_panel_summary`
 
-Important current note:
-- `integrated_bridge` is not currently active in the registry
-- there is no dedicated `worked_example` builder in the current pushed repo
+### Compatibility aliases
+Old names may remain as compatibility wrappers so existing decks do not break:
+- `worked_example_panel` -> `analytic_panel`
+- `worked_example` -> `analytic_panel`
+- `example_pipeline` -> `annotated_pipeline`
+- `triple_role` -> `multi_panel_summary`
+
+The universal name should be treated as canonical for all new work.
+
+---
+
+## Builder Registry
+
+The builder registry is moving toward a more declarative system.
+
+Current design direction:
+- compatibility façade in `builders/builder_registry.py`
+- real registry logic in `builders/registry.py`
+- data-driven built-in registry through JSON manifests
+- optional plugin-pack loading
+- optional decorator-based builder registration
+
+The goal is to avoid a future where every new builder family requires editing one central hardcoded dictionary forever.
+
+---
+
+## Assets and Visual Packs
+
+SlideForge supports reusable mini visuals, but domain-specific visuals should be organized as **packs**, not treated as the engine core.
+
+Example:
+- geometry visuals live under `assets/packs/geometry/`
+- `mini_visuals_common.py` stays focused on shared drawing helpers
+- `mini_visuals_geometry.py` can remain as a compatibility façade or aggregation layer
+
+This keeps the engine universal while still supporting geometry-heavy, math-heavy, or otherwise domain-specific projects.
+
+---
+
+## Themes and Styling
+
+The theme system under `config/themes.py` remains the primary styling layer.
+
+Builder-family styling should prefer:
+- theme-derived style resolution
+- family-specific style helpers under `style/`
+- explicit overrides from slide specs
+
+Avoid letting one builder family invent a parallel styling universe disconnected from the theme system.
+
+---
+
+## Programmatic Use
+
+Typical generic usage should look like:
+
+```python
+from slideforge.app.build_deck import build_deck
+from slideforge.projects.ml_foundations import ML_FOUNDATIONS_PART1_SLIDES
+
+build_deck(ML_FOUNDATIONS_PART1_SLIDES, "out/part1.pptx")
+```
+
+Or by project/target selection from the launcher:
+
+```bash
+python src/slideforge_app.py --project ml_foundations
+python src/slideforge_app.py --slides-target slideforge.projects.ml_foundations:ML_FOUNDATIONS_PART2_SLIDES
+```
+
+The engine should be able to render **arbitrary slide lists** without being hard-wired to the ML deck.
 
 ---
 
 ## Dependencies
 
-The current `pyproject.toml` defines:
+The current `pyproject.toml` defines the engine runtime.
+
+At minimum, the repo is built around:
 - Python `>=3.10`
 - `python-pptx`
 - `matplotlib`
 - `numpy`
-
----
-
-## How to Run
-
-From the repo root:
-
-```bash
-python src/slideforge_app.py
-```
-
----
-
-## Honest Current Note
-
-The current repo has an important inconsistency:
-
-- `src/slideforge_app.py` imports `ML_FOUNDATIONS_SLIDES`
-- `src/slideforge/projects/ml_foundations/__init__.py` currently exports only `ML_FOUNDATIONS_PART1_SLIDES`
-
-So the intended entrypoint is clear, but the current pushed state should be treated as needing one cleanup step before the package export path is fully consistent.
-
-Also:
-- `slides_part2.py` exists in the repo
-- but Part II is not currently exported through the package `__init__.py`
-
-This README is intentionally honest about that instead of pretending the refactor is already complete.
-
----
-
-## Current Design Direction
-
-The repo is moving toward:
-- builder-driven slide generation
-- reusable rendering primitives
-- reusable mini-visual families
-- shared theme and header systems
-- reusable layout and text-fit helpers
-- clearer project-level slide spec organization
-- many small files with explicit responsibilities
-
-At the same time, the project should avoid unnecessary churn. The goal is not a giant framework rewrite. The goal is to keep presentation generation working while making the codebase easier to extend, safer to edit, and easier for future LLM sessions to recover.
 
 ---
 
@@ -217,4 +250,20 @@ The repository includes:
 - `LLM_CONTEXT.md` — architecture and continuity guide for future development and LLM-assisted work
 - `SLIDE_SPEC_RULES.md` — rules for writing and maintaining slide specs
 
-When the repo structure changes, these files should be checked together so they do not drift out of sync.
+These files should be updated **together** whenever the engine architecture, naming, or project structure changes.
+
+---
+
+## Important Practical Rule
+
+SlideForge should evolve without losing recoverability.
+
+That means:
+- prefer many small modules
+- keep responsibilities explicit
+- keep registries and project specs easy to trace
+- keep compatibility aliases when renaming a family
+- make global behavior opt-in through specs or profiles rather than hidden heuristics
+
+The goal is not to create framework theater.
+The goal is to make the engine easier to extend, safer to edit, and less likely to break one deck while fixing another.

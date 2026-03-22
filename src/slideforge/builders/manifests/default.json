@@ -1,0 +1,155 @@
+{
+  "builders": [
+    {
+      "kind": "title",
+      "import": "slideforge.builders.basic:build_title_slide",
+      "tags": [
+        "core",
+        "scaffold"
+      ],
+      "description": "Basic title slide."
+    },
+    {
+      "kind": "title_composite",
+      "import": "slideforge.builders.title_composite:build_title_composite_slide",
+      "tags": [
+        "core",
+        "hero"
+      ],
+      "description": "Composite hero/title slide with panels and optional visual."
+    },
+    {
+      "kind": "section",
+      "import": "slideforge.builders.basic:build_section_slide",
+      "tags": [
+        "core",
+        "scaffold"
+      ]
+    },
+    {
+      "kind": "section_divider",
+      "import": "slideforge.builders.section_divider:build_section_divider_slide",
+      "tags": [
+        "core",
+        "divider"
+      ]
+    },
+    {
+      "kind": "bullets",
+      "import": "slideforge.builders.basic:build_bullets_slide",
+      "tags": [
+        "content"
+      ]
+    },
+    {
+      "kind": "formula",
+      "import": "slideforge.builders.basic:build_formula_slide",
+      "tags": [
+        "content"
+      ]
+    },
+    {
+      "kind": "two_column",
+      "import": "slideforge.builders.basic:build_two_column_slide",
+      "tags": [
+        "content",
+        "comparison"
+      ]
+    },
+    {
+      "kind": "image",
+      "import": "slideforge.builders.basic:build_image_slide",
+      "tags": [
+        "content",
+        "media"
+      ]
+    },
+    {
+      "kind": "dependency_map",
+      "import": "slideforge.builders.dependency_map:build_dependency_map_slide",
+      "tags": [
+        "structured",
+        "map"
+      ]
+    },
+    {
+      "kind": "pipeline",
+      "import": "slideforge.builders.pipeline:build_pipeline_slide",
+      "tags": [
+        "structured",
+        "process"
+      ]
+    },
+    {
+      "kind": "annotated_pipeline",
+      "import": "slideforge.builders.annotated_pipeline:build_annotated_pipeline_slide",
+      "aliases": [
+        "example_pipeline"
+      ],
+      "tags": [
+        "structured",
+        "process",
+        "annotated"
+      ],
+      "description": "Pipeline with inline annotations, examples, or evidence bands."
+    },
+    {
+      "kind": "prereq_grid",
+      "import": "slideforge.builders.prereq_grid:build_prereq_grid_slide",
+      "tags": [
+        "structured",
+        "grid"
+      ]
+    },
+    {
+      "kind": "card_grid",
+      "import": "slideforge.builders.card_grid:build_card_grid_slide",
+      "tags": [
+        "structured",
+        "grid"
+      ]
+    },
+    {
+      "kind": "notation_panel",
+      "import": "slideforge.builders.notation_panel:build_notation_panel_slide",
+      "tags": [
+        "structured",
+        "notation"
+      ]
+    },
+    {
+      "kind": "concept_poster",
+      "import": "slideforge.builders.concept_poster:build_concept_poster_slide",
+      "tags": [
+        "structured",
+        "poster"
+      ]
+    },
+    {
+      "kind": "analytic_panel",
+      "import": "slideforge.builders.analytic_panel:build_analytic_panel_slide",
+      "aliases": [
+        "worked_example_panel",
+        "worked_example"
+      ],
+      "tags": [
+        "structured",
+        "analysis"
+      ],
+      "description": "Visual plus reasoning stack: steps, result, takeaway."
+    },
+    {
+      "kind": "multi_panel_summary",
+      "import": "slideforge.builders.multi_panel_summary:build_multi_panel_summary_slide",
+      "aliases": [
+        "triple_role"
+      ],
+      "tags": [
+        "structured",
+        "comparison",
+        "synthesis"
+      ],
+      "description": "Reusable multi-panel comparison and synthesis family."
+    }
+  ]
+}

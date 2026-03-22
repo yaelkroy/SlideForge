@@ -1,33 +1,29 @@
 from __future__ import annotations
 
-from collections import defaultdict
+from pathlib import Path
+from typing import Any, Mapping, Sequence
 
-from slideforge.config.paths import OUTPUT_FILE, ensure_runtime_dirs
-from slideforge.io.backgrounds import validate_backgrounds
-from slideforge.app.build_deck import create_presentation
-from slideforge.builders.builder_registry import BUILDERS
-from slideforge.projects.ml_foundations import ML_FOUNDATIONS_SLIDES
+from slideforge.app.build_deck import build_deck, load_slides, main
+from slideforge.config.paths import OUTPUT_FILE
 
 
-SLIDES = ML_FOUNDATIONS_SLIDES
+# Example launcher target. The engine itself is generic; this file only provides
+# a convenient default for local development.
+DEFAULT_PROJECT = "ml_foundations"
+DEFAULT_SLIDES = load_slides(DEFAULT_PROJECT)
 
 
-def build_deck() -> None:
-    ensure_runtime_dirs()
-    validate_backgrounds(SLIDES)
-
-    prs = create_presentation()
-    counters: dict[str, int] = defaultdict(int)
-
-    for idx, spec in enumerate(SLIDES, start=1):
-        kind = spec["kind"]
-        if kind not in BUILDERS:
-            raise ValueError(f"Unknown slide kind on slide {idx}: {kind}")
-        BUILDERS[kind](prs, spec, counters)
-
-    prs.save(OUTPUT_FILE)
-    print(f"Saved presentation: {OUTPUT_FILE}")
+def build_example_deck(
+    slides: Sequence[dict[str, Any]] | None = None,
+    output_file: str | Path = OUTPUT_FILE,
+    theme_overrides: Mapping[str, Any] | None = None,
+) -> Path:
+    return build_deck(
+        slides or DEFAULT_SLIDES,
+        output_file=output_file,
+        theme_overrides=theme_overrides,
+    )
 
 
 if __name__ == "__main__":
-    build_deck()
+    main()
