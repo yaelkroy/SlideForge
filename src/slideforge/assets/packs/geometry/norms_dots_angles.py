@@ -104,25 +104,24 @@ def _make_angle_recovery_geometry(path: Path, variant: str) -> Path:
     ax.plot([7.20, 7.20], [2.14, 3.90], color=p["ghost"], lw=0.95)
     ax.add_patch(mpatches.Arc(center, 1.25, 1.25, angle=0, theta1=15, theta2=50, color=p["accent"], lw=1.2))
     _label_text(ax, 7.80, 3.56, "α", p, size=8.6, formula=True)
-    _label_text(ax, 7.20, 4.46, "recover angle", p, size=7.6, color=p["soft"])
+    _label_text(ax, 7.18, 4.42, "angle", p, size=7.8, color=p["soft"])
     return _save(fig, path)
 
 
 def _make_angle_homework_geometry(path: Path, variant: str) -> Path:
     p = palette_for(variant)
-    fig, ax = _canvas(path, figsize=(4.9, 2.9))
-    _mini_panel(ax, 0.90, 1.05, 8.20, 3.95, p)
-    origin = (1.95, 1.62)
-    x_tip = (5.55, 4.08)
-    y_tip = (7.05, 1.62)
-    _vector_arrow(ax, origin, x_tip, p, color=p["accent"], lw=2.25, label="x")
-    _vector_arrow(ax, origin, y_tip, p, color=p["soft"], lw=2.05, label="y")
-    ax.plot([x_tip[0], x_tip[0]], [x_tip[1], origin[1]], color=p["ghost"], lw=0.9, linestyle="--")
-    _right_angle_marker(ax, 5.28, 1.62, 0.26, p)
-    ax.add_patch(mpatches.Arc(origin, 1.45, 1.05, angle=0, theta1=7, theta2=34, color=p["ghost"], lw=1.0))
-    _label_text(ax, 2.95, 1.95, "α", p, size=8.6, formula=True)
+    fig, ax = _canvas(path, figsize=(5.55, 3.10))
+    _mini_panel(ax, 0.70, 0.92, 8.80, 4.22, p)
+    origin = (1.55, 1.34)
+    x_tip = (5.92, 3.98)
+    y_tip = (7.15, 1.34)
+    _vector_arrow(ax, origin, x_tip, p, color=p["accent"], lw=2.30, label="x", label_dx=0.16, label_dy=0.08)
+    _vector_arrow(ax, origin, y_tip, p, color=p["soft"], lw=2.10, label="y", label_dx=0.14, label_dy=0.02)
+    ax.plot([x_tip[0], x_tip[0]], [x_tip[1], origin[1]], color=p["ghost"], lw=0.95, linestyle="--")
+    _right_angle_marker(ax, 5.62, 1.34, 0.28, p)
+    ax.add_patch(mpatches.Arc(origin, 1.70, 1.18, angle=0, theta1=7, theta2=32, color=p["ghost"], lw=1.05))
+    _label_text(ax, 2.78, 1.78, "α", p, size=8.8, formula=True)
     return _save(fig, path)
-
 
 def _make_unit_vector_normalization(path: Path, variant: str) -> Path:
     p = palette_for(variant)

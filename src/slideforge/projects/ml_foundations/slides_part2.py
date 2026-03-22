@@ -173,8 +173,8 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "and measure similarity"
         ),
         "layout": {
-            "title_region": {"x": 0.86, "y": 1.72, "w": 11.52, "h": 1.06},
-            "subtitle_region": {"x": 1.06, "y": 2.82, "w": 11.06, "h": 0.44},
+            "title_region": {"x": 0.78, "y": 1.62, "w": 11.70, "h": 1.14},
+            "subtitle_region": {"x": 0.98, "y": 2.82, "w": 11.10, "h": 0.48},
         },
         "section_visual": {
             "type": "wide_concept_band",
@@ -182,10 +182,10 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "elements": [
                 {
                     "kind": "point_vector_projection_hero",
-                    "x": 0.84,
-                    "y": 3.02,
-                    "w": 10.92,
-                    "h": 2.38,
+                    "x": 0.72,
+                    "y": 3.06,
+                    "w": 11.28,
+                    "h": 2.62,
                     "label": "",
                 },
             ],
@@ -220,7 +220,13 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "required_formulas": True,
         "concrete_example_anchor": "Use x=(3,2,2) as both point and vector.",
         "takeaway": "One coordinate list can act as either a location or a direction.",
-        "layout": _merged_layout(PART2_COMPACT_CONCEPT_LAYOUT, compact_preferred_visual_share=0.77),
+        "layout": _merged_layout(
+            PART2_COMPACT_CONCEPT_LAYOUT,
+            compact_preferred_visual_share=0.70,
+            compact_visual_min_share=0.58,
+            compact_visual_max_share=0.76,
+            formulas_align="center",
+        ),
     },
     {
         "kind": "multi_panel_summary",
@@ -323,7 +329,13 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
         "required_formulas": True,
         "concrete_example_anchor": "Use generic labeled geometry with A, B, C.",
         "takeaway": "Subtraction tells us how to move from one vector to another.",
-        "layout": _merged_layout(PART2_COMPACT_CONCEPT_LAYOUT, compact_preferred_visual_share=0.76),
+        "layout": _merged_layout(
+            PART2_COMPACT_CONCEPT_LAYOUT,
+            compact_preferred_visual_share=0.68,
+            compact_visual_min_share=0.56,
+            compact_visual_max_share=0.74,
+            formulas_align="center",
+        ),
     },
     {
         "kind": "analytic_panel",
@@ -363,7 +375,19 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "This same subtraction pattern returns later in optimization, gradients, and "
             "error vectors."
         ),
-        "layout": _merged_layout(PART2_WORKED_EXAMPLE_LAYOUT, visual_share=0.32, steps_min_h=2.46),
+        "layout": _merged_layout(
+            PART2_WORKED_EXAMPLE_LAYOUT,
+            visual_share=0.26,
+            visual_min_share=0.24,
+            visual_max_share=0.32,
+            steps_min_h=2.70,
+            explanation_min_h=0.48,
+            explanation_max_h=0.68,
+            result_min_h=0.74,
+            result_max_h=0.90,
+            takeaway_min_h=0.44,
+            takeaway_max_h=0.60,
+        ),
     },
     {
         "kind": "concept_poster",
@@ -581,7 +605,15 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "formula": "α = π/2",
         },
         "takeaway": "Norm, dot product, angle, and geometry now work together in one computation.",
-        "layout": PART2_TOP_VISUAL_WORKED_LAYOUT,
+        "layout": _merged_layout(
+            PART2_TOP_VISUAL_WORKED_LAYOUT,
+            top_visual_h=2.08,
+            lower_right_share=0.30,
+            result_min_h=0.84,
+            result_max_h=1.08,
+            takeaway_min_h=0.56,
+            takeaway_max_h=0.86,
+        ),
     },
     {
         "kind": "analytic_panel",

@@ -155,7 +155,7 @@ def _card_height(text: str, width: float, min_font: int, max_font: int, min_h: f
 def _two_column(layout: Mapping[str, Any], outer: Box, content: Mapping[str, Any]) -> dict[str, Box | None]:
     col_gap = float(layout.get("column_gap", 0.20))
     block_gap = float(layout.get("block_gap", 0.10))
-    preferred = float(layout.get("visual_share", 0.34))
+    preferred = float(layout.get("visual_share", 0.30))
     min_share = float(layout.get("visual_min_share", max(0.24, preferred - 0.07)))
     max_share = float(layout.get("visual_max_share", min(0.46, preferred + 0.08)))
     steps_text = _serialize_steps(content["steps"])
@@ -170,7 +170,7 @@ def _two_column(layout: Mapping[str, Any], outer: Box, content: Mapping[str, Any
         expl_h = _card_height(content["explanation"], inner_w, 12, 16, float(layout.get("explanation_min_h", 0.40)), float(layout.get("explanation_max_h", 0.82)), 4, 0.04)
         result_h = _card_height(result_text, inner_w, 12, 17, float(layout.get("result_min_h", 0.56)), float(layout.get("result_max_h", 0.98)), 5, 0.05)
         take_h = _card_height(content["takeaway"], inner_w, 11, 14, float(layout.get("takeaway_min_h", 0.40)), float(layout.get("takeaway_max_h", 0.80)), 4, 0.04)
-        steps_need = _estimate(steps_text, inner_w, 10, 14, None, 0.10) + 0.18
+        steps_need = _estimate(steps_text, inner_w, 10, 13, None, 0.12) + 0.22
         gaps = (block_gap if expl_h and steps_text else 0.0) + (block_gap if (result_h or take_h) and steps_text else 0.0) + (block_gap if result_h and take_h else 0.0)
         steps_avail = max(0.0, outer.h - expl_h - result_h - take_h - gaps)
         score = max(0.0, max(steps_min_h, steps_need) - steps_avail) * 10.0 + share
@@ -207,7 +207,7 @@ def _two_column(layout: Mapping[str, Any], outer: Box, content: Mapping[str, Any
     result_box = Box(right_x, y, right_w, result_h) if result_h > 0 else None
     y = y + result_h + (block_gap if result_h > 0 and take_h > 0 else 0.0)
     take_box = Box(right_x, y, right_w, take_h) if take_h > 0 else None
-    visual_h = min(outer.h, max(2.40, outer.h * float(layout.get("two_column_visual_height_share", 0.86))))
+    visual_h = min(outer.h, max(2.30, outer.h * float(layout.get("two_column_visual_height_share", 0.82))))
     visual_y = outer.y + float(layout.get("two_column_visual_y_offset", 0.02))
     visual_h = min(visual_h, outer.y + outer.h - visual_y)
     return {"visual": Box(outer.x, visual_y, visual_w, max(0.0, visual_h)), "explanation": expl_box, "steps": steps_box, "result": result_box, "takeaway": take_box}
@@ -216,9 +216,9 @@ def _two_column(layout: Mapping[str, Any], outer: Box, content: Mapping[str, Any
 def _top_visual(layout: Mapping[str, Any], outer: Box, content: Mapping[str, Any]) -> dict[str, Box | None]:
     gap = float(layout.get("block_gap", 0.10))
     col_gap = float(layout.get("column_gap", 0.20))
-    right_share = float(layout.get("lower_right_share", 0.35))
+    right_share = float(layout.get("lower_right_share", 0.33))
     heavy = 0.16 if len(content["steps"]) >= 3 or len(content["result_lines"]) >= 2 else 0.0
-    visual_h = max(1.50, min(2.40, float(layout.get("top_visual_h", 1.90)) - heavy))
+    visual_h = max(1.72, min(2.55, float(layout.get("top_visual_h", 2.02)) - heavy * 0.65))
     lower_y = outer.y + visual_h + gap
     lower_h = max(1.20, outer.h - visual_h - gap)
     right_w = max(2.75, outer.w * right_share - col_gap * 0.5)
@@ -254,22 +254,22 @@ def _text_card(slide, box: Box, label: str, text: str, style: Mapping[str, Any],
     if box.w <= 0 or box.h <= 0 or not _clean(text):
         return
     _card(slide, box, style)
-    add_box_title(slide, x=box.x + 0.10, y=box.y + 0.07, w=max(0.0, box.w - 0.20), text=label, color=style["label_color"])
-    inner = Box(box.x + 0.12, box.y + 0.34, max(0.0, box.w - 0.24), max(0.0, box.h - 0.46))
+    add_box_title(slide, x=box.x + 0.10, y=box.y + 0.07, w=max(0.0, box.w - 0.20), text=label, color=style["label_color"], font_size=11)
+    inner = Box(box.x + 0.12, box.y + 0.36, max(0.0, box.w - 0.24), max(0.0, box.h - 0.50))
     add_textbox(slide, x=inner.x, y=inner.y, w=inner.w, h=inner.h, text=text, font_name=BODY_FONT, font_size=_fit(text, inner, min_font, max_font, max_lines), color=color, bold=bold, align=PP_ALIGN.LEFT)
 
 
 def _visual_card(slide, box: Box, content: Mapping[str, Any], style: Mapping[str, Any]) -> None:
     _card(slide, box, style)
-    add_box_title(slide, x=box.x + 0.10, y=box.y + 0.07, w=max(0.0, box.w - 0.20), text=content["visual_label"], color=style["label_color"])
+    add_box_title(slide, x=box.x + 0.10, y=box.y + 0.07, w=max(0.0, box.w - 0.20), text=content["visual_label"], color=style["label_color"], font_size=11)
     caption_h = 0.0
     if content["visual_caption"]:
         caption_h = max(0.16, min(0.34, _estimate(content["visual_caption"], max(0.1, box.w - 0.24), 9, 11, 2)))
-    img_box = Box(box.x + 0.10, box.y + 0.33, max(0.0, box.w - 0.20), max(0.0, box.h - 0.43 - caption_h))
+    img_box = Box(box.x + 0.08, box.y + 0.31, max(0.0, box.w - 0.16), max(0.0, box.h - 0.41 - caption_h))
     if content["mini_visual"]:
         add_mini_visual(slide, kind=content["mini_visual"], x=img_box.x, y=img_box.y, w=img_box.w, h=img_box.h, suffix="_worked_example_panel", variant=style["visual_variant"])
     if caption_h > 0:
-        cap = Box(box.x + 0.12, img_box.y + img_box.h + 0.04, max(0.0, box.w - 0.24), caption_h)
+        cap = Box(box.x + 0.10, img_box.y + img_box.h + 0.04, max(0.0, box.w - 0.20), caption_h)
         add_textbox(slide, x=cap.x, y=cap.y, w=cap.w, h=cap.h, text=content["visual_caption"], font_name=BODY_FONT, font_size=_fit(content["visual_caption"], cap, 9, 11, 2), color=style["body_color"], bold=False, align=PP_ALIGN.CENTER)
 
 
@@ -278,8 +278,8 @@ def _steps_card(slide, box: Box, content: Mapping[str, Any], style: Mapping[str,
         return
     _card(slide, box, style)
     add_box_title(slide, x=box.x + 0.10, y=box.y + 0.07, w=max(0.0, box.w - 0.20), text=content["steps_label"], color=style["label_color"])
-    inner = Box(box.x + 0.12, box.y + 0.34, max(0.0, box.w - 0.24), max(0.0, box.h - 0.44))
-    render_compact_derivation_stack(slide, box=inner, steps=content["steps"], style=style["math"], min_body_font=10, max_body_font=15, min_formula_font=11, max_formula_font=16, final_answer="", emphasize_final_answer=False, align=PP_ALIGN.LEFT)
+    inner = Box(box.x + 0.12, box.y + 0.34, max(0.0, box.w - 0.24), max(0.0, box.h - 0.48))
+    render_compact_derivation_stack(slide, box=inner, steps=content["steps"], style=style["math"], min_body_font=10, max_body_font=13, min_formula_font=11, max_formula_font=14, final_answer="", emphasize_final_answer=False, align=PP_ALIGN.LEFT)
 
 
 def build_worked_example_panel_slide(prs: Presentation, spec: dict[str, Any], counters: dict[str, int]) -> None:
@@ -298,7 +298,7 @@ def build_worked_example_panel_slide(prs: Presentation, spec: dict[str, Any], co
     if boxes["steps"]:
         _steps_card(slide, boxes["steps"], content, style)
     if boxes["result"] and content["result_lines"]:
-        render_result_callout(slide, box=boxes["result"], result_lines=content["result_lines"], label=content["result_label"], style=style["math"], min_font=12, max_font=17, emphasize_final_answer=True, align=PP_ALIGN.LEFT, draw_card=True)
+        render_result_callout(slide, box=boxes["result"], result_lines=content["result_lines"], label=content["result_label"], style=style["math"], min_font=12, max_font=16, emphasize_final_answer=True, align=PP_ALIGN.LEFT, draw_card=True)
     if boxes["takeaway"] and content["takeaway"]:
         _text_card(slide, boxes["takeaway"], content["takeaway_label"], content["takeaway"], style, style["takeaway_color"], 11, 14, 4, bold=True)
     add_footer(slide, dark=style["footer_dark"], color=style["footer_color"])

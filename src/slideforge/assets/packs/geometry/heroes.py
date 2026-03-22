@@ -9,21 +9,28 @@ from slideforge.assets.mini_visuals_common import _axes_3d_fake, _canvas, _label
 
 def _make_point_vector_projection_hero(path: Path, variant: str) -> Path:
     p = palette_for(variant)
-    fig, ax = _canvas(path)
+    fig, ax = _canvas(path, figsize=(6.8, 2.9))
     origin, x_end, y_end, z_end = _axes_3d_fake(ax, p)
-    point = (5.85, 3.65)
-    ax.add_patch(mpatches.Circle(point, 0.18, edgecolor=p["fg"], facecolor=p["accent"], lw=1.2))
-    ax.plot([point[0], point[0]], [point[1], origin[1]], color=p["ghost"], lw=0.9, linestyle="--")
-    ax.plot([origin[0], point[0]], [origin[1], origin[1]], color=p["ghost"], lw=0.9, linestyle="--")
-    _vector_arrow(ax, origin, point, p, color=p["accent"], lw=2.2, label="x")
-    ax.add_patch(mpatches.Arc((3.0, 1.55), 1.35, 0.90, angle=0, theta1=8, theta2=34, color=p["ghost"], lw=0.95))
-    _label_text(ax, 2.60, 5.18, "point", p, size=8.0, color=p["soft"])
-    _label_text(ax, 7.25, 4.95, "vector", p, size=8.0, color=p["soft"])
-    _label_text(ax, x_end[0] + 0.10, x_end[1] - 0.08, "x₁", p, size=8.0, formula=True)
-    _label_text(ax, y_end[0] + 0.10, y_end[1] + 0.10, "x₂", p, size=8.0, formula=True)
-    _label_text(ax, z_end[0] - 0.04, z_end[1] + 0.10, "x₃", p, size=8.0, formula=True)
-    return _save(fig, path)
 
+    point = (6.15, 3.72)
+    proj = (8.00, 2.26)
+
+    ax.add_patch(mpatches.Circle(point, 0.20, edgecolor=p["fg"], facecolor=p["accent"], lw=1.35))
+    ax.plot([point[0], point[0]], [point[1], origin[1]], color=p["ghost"], lw=1.15, linestyle="--")
+    ax.plot([origin[0], point[0]], [origin[1], origin[1]], color=p["ghost"], lw=1.10, linestyle="--")
+
+    _vector_arrow(ax, origin, point, p, color=p["accent"], lw=2.9, label="x", label_dx=0.18, label_dy=0.10)
+    _vector_arrow(ax, origin, proj, p, color=p["soft"], lw=2.25, label="y", label_dx=0.16, label_dy=0.06)
+
+    ax.add_patch(mpatches.Arc((3.10, 1.56), 1.55, 1.02, angle=0, theta1=7, theta2=34, color=p["ghost"], lw=1.10))
+
+    _label_text(ax, 2.40, 5.02, "point", p, size=9.2, color=p["soft"])
+    _label_text(ax, 8.15, 4.86, "vector", p, size=9.0, color=p["soft"])
+    _label_text(ax, point[0] + 0.18, point[1] + 0.18, "p", p, size=8.8, formula=True)
+    _label_text(ax, x_end[0] + 0.12, x_end[1] - 0.06, "x₁", p, size=8.4, formula=True)
+    _label_text(ax, y_end[0] - 0.12, y_end[1] + 0.08, "x₂", p, size=8.4, formula=True)
+    _label_text(ax, z_end[0] - 0.10, z_end[1] + 0.12, "x₃", p, size=8.4, formula=True)
+    return _save(fig, path)
 
 def _make_ml_norm_bridge(path: Path, variant: str) -> Path:
     p = palette_for(variant)
