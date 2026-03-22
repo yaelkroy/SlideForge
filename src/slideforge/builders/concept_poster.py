@@ -52,6 +52,82 @@ def _box(raw: Mapping[str, Any], fallback: Box) -> Box:
     )
 
 
+_ALIGN_LOOKUP = {
+    "left": PP_ALIGN.LEFT,
+    "l": PP_ALIGN.LEFT,
+    "center": PP_ALIGN.CENTER,
+    "centre": PP_ALIGN.CENTER,
+    "c": PP_ALIGN.CENTER,
+    "right": PP_ALIGN.RIGHT,
+    "r": PP_ALIGN.RIGHT,
+    "justify": PP_ALIGN.JUSTIFY,
+    "justified": PP_ALIGN.JUSTIFY,
+}
+
+
+def _normalize_align(value: Any, default=PP_ALIGN.CENTER):
+    if value is None:
+        return default
+    if isinstance(value, str):
+        return _ALIGN_LOOKUP.get(value.strip().lower(), default)
+    try:
+        return PP_ALIGN(value)
+    except Exception:
+        return default
+
+
+def _dominant_text_alignment(variant: Mapping[str, str], layout: Mapping[str, Any]):
+    weighted: list[Any] = []
+    specs = (
+        ("explanation", "explanation_align", PP_ALIGN.CENTER, 3),
+        ("bullets", "bullets_align", PP_ALIGN.CENTER, 2),
+        ("note", "note_align", PP_ALIGN.CENTER, 1),
+        ("takeaway", "takeaway_align", PP_ALIGN.CENTER, 3),
+    )
+    for key, align_key, default_align, weight in specs:
+        if _text(variant.get(key)):
+            align = _normalize_align(layout.get(align_key), default_align)
+            weighted.extend([align] * weight)
+    if not weighted:
+        return PP_ALIGN.CENTER
+
+    order = [PP_ALIGN.CENTER, PP_ALIGN.LEFT, PP_ALIGN.RIGHT, PP_ALIGN.JUSTIFY]
+    counts = {align: weighted.count(align) for align in set(weighted)}
+    return max(order, key=lambda align: (counts.get(align, 0), 1 if align == PP_ALIGN.CENTER else 0))
+
+
+def _formula_band_is_centerable(poster_layout: Any) -> bool:
+    formula_box = getattr(poster_layout, "text_boxes", {}).get("formulas") if poster_layout is not None else None
+    outer_box = getattr(poster_layout, "outer_box", None)
+    if formula_box is None or outer_box is None or outer_box.w <= 0:
+        return True
+    formula_center = formula_box.x + formula_box.w / 2.0
+    outer_center = outer_box.x + outer_box.w / 2.0
+    return formula_box.w >= outer_box.w * 0.52 and abs(formula_center - outer_center) <= outer_box.w * 0.10
+
+
+def _resolve_formula_alignment(
+    variant: Mapping[str, str],
+    poster_layout: Any,
+    profile: Mapping[str, Any],
+    layout: Mapping[str, Any],
+):
+    explicit = layout.get("formulas_align")
+    if explicit is not None:
+        return _normalize_align(explicit, PP_ALIGN.CENTER)
+
+    dominant = _dominant_text_alignment(variant, layout)
+    if dominant in {PP_ALIGN.CENTER, PP_ALIGN.RIGHT}:
+        return dominant
+
+    if _formula_band_is_centerable(poster_layout):
+        return PP_ALIGN.CENTER
+
+    if profile["dense_math_mode"] or profile["prioritize_text_over_visual"]:
+        return PP_ALIGN.LEFT
+    return PP_ALIGN.CENTER
+
+
 def _style(spec: Mapping[str, Any], theme) -> dict[str, Any]:
     raw = dict(spec.get("poster_style", {}) or {})
     fill_default = theme.box_fill_color or theme.panel_fill_color or OFFWHITE
@@ -300,13 +376,13 @@ def _draw_text(slide, box: Box, text: str, *, font_name: str, font_size: int, co
 
 
 def _render_blocks(slide, variant: Mapping[str, str], poster_layout: Any, profile: Mapping[str, Any], layout: Mapping[str, Any], style: Mapping[str, Any]) -> None:
-    formula_align_default = PP_ALIGN.CENTER if profile["compact_concept_mode"] else (PP_ALIGN.LEFT if profile["stack_formulas"] else PP_ALIGN.CENTER)
+    formula_align = _resolve_formula_alignment(variant, poster_layout, profile, layout)
     text_specs = [
-        ("explanation", BODY_FONT, "explanation_min_font", 15, style["explanation_color"], False, layout.get("explanation_align", PP_ALIGN.CENTER)),
-        ("bullets", BODY_FONT, "bullets_min_font", 13, style["bullets_color"], _bool(layout.get("bullets_bold", False)), layout.get("bullets_align", PP_ALIGN.CENTER)),
-        ("formulas", FORMULA_FONT, "formulas_min_font", 12, style["formulas_color"], False, layout.get("formulas_align", formula_align_default)),
-        ("note", BODY_FONT, "note_min_font", 12, style["note_color"], _bool(layout.get("note_bold", False)), layout.get("note_align", PP_ALIGN.CENTER)),
-        ("takeaway", BODY_FONT, "takeaway_min_font", 12, style["takeaway_color"], True, layout.get("takeaway_align", PP_ALIGN.CENTER)),
+        ("explanation", BODY_FONT, "explanation_min_font", 15, style["explanation_color"], False, _normalize_align(layout.get("explanation_align"), PP_ALIGN.CENTER)),
+        ("bullets", BODY_FONT, "bullets_min_font", 13, style["bullets_color"], _bool(layout.get("bullets_bold", False)), _normalize_align(layout.get("bullets_align"), PP_ALIGN.CENTER)),
+        ("formulas", FORMULA_FONT, "formulas_min_font", 12, style["formulas_color"], False, formula_align),
+        ("note", BODY_FONT, "note_min_font", 12, style["note_color"], _bool(layout.get("note_bold", False)), _normalize_align(layout.get("note_align"), PP_ALIGN.CENTER)),
+        ("takeaway", BODY_FONT, "takeaway_min_font", 12, style["takeaway_color"], True, _normalize_align(layout.get("takeaway_align"), PP_ALIGN.CENTER)),
     ]
     for key, font_name, min_key, default_min, color, bold, align in text_specs:
         if key in poster_layout.text_boxes and key in poster_layout.text_fits and variant[key]:

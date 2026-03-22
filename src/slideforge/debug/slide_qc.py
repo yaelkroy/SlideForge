@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 import re
 from typing import Any, Iterable, Mapping, Sequence
 
+from pptx.enum.text import PP_ALIGN
+
 try:
     from slideforge.assets.mini_visual_contracts import get_visual_contract
 except Exception:  # pragma: no cover - optional dependency while bootstrapping
@@ -45,6 +47,93 @@ class SlideQCThresholds:
     max_visual_aspect_ratio_over_preferred: float = 1.18
     min_visual_preferred_height_ratio: float = 0.95
     max_visual_aspect_ratio_over_preferred: float = 1.18
+
+_ALIGN_LOOKUP = {
+    "left": PP_ALIGN.LEFT,
+    "l": PP_ALIGN.LEFT,
+    "center": PP_ALIGN.CENTER,
+    "centre": PP_ALIGN.CENTER,
+    "c": PP_ALIGN.CENTER,
+    "right": PP_ALIGN.RIGHT,
+    "r": PP_ALIGN.RIGHT,
+    "justify": PP_ALIGN.JUSTIFY,
+    "justified": PP_ALIGN.JUSTIFY,
+}
+
+
+def _normalize_align(value: Any, default=PP_ALIGN.CENTER):
+    if value is None:
+        return default
+    if isinstance(value, str):
+        return _ALIGN_LOOKUP.get(value.strip().lower(), default)
+    try:
+        return PP_ALIGN(value)
+    except Exception:
+        return default
+
+
+def _dominant_concept_poster_alignment(spec: Mapping[str, Any] | None):
+    spec = spec or {}
+    if _clean_text(spec.get("kind")) != "concept_poster":
+        return None
+    layout = dict(spec.get("layout", {}) or {})
+    weighted: list[Any] = []
+    for key, align_key, default_align, weight in (
+        ("text_explanation", "explanation_align", PP_ALIGN.CENTER, 3),
+        ("bullets", "bullets_align", PP_ALIGN.CENTER, 2),
+        ("visible_anchor_text", "note_align", PP_ALIGN.CENTER, 1),
+        ("takeaway", "takeaway_align", PP_ALIGN.CENTER, 3),
+    ):
+        value = spec.get(key)
+        if key == "visible_anchor_text" and not _clean_text(value):
+            show_anchor = spec.get("show_anchor_text")
+            if show_anchor:
+                value = spec.get("concrete_example_anchor")
+        if _extract_strings(value):
+            align = _normalize_align(layout.get(align_key), default_align)
+            weighted.extend([align] * weight)
+    if not weighted:
+        return PP_ALIGN.CENTER
+    order = [PP_ALIGN.CENTER, PP_ALIGN.LEFT, PP_ALIGN.RIGHT, PP_ALIGN.JUSTIFY]
+    counts = {align: weighted.count(align) for align in set(weighted)}
+    return max(order, key=lambda align: (counts.get(align, 0), 1 if align == PP_ALIGN.CENTER else 0))
+
+
+def check_poster_formula_alignment_harmony(
+    spec: Mapping[str, Any] | None,
+    *,
+    slide_title: str = "",
+) -> list[SlideQCIssue]:
+    spec = spec or {}
+    if _clean_text(spec.get("kind")) != "concept_poster" or not _extract_strings(spec.get("formulas")):
+        return []
+    layout = dict(spec.get("layout", {}) or {})
+    dominant = _dominant_concept_poster_alignment(spec)
+    if dominant is None:
+        return []
+    explicit = layout.get("formulas_align")
+    if explicit is None:
+        return []
+    resolved = _normalize_align(explicit, PP_ALIGN.CENTER)
+    if resolved == dominant:
+        return []
+    return [
+        SlideQCIssue(
+            code="poster_formula_alignment_off_context",
+            severity="warning",
+            message=(
+                "Concept-poster formulas override the dominant poster text alignment. "
+                "Unless this is an intentional text-first reading layout, keep formulas aligned "
+                "with the surrounding poster text."
+            ),
+            slide_title=slide_title,
+            block_key="formulas",
+            context={
+                "dominant_alignment": str(dominant),
+                "formulas_alignment": str(resolved),
+            },
+        )
+    ]
 
 
 def _clean_text(value: Any) -> str:
@@ -572,6 +661,7 @@ def run_slide_qc(
     issues.extend(check_raster_symbol_health(raster_labels, slide_title=slide_title))
     issues.extend(check_visual_contracts(spec, slide_title=slide_title))
     issues.extend(check_section_visual_box_contracts(spec, slide_title=slide_title, thresholds=thresholds))
+    issues.extend(check_poster_formula_alignment_harmony(spec, slide_title=slide_title))
     return issues
 
 

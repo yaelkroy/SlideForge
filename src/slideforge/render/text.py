@@ -113,6 +113,36 @@ def _add_single_paragraph_text(
     return paragraph
 
 
+def _add_multiline_paragraphs(
+    text_frame,
+    *,
+    text: str,
+    font_name: str,
+    font_size: int,
+    color: RGBColor,
+    bold: bool = False,
+    align=PP_ALIGN.LEFT,
+    space_after_pt: int | None = None,
+    line_spacing: float | None = None,
+):
+    lines = str(text or "").splitlines() or [""]
+    first = True
+    for line in lines:
+        _add_single_paragraph_text(
+            text_frame,
+            text=line,
+            font_name=font_name,
+            font_size=font_size,
+            color=color,
+            bold=bold,
+            align=align,
+            space_after_pt=space_after_pt,
+            line_spacing=line_spacing,
+            first=first,
+        )
+        first = False
+
+
 
 def _add_text_to_shape(
     shape,
@@ -127,7 +157,7 @@ def _add_text_to_shape(
 ):
     tf = shape.text_frame
     _configure_text_frame(tf, vertical_anchor=vertical_anchor)
-    _add_single_paragraph_text(
+    _add_multiline_paragraphs(
         tf,
         text=text,
         font_name=font_name,
@@ -135,7 +165,6 @@ def _add_text_to_shape(
         color=color,
         bold=bold,
         align=align,
-        first=True,
     )
     return tf
 
@@ -170,7 +199,7 @@ def add_textbox(
     box = slide.shapes.add_textbox(inches(x), inches(y), inches(w), inches(h))
     tf = box.text_frame
     _configure_text_frame(tf, vertical_anchor=vertical_anchor)
-    _add_single_paragraph_text(
+    _add_multiline_paragraphs(
         tf,
         text=text,
         font_name=font_name,
@@ -178,7 +207,6 @@ def add_textbox(
         color=color,
         bold=bold,
         align=align,
-        first=True,
     )
     return box, tf
 
