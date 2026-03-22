@@ -13,7 +13,7 @@ from slideforge.io.backgrounds import choose_background
 from slideforge.layout.autofit import Box, fit_text
 from slideforge.layout.analytic_panel import AnalyticPanelLayoutResult, layout_analytic_panel
 from slideforge.render.header import render_header_from_spec
-from slideforge.render.math_blocks import MathBlockStyle, render_compact_derivation_stack, render_result_callout
+from slideforge.render.math_blocks import MathBlockStyle, estimate_derivation_height, render_compact_derivation_stack, render_result_callout
 from slideforge.render.primitives import add_box_title, add_footer, add_rounded_box, add_textbox
 
 SAFE_TEXT_HEIGHT_RATIO = 0.86
@@ -60,7 +60,7 @@ def _fit(text: str, box: Box, min_font: int, max_font: int, max_lines: int | Non
     return max(min_font, font)
 
 
-def _estimate(text: str, width: float, min_font: int, max_font: int, max_lines: int | None, *, extra: float = 0.05) -> float:
+def _estimate(text: str, width: float, min_font: int, max_font: int, max_lines: int | None, *, extra: float = 0.10) -> float:
     text = _clean(text)
     if not text or width <= 0:
         return 0.0
@@ -184,19 +184,19 @@ def _text_card(slide, box: Box, label: str, text: str, style: Mapping[str, Any],
     if box.w <= 0 or box.h <= 0 or not _clean(text):
         return
     _card(slide, box, style)
-    add_box_title(slide, x=box.x + 0.14, y=box.y + 0.10, w=max(0.0, box.w - 0.28), text=label, color=style["label_color"], font_size=11)
-    inner = Box(box.x + 0.18, box.y + 0.40, max(0.0, box.w - 0.36), max(0.0, box.h - 0.58))
+    add_box_title(slide, x=box.x + 0.16, y=box.y + 0.12, w=max(0.0, box.w - 0.32), text=label, color=style["label_color"], font_size=11)
+    inner = Box(box.x + 0.20, box.y + 0.44, max(0.0, box.w - 0.40), max(0.0, box.h - 0.64))
     add_textbox(slide, x=inner.x, y=inner.y, w=inner.w, h=inner.h, text=text, font_name=BODY_FONT, font_size=_fit(text, inner, min_font, max_font, max_lines), color=color, bold=bold, align=PP_ALIGN.LEFT)
 
 
 def _visual_card(slide, box: Box, content: Mapping[str, Any], style: Mapping[str, Any], *, suppress_caption: bool = False) -> None:
     _card(slide, box, style)
-    add_box_title(slide, x=box.x + 0.14, y=box.y + 0.10, w=max(0.0, box.w - 0.28), text=content["visual_label"], color=style["label_color"], font_size=11)
+    add_box_title(slide, x=box.x + 0.16, y=box.y + 0.12, w=max(0.0, box.w - 0.32), text=content["visual_label"], color=style["label_color"], font_size=11)
     caption_h = 0.0
     caption = "" if suppress_caption else content["visual_caption"]
     if caption:
         caption_h = max(0.18, min(0.34, _estimate(caption, max(0.1, box.w - 0.40), 9, 11, 2, extra=0.02)))
-    img_box = Box(box.x + 0.18, box.y + 0.40, max(0.0, box.w - 0.36), max(0.0, box.h - 0.60 - caption_h))
+    img_box = Box(box.x + 0.16, box.y + 0.40, max(0.0, box.w - 0.32), max(0.0, box.h - 0.60 - caption_h))
     if content["mini_visual"]:
         add_mini_visual(slide, kind=content["mini_visual"], x=img_box.x, y=img_box.y, w=img_box.w, h=img_box.h, suffix="_analytic_panel", variant=style["visual_variant"])
     if caption_h > 0:
@@ -277,21 +277,31 @@ def _render_layout(slide, content: Mapping[str, Any], style: Mapping[str, Any], 
 
     if layout_result.steps_box.h > 0 and content["steps"]:
         _card(slide, layout_result.steps_box, style)
-        add_box_title(slide, x=layout_result.steps_box.x + 0.14, y=layout_result.steps_box.y + 0.10, w=max(0.0, layout_result.steps_box.w - 0.28), text=content["steps_label"], color=style["label_color"], font_size=11)
-        inner = Box(layout_result.steps_box.x + 0.20, layout_result.steps_box.y + 0.40, max(0.0, layout_result.steps_box.w - 0.40), max(0.0, layout_result.steps_box.h - 0.60))
+        add_box_title(slide, x=layout_result.steps_box.x + 0.16, y=layout_result.steps_box.y + 0.12, w=max(0.0, layout_result.steps_box.w - 0.32), text=content["steps_label"], color=style["label_color"], font_size=11)
+        inner = Box(layout_result.steps_box.x + 0.24, layout_result.steps_box.y + 0.44, max(0.0, layout_result.steps_box.w - 0.46), max(0.0, layout_result.steps_box.h - 0.68))
         steps_fit = layout_result.text_fits.get("steps")
+        max_body_font = 14
+        if steps_fit is not None:
+            max_body_font = max(13, min(16, int(round(steps_fit.font_size + 1))))
+        min_body_font = max(10, max_body_font - 3)
+        occupied_h = estimate_derivation_height(
+            content["steps"],
+            width=max(0.10, inner.w),
+            min_body_font=min_body_font,
+            max_body_font=max_body_font,
+        )
         vertical_anchor = MSO_ANCHOR.TOP
-        if steps_fit is not None and inner.h > 0 and steps_fit.estimated_height / max(inner.h, 1e-6) < 0.72:
+        if inner.h > 0 and occupied_h / max(inner.h, 1e-6) < 0.80:
             vertical_anchor = MSO_ANCHOR.MIDDLE
         render_compact_derivation_stack(
             slide,
             box=inner,
             steps=content["steps"],
             style=style["math"],
-            min_body_font=10,
-            max_body_font=13,
-            min_formula_font=11,
-            max_formula_font=15,
+            min_body_font=min_body_font,
+            max_body_font=max_body_font,
+            min_formula_font=max(11, min_body_font + 1),
+            max_formula_font=max(15, max_body_font + 1),
             final_answer="",
             emphasize_final_answer=False,
             align=PP_ALIGN.LEFT,
@@ -305,8 +315,8 @@ def _render_layout(slide, content: Mapping[str, Any], style: Mapping[str, Any], 
             result_lines=content["result_lines"],
             label=content["result_label"],
             style=style["math"],
-            min_font=11,
-            max_font=15,
+            min_font=10,
+            max_font=16,
             emphasize_final_answer=True,
             align=PP_ALIGN.LEFT,
             draw_card=True,
@@ -336,10 +346,13 @@ def _render_overview_slide(slide, header_result, content: Mapping[str, Any], sty
     right_x = visual.x + visual.w + gap
     right_w = max(0.0, outer.w - visual.w - gap)
     expl_text = _overview_text(content)
-    expl_h = max(1.2, min(2.2, _estimate(expl_text, right_w - 0.24, 12, 16, 6, extra=0.10))) if expl_text else 0.0
-    take_h = max(0.70, min(1.15, _estimate(content["takeaway"], right_w - 0.24, 11, 14, 4, extra=0.08))) if content["takeaway"] else 0.0
-    explanation = Box(right_x, outer.y, right_w, expl_h) if expl_h > 0 else Box(right_x, outer.y, 0.0, 0.0)
-    takeaway = Box(right_x, outer.y + expl_h + (0.18 if take_h > 0 and expl_h > 0 else 0.0), right_w, take_h) if take_h > 0 else Box(right_x, outer.y, 0.0, 0.0)
+    expl_h = max(1.26, min(2.35, _estimate(expl_text, right_w - 0.24, 12, 16, 6, extra=0.16))) if expl_text else 0.0
+    take_h = max(0.82, min(1.32, _estimate(content["takeaway"], right_w - 0.24, 11, 14, 4, extra=0.14))) if content["takeaway"] else 0.0
+    stack_gap = 0.18 if take_h > 0 and expl_h > 0 else 0.0
+    stack_h = expl_h + stack_gap + take_h
+    stack_y = outer.y + max(0.0, min(0.36, (outer.h - stack_h) * 0.18))
+    explanation = Box(right_x, stack_y, right_w, expl_h) if expl_h > 0 else Box(right_x, stack_y, 0.0, 0.0)
+    takeaway = Box(right_x, stack_y + expl_h + stack_gap, right_w, take_h) if take_h > 0 else Box(right_x, stack_y, 0.0, 0.0)
     _visual_card(slide, visual, content, style, suppress_caption=False)
     if expl_h > 0:
         _text_card(slide, explanation, content["explanation_label"], expl_text, style, style["body_color"], 12, 16, 6)

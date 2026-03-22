@@ -555,7 +555,7 @@ def check_visual_contracts(
 
 
 
-def check_analytic_panel_balance(
+def _legacy_check_analytic_panel_balance(
     spec: Mapping[str, Any] | None,
     *,
     slide_title: str = "",
@@ -676,6 +676,7 @@ def run_slide_qc(
     issues.extend(check_raster_symbol_health(raster_labels, slide_title=slide_title))
     issues.extend(check_visual_contracts(spec, slide_title=slide_title))
     issues.extend(check_section_visual_box_contracts(spec, slide_title=slide_title, thresholds=thresholds))
+    issues.extend(check_analytic_panel_balance(spec, slide_title=slide_title))
     return issues
 
 

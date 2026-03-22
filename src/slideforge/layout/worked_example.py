@@ -82,6 +82,36 @@ def _measure(spec: _SectionSpec, *, width: Unit) -> tuple[Unit, TextFit | None]:
     return max(0.0, height), fit
 
 
+def _measure_result_callout(
+    text: str,
+    *,
+    width: Unit,
+    min_font: int,
+    max_font: int,
+    min_h: Unit,
+    max_h: Unit | None,
+    line_spacing: float = 1.08,
+) -> tuple[Unit, TextFit | None]:
+    text = _clean(text)
+    if not text or width <= 0:
+        return 0.0, None
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    fit = fit_text(
+        text,
+        max(0.10, width - 0.48),
+        10.0,
+        min_font_size=min_font,
+        max_font_size=max_font,
+        max_lines=max(3, len(lines) + 2),
+        line_spacing=line_spacing,
+    )
+    # Reserve real callout chrome: label row, top/bottom insets, and inter-row gap.
+    height = max(min_h, fit.estimated_height + 0.52)
+    if max_h is not None:
+        height = min(height, max_h)
+    return max(0.0, height), fit
+
+
 def _reduce_to_fit(
     heights: dict[str, Unit],
     mins: dict[str, Unit],
@@ -148,14 +178,14 @@ def _content_specs(
     takeaway_max_h: Unit,
     min_steps_h: Unit,
     steps_min_font: int = 11,
-    steps_max_font: int = 15,
+    steps_max_font: int = 16,
     result_min_font: int = 13,
-    result_max_font: int = 18,
+    result_max_font: int = 19,
 ) -> list[_SectionSpec]:
     return [
         _SectionSpec("explanation", explanation_text, 14, 18, 4, explanation_min_h, explanation_max_h, 1.14, 0.04, 2),
-        _SectionSpec("steps", steps_text, steps_min_font, steps_max_font, None, min_steps_h, None, 1.14, 0.06, 0),
-        _SectionSpec("result", result_text, result_min_font, result_max_font, 5, result_min_h, result_max_h, 1.12, 0.04, 3),
+        _SectionSpec("steps", steps_text, steps_min_font, steps_max_font, None, min_steps_h, None, 1.12, 0.10, 0),
+        _SectionSpec("result", result_text, result_min_font, result_max_font, 6, result_min_h, result_max_h, 1.10, 0.18, 3),
         _SectionSpec("takeaway", takeaway_text, 12, 15, 4, takeaway_min_h, takeaway_max_h, 1.12, 0.04, 4),
     ]
 
@@ -203,7 +233,7 @@ def _choose_two_column_share(
     max_share = clamp(diagram_max_share, min_share, 1.0)
     pref_share = clamp(diagram_preferred_share, min_share, max_share)
 
-    step = 0.02
+    step = 0.01
     candidates: list[float] = []
     probe = min_share
     while probe <= max_share + 1e-9:
@@ -242,8 +272,8 @@ def _choose_two_column_share(
             elif steps_ratio > 0.93:
                 steps_height_penalty += (steps_ratio - 0.93) * 70.0
 
-        share_reward = share * 18.0
-        pref_penalty = abs(share - pref_share) * 6.0
+        share_reward = share * 22.0
+        pref_penalty = abs(share - pref_share) * 5.0
         score = shortage * 1200.0 + steps_font_penalty + steps_height_penalty + pref_penalty - share_reward
         candidate = (score, share, diagram_w, right_w, heights, fits)
         if best is None or candidate[0] < best[0]:
@@ -341,7 +371,7 @@ def layout_worked_example_two_column_bottom_result(
     gap: Unit = 0.10,
     diagram_min_share: float = 0.32,
     diagram_max_share: float = 0.56,
-    diagram_preferred_share: float = 0.42,
+    diagram_preferred_share: float = 0.45,
     min_steps_h: Unit = 1.35,
     explanation_min_h: Unit = 0.28,
     explanation_max_h: Unit = 0.78,
@@ -350,9 +380,9 @@ def layout_worked_example_two_column_bottom_result(
     takeaway_min_h: Unit = 0.22,
     takeaway_max_h: Unit = 0.56,
     steps_min_font: int = 11,
-    steps_max_font: int = 15,
+    steps_max_font: int = 16,
     result_min_font: int = 13,
-    result_max_font: int = 18,
+    result_max_font: int = 19,
 ) -> WorkedExampleLayoutResult:
     usable = _usable_box(outer_box, top_pad=top_pad, bottom_pad=bottom_pad, side_pad=side_pad)
     if usable.w <= 0 or usable.h <= 0:
@@ -381,7 +411,14 @@ def layout_worked_example_two_column_bottom_result(
     result_h = 0.0
     result_fit = None
     if _clean(result_text):
-        result_h, result_fit = _measure(spec_map["result"], width=usable.w)
+        result_h, result_fit = _measure_result_callout(
+            result_text,
+            width=usable.w,
+            min_font=result_min_font,
+            max_font=result_max_font,
+            min_h=result_min_h,
+            max_h=result_max_h,
+        )
     takeaway_h = 0.0
     takeaway_fit = None
     if _clean(takeaway_text):
@@ -419,6 +456,33 @@ def layout_worked_example_two_column_bottom_result(
 
     right_x = usable.x + diagram_w + col_gap
     top_boxes = _assemble_vertical_boxes(right_x, usable.y, right_w, gap, heights)
+
+    # If the steps stack fits comfortably but the bottom result needs room,
+    # borrow a bit of height from the top row and give it to the bottom band.
+    steps_fit = fits.get("steps")
+    steps_box = top_boxes.get("steps")
+    slack_transfer = 0.0
+    if result_h > 0 and steps_fit is not None and steps_box is not None and steps_box.h > 0:
+        steps_ratio = steps_fit.estimated_height / max(steps_box.h, 1e-6)
+        if steps_ratio < 0.82:
+            slack_transfer = min(0.30, max(0.0, (0.82 - steps_ratio) * 0.95))
+        slack_transfer = min(slack_transfer, max(0.0, top_h - max(min_steps_h, 1.72)))
+    if slack_transfer > 1e-6:
+        top_h -= slack_transfer
+        result_h += slack_transfer
+        top_usable = Box(usable.x, usable.y, usable.w, top_h)
+        share, diagram_w, right_w, heights, fits = _choose_two_column_share(
+            usable=top_usable,
+            col_gap=col_gap,
+            gap=gap,
+            specs=top_specs,
+            diagram_min_share=diagram_min_share,
+            diagram_max_share=diagram_max_share,
+            diagram_preferred_share=diagram_preferred_share,
+        )
+        right_x = usable.x + diagram_w + col_gap
+        top_boxes = _assemble_vertical_boxes(right_x, usable.y, right_w, gap, heights)
+
     diagram_box = Box(usable.x, usable.y, diagram_w, top_h)
 
     current_y = usable.y + top_h
