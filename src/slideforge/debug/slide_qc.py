@@ -574,7 +574,7 @@ def check_analytic_panel_balance(
     result = spec.get("result")
     explanation = _clean_text(spec.get("text_explanation") or spec.get("explanation"))
     takeaway = _clean_text(spec.get("takeaway"))
-    if preferred_aspect <= 1.15 and len(steps) >= 3 and result and not explanation:
+    if preferred_aspect <= 1.75 and len(steps) >= 3 and result and not explanation:
         layout = dict(spec.get("layout", {}) or {})
         requested = _clean_text(layout.get("worked_layout_mode") or layout.get("layout_mode") or "two_column").lower()
         if requested == "top_visual":
@@ -610,6 +610,7 @@ def run_slide_qc(
     issues.extend(check_raster_symbol_health(raster_labels, slide_title=slide_title))
     issues.extend(check_visual_contracts(spec, slide_title=slide_title))
     issues.extend(check_section_visual_box_contracts(spec, slide_title=slide_title, thresholds=thresholds))
+    issues.extend(check_analytic_panel_balance(spec, slide_title=slide_title))
     return issues
 
 
@@ -632,6 +633,7 @@ __all__ = [
     "check_raster_symbol_health",
     "check_visual_contracts",
     "check_section_visual_box_contracts",
+    "check_analytic_panel_balance",
     "run_slide_qc",
     "summarize_qc_issues",
 ]

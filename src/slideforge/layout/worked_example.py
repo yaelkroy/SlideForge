@@ -189,6 +189,55 @@ def _evaluate_column(
     return heights, fits
 
 
+
+
+def _minimal_width_for_target_font(
+    text: str,
+    *,
+    target_font: int,
+    height: Unit,
+    min_width: Unit,
+    max_width: Unit,
+    max_lines: int | None,
+    line_spacing: float,
+) -> Unit:
+    text = _clean(text)
+    if not text:
+        return max(0.0, min_width)
+
+    lo = max(0.10, min_width)
+    hi = max(lo, max_width)
+    height = max(0.10, height)
+
+    trial = fit_text(
+        text,
+        hi,
+        height,
+        min_font_size=target_font,
+        max_font_size=target_font,
+        max_lines=max_lines,
+        line_spacing=line_spacing,
+    )
+    if not trial.fits:
+        return hi
+
+    for _ in range(18):
+        mid = (lo + hi) / 2.0
+        probe = fit_text(
+            text,
+            mid,
+            height,
+            min_font_size=target_font,
+            max_font_size=target_font,
+            max_lines=max_lines,
+            line_spacing=line_spacing,
+        )
+        if probe.fits:
+            hi = mid
+        else:
+            lo = mid
+    return hi
+
 def _choose_two_column_share(
     *,
     usable: Box,
@@ -310,6 +359,184 @@ def layout_worked_example_two_column(
         diagram_share=share,
     )
 
+
+
+
+def layout_worked_example_two_column_bottom_result(
+    outer_box: Box,
+    *,
+    explanation_text: str = "",
+    steps_text: str = "",
+    result_text: str = "",
+    takeaway_text: str = "",
+    top_pad: Unit = 0.16,
+    bottom_pad: Unit = 0.14,
+    side_pad: Unit = 0.20,
+    col_gap: Unit = 0.16,
+    gap: Unit = 0.08,
+    diagram_min_share: float = 0.30,
+    diagram_max_share: float = 0.56,
+    diagram_preferred_share: float = 0.40,
+    min_steps_h: Unit = 1.35,
+    explanation_min_h: Unit = 0.28,
+    explanation_max_h: Unit = 0.78,
+    result_min_h: Unit = 0.30,
+    result_max_h: Unit = 0.88,
+    takeaway_min_h: Unit = 0.22,
+    takeaway_max_h: Unit = 0.56,
+    steps_min_font: int = 11,
+    steps_max_font: int = 15,
+    result_min_font: int = 13,
+    result_max_font: int = 18,
+) -> WorkedExampleLayoutResult:
+    usable = _usable_box(outer_box, top_pad=top_pad, bottom_pad=bottom_pad, side_pad=side_pad)
+    if usable.w <= 0 or usable.h <= 0:
+        empty = _zero_box(outer_box.x, outer_box.y)
+        return WorkedExampleLayoutResult(outer_box, empty, empty, empty, empty, empty, {}, "two_column_bottom_result", 0.0)
+
+    specs = _content_specs(
+        explanation_text=explanation_text,
+        steps_text=steps_text,
+        result_text=result_text,
+        takeaway_text=takeaway_text,
+        explanation_min_h=explanation_min_h,
+        explanation_max_h=explanation_max_h,
+        result_min_h=result_min_h,
+        result_max_h=result_max_h,
+        takeaway_min_h=takeaway_min_h,
+        takeaway_max_h=takeaway_max_h,
+        min_steps_h=min_steps_h,
+        steps_min_font=steps_min_font,
+        steps_max_font=steps_max_font,
+        result_min_font=result_min_font,
+        result_max_font=result_max_font,
+    )
+    spec_map = {spec.key: spec for spec in specs}
+
+    result_h = 0.0
+    result_fit = None
+    if result_text.strip():
+        result_h, result_fit = _measure(spec_map['result'], width=usable.w)
+    result_gap = gap if result_h > 0 else 0.0
+    top_h = max(0.0, usable.h - result_h - result_gap)
+
+    top_specs = [spec_map['explanation'], spec_map['steps'], spec_map['takeaway']]
+
+    min_share = clamp(diagram_min_share, 0.0, 1.0)
+    max_share = clamp(diagram_max_share, min_share, 1.0)
+    pref_share = clamp(diagram_preferred_share, min_share, max_share)
+
+    right_min_width = 3.05
+    if explanation_text.strip():
+        right_min_width = max(
+            right_min_width,
+            _minimal_width_for_target_font(
+                explanation_text,
+                target_font=min(18, max(15, spec_map['explanation'].max_font)),
+                height=max(0.20, explanation_max_h),
+                min_width=2.80,
+                max_width=max(2.80, usable.w - usable.w * min_share - col_gap),
+                max_lines=4,
+                line_spacing=spec_map['explanation'].line_spacing,
+            ),
+        )
+    if steps_text.strip():
+        right_min_width = max(
+            right_min_width,
+            _minimal_width_for_target_font(
+                steps_text,
+                target_font=max(steps_min_font, min(steps_max_font, steps_max_font)),
+                height=max(min_steps_h, top_h),
+                min_width=3.10,
+                max_width=max(3.10, usable.w - usable.w * min_share - col_gap),
+                max_lines=None,
+                line_spacing=spec_map['steps'].line_spacing,
+            ),
+        )
+    if takeaway_text.strip():
+        right_min_width = max(
+            right_min_width,
+            _minimal_width_for_target_font(
+                takeaway_text,
+                target_font=14,
+                height=max(0.20, takeaway_max_h),
+                min_width=2.80,
+                max_width=max(2.80, usable.w - usable.w * min_share - col_gap),
+                max_lines=4,
+                line_spacing=spec_map['takeaway'].line_spacing,
+            ),
+        )
+
+    max_right_w = max(3.10, usable.w - usable.w * min_share - col_gap)
+    min_right_w = min(max_right_w, max(3.70, right_min_width + 0.04))
+    preferred_right_w = min(max_right_w, max(min_right_w, usable.w * (1.0 - pref_share) - col_gap))
+
+    candidate_right_ws = [
+        min_right_w,
+        min(max_right_w, min_right_w + 0.18),
+        preferred_right_w,
+        min(max_right_w, usable.w * (1.0 - ((min_share + pref_share) / 2.0)) - col_gap),
+        min(max_right_w, usable.w * (1.0 - max_share) - col_gap),
+    ]
+
+    unique_candidates: list[Unit] = []
+    seen: set[int] = set()
+    for width in candidate_right_ws:
+        clamped = max(min_right_w, min(max_right_w, width))
+        key = int(round(clamped * 1000))
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_candidates.append(clamped)
+
+    best = None
+    for right_w in unique_candidates:
+        diagram_w = max(0.0, usable.w - right_w - col_gap)
+        if diagram_w <= 2.40:
+            continue
+        heights, fits = _evaluate_column(width=right_w, specs=top_specs, available_h=top_h, gap=gap)
+        natural_total = 0.0
+        present = 0
+        for spec in top_specs:
+            h, _ = _measure(spec, width=right_w)
+            natural_total += h
+            if h > 0:
+                present += 1
+        natural_total += max(0, present - 1) * gap
+        shortage = max(0.0, natural_total - top_h)
+        diagram_share = diagram_w / max(usable.w, 1e-6)
+        width_excess = max(0.0, right_w - min_right_w)
+        score = shortage * 100.0 + abs(right_w - preferred_right_w) * 6.0 + width_excess * 0.8 + abs(diagram_share - pref_share) * 16.0
+        candidate = (score, diagram_w, right_w, heights, fits)
+        if best is None or candidate[0] < best[0]:
+            best = candidate
+
+    if best is None:
+        right_w = max_right_w
+        diagram_w = max(0.0, usable.w - right_w - col_gap)
+        heights, fits = _evaluate_column(width=right_w, specs=top_specs, available_h=top_h, gap=gap)
+    else:
+        _, diagram_w, right_w, heights, fits = best
+
+    right_x = usable.x + diagram_w + col_gap
+    boxes = _assemble_vertical_boxes(right_x, usable.y, right_w, gap, heights)
+    result_box = _zero_box(usable.x, usable.y + top_h + result_gap, usable.w)
+    if result_h > 0:
+        result_box = Box(usable.x, usable.y + top_h + result_gap, usable.w, result_h)
+        if result_fit is not None:
+            fits['result'] = result_fit
+
+    return WorkedExampleLayoutResult(
+        outer_box=outer_box,
+        diagram_box=Box(usable.x, usable.y, diagram_w, top_h),
+        steps_box=boxes['steps'],
+        result_box=result_box,
+        takeaway_box=boxes['takeaway'],
+        explanation_box=boxes['explanation'],
+        text_fits=fits,
+        mode='two_column_bottom_result',
+        diagram_share=diagram_w / max(outer_box.w, 1e-6),
+    )
 
 def layout_worked_example_top_visual(
     outer_box: Box,
@@ -433,6 +660,15 @@ def layout_worked_example(
             takeaway_text=takeaway_text,
             **kwargs,
         )
+    if mode == "two_column_bottom_result":
+        return layout_worked_example_two_column_bottom_result(
+            outer_box,
+            explanation_text=explanation_text,
+            steps_text=steps_text,
+            result_text=result_text,
+            takeaway_text=takeaway_text,
+            **kwargs,
+        )
     return layout_worked_example_two_column(
         outer_box,
         explanation_text=explanation_text,
@@ -447,5 +683,6 @@ __all__ = [
     "WorkedExampleLayoutResult",
     "layout_worked_example",
     "layout_worked_example_two_column",
+    "layout_worked_example_two_column_bottom_result",
     "layout_worked_example_top_visual",
 ]

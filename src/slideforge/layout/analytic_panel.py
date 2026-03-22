@@ -10,6 +10,7 @@ from slideforge.layout.worked_example import (
     WorkedExampleLayoutResult,
     layout_worked_example_top_visual,
     layout_worked_example_two_column,
+    layout_worked_example_two_column_bottom_result,
 )
 
 
@@ -231,6 +232,35 @@ def _build_two_column_candidate(
     )
 
 
+
+
+def _build_bottom_result_candidate(
+    outer_box: Box,
+    *,
+    explanation_text: str,
+    steps_text: str,
+    result_text: str,
+    takeaway_text: str,
+    share_triplet: tuple[float, float, float],
+    kwargs: dict[str, Any],
+) -> WorkedExampleLayoutResult:
+    settings = _safe_kwargs(kwargs, _ALLOWED_TWO_COLUMN_KEYS)
+    settings.update(
+        {
+            "diagram_min_share": share_triplet[0],
+            "diagram_preferred_share": share_triplet[1],
+            "diagram_max_share": share_triplet[2],
+        }
+    )
+    return layout_worked_example_two_column_bottom_result(
+        outer_box,
+        explanation_text=explanation_text,
+        steps_text=steps_text,
+        result_text=result_text,
+        takeaway_text=takeaway_text,
+        **settings,
+    )
+
 def _build_top_visual_candidate(
     outer_box: Box,
     *,
@@ -406,9 +436,15 @@ def _candidate_definitions(*, requested_mode: str, density: float, metadata: dic
     if preferred_layout in {"hero", "top_visual"} and allow_top:
         candidates.append(("top_visual_hero", "top_visual", (0.28, 0.35, 0.45)))
 
-    if derivation_only and squareish_visual:
-        candidates.append(("two_column_square_visual", "two_column", (0.28, 0.36, 0.44)))
-        candidates.append(("two_column_square_visual_relaxed", "two_column", (0.30, 0.39, 0.47)))
+    if derivation_only:
+        if squareish_visual:
+            candidates.append(("two_column_bottom_result_square", "two_column_bottom_result", (0.34, 0.42, 0.52)))
+            candidates.append(("two_column_bottom_result_square_relaxed", "two_column_bottom_result", (0.36, 0.46, 0.56)))
+        candidates.append(("two_column_bottom_result", "two_column_bottom_result", (0.32, 0.40, 0.50)))
+        candidates.append(("two_column_bottom_result_relaxed", "two_column_bottom_result", (0.34, 0.44, 0.54)))
+        if squareish_visual:
+            candidates.append(("two_column_square_visual", "two_column", (0.28, 0.36, 0.44)))
+            candidates.append(("two_column_square_visual_relaxed", "two_column", (0.30, 0.39, 0.47)))
 
     if density >= 7.5:
         candidates.append(("two_column_text_heavy", "two_column", (0.20, 0.24, 0.30)))
@@ -449,6 +485,10 @@ def _candidate_score(base: WorkedExampleLayoutResult, *, metadata: dict[str, Any
 
     if candidate_name == "two_column_text_heavy":
         penalty += abs(base.diagram_share - 0.24) * 25.0
+    elif candidate_name.startswith("two_column_bottom_result"):
+        penalty += abs(base.diagram_share - 0.42) * 10.0
+        if derivation_only:
+            penalty -= 24.0
     elif candidate_name == "two_column_visual_heavy":
         penalty += abs(base.diagram_share - 0.33) * 18.0
     elif candidate_name == "two_column_square_visual":
@@ -462,6 +502,9 @@ def _candidate_score(base: WorkedExampleLayoutResult, *, metadata: dict[str, Any
 
     if density >= 8.5 and candidate_name == "two_column_visual_heavy":
         penalty += 12.0
+
+    if derivation_only and candidate_name.startswith("two_column_bottom_result") and base.result_box.w > 0:
+        penalty -= min(18.0, base.result_box.w * 0.9)
 
     preferred_aspect = float(metadata.get("preferred_aspect_ratio", 0.0) or 0.0)
     if derivation_only and 0.0 < preferred_aspect <= 1.15 and base.diagram_share < 0.31:
@@ -515,9 +558,9 @@ def layout_analytic_panel(
     derivation_only = (not explanation_text.strip()) and bool(result_text.strip()) and (not takeaway_text.strip())
     if derivation_only:
         kwargs.setdefault("steps_min_font", 10)
-        kwargs.setdefault("steps_max_font", 13)
-        kwargs.setdefault("result_min_font", 11)
-        kwargs.setdefault("result_max_font", 15)
+        kwargs.setdefault("steps_max_font", 14)
+        kwargs.setdefault("result_min_font", 12)
+        kwargs.setdefault("result_max_font", 16)
     candidates = _candidate_definitions(requested_mode=requested_mode, density=density, metadata=metadata, explanation_text=explanation_text, result_text=result_text, takeaway_text=takeaway_text)
     if force_candidates:
         wanted = {str(name) for name in force_candidates}
@@ -528,6 +571,16 @@ def layout_analytic_panel(
     for candidate_name, family, shares in candidates:
         if family == "top_visual":
             base = _build_top_visual_candidate(
+                outer_box,
+                explanation_text=explanation_text,
+                steps_text=steps_text,
+                result_text=result_text,
+                takeaway_text=takeaway_text,
+                share_triplet=shares,
+                kwargs=kwargs,
+            )
+        elif family == "two_column_bottom_result":
+            base = _build_bottom_result_candidate(
                 outer_box,
                 explanation_text=explanation_text,
                 steps_text=steps_text,
