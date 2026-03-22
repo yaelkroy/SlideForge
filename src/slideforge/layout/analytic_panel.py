@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Iterable
 
 from slideforge.assets.mini_visuals import resolve_visual_kind
@@ -29,9 +29,9 @@ class AnalyticPanelLayoutResult:
     split_required: bool
     overflow_sections: tuple[str, ...]
     notes: tuple[str, ...] = ()
+    all_candidates_failed: bool = False
 
 
-# Hard readability thresholds. These are deliberately conservative.
 TEXT_HARD_RATIO = 0.88
 TEXT_WARN_RATIO = 0.82
 TEXT_SAFE_RATIO = 0.78
@@ -448,7 +448,7 @@ def _candidate_score(base: WorkedExampleLayoutResult, *, metadata: dict[str, Any
     return penalty, tuple(dict.fromkeys(notes)), tuple(dict.fromkeys(hard))
 
 
-def _as_result(base: WorkedExampleLayoutResult, *, candidate_name: str, score: float, split_required: bool, overflow_sections: tuple[str, ...], notes: tuple[str, ...]) -> AnalyticPanelLayoutResult:
+def _as_result(base: WorkedExampleLayoutResult, *, candidate_name: str, score: float, split_required: bool, overflow_sections: tuple[str, ...], notes: tuple[str, ...], all_candidates_failed: bool = False) -> AnalyticPanelLayoutResult:
     return AnalyticPanelLayoutResult(
         outer_box=base.outer_box,
         diagram_box=base.diagram_box,
@@ -464,6 +464,7 @@ def _as_result(base: WorkedExampleLayoutResult, *, candidate_name: str, score: f
         split_required=split_required,
         overflow_sections=overflow_sections,
         notes=notes,
+        all_candidates_failed=all_candidates_failed,
     )
 
 
@@ -494,6 +495,7 @@ def layout_analytic_panel(
         candidates = [c for c in candidates if c[0] in wanted] or candidates
 
     best: AnalyticPanelLayoutResult | None = None
+    any_acceptable = False
     for candidate_name, family, shares in candidates:
         if family == "top_visual":
             base = _build_top_visual_candidate(
@@ -519,10 +521,15 @@ def layout_analytic_panel(
         score, notes, hard = _candidate_score(base, metadata=metadata, candidate_name=candidate_name, density=density)
         overflow = tuple(sorted(k for k, fit in base.text_fits.items() if not fit.fits))
         split_required = bool(bool(hard) or score >= split_score_threshold or (len(overflow) >= 1 and density >= 8.0))
+        if not split_required:
+            any_acceptable = True
         result = _as_result(base, candidate_name=candidate_name, score=score, split_required=split_required, overflow_sections=overflow or hard, notes=notes)
         if best is None or result.score < best.score:
             best = result
     assert best is not None
+    if not any_acceptable:
+        notes = tuple(dict.fromkeys(best.notes + ("all_candidates_failed", "auto_split_recommended")))
+        return replace(best, split_required=True, all_candidates_failed=True, notes=notes)
     return best
 
 

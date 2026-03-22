@@ -205,7 +205,6 @@ def _visual_card(slide, box: Box, content: Mapping[str, Any], style: Mapping[str
 
 
 def _fallback_layout(outer: Box, content: Mapping[str, Any], layout: Mapping[str, Any], layout_result: AnalyticPanelLayoutResult) -> AnalyticPanelLayoutResult:
-    # If hard readability violations remain, force the safest text-heavy two-column candidate.
     hard_note = any(note.startswith("hard_") for note in layout_result.notes)
     if not layout_result.split_required and layout_result.score < 34.0 and not hard_note:
         return layout_result
@@ -239,32 +238,8 @@ def _density(content: Mapping[str, Any]) -> int:
     return score
 
 
-def build_analytic_panel_slide(prs: Presentation, spec: dict[str, Any], counters: dict[str, int]) -> None:
-    theme_name = spec.get("theme", "concept")
-    theme_obj = get_theme(slide_theme_name=theme_name)
-    slide = new_slide(prs, spec.get("background") or choose_background(theme_name, counters))
-    style = _style(spec, theme_obj)
-    content = _content(spec)
-    layout = dict(spec.get("layout", {}) or {})
-    header_result = render_header_from_spec(slide, spec, theme=theme_obj)
-
-    requested_mode = _clean(layout.get("worked_layout_mode") or layout.get("layout_mode") or "two_column").lower() or "two_column"
-    density = _density(content)
-    layout.setdefault("top_pad", 0.16)
-    layout.setdefault("bottom_pad", 0.14)
-    layout.setdefault("side_pad", 0.20)
-    layout.setdefault("gap", 0.10)
-    layout.setdefault("col_gap", layout.get("column_gap", 0.20))
-    layout.setdefault("min_steps_h", 2.0 if density >= 8 else 1.8)
-    layout.setdefault("explanation_min_h", 0.34)
-    layout.setdefault("explanation_max_h", 0.62)
-    layout.setdefault("result_min_h", 0.72)
-    layout.setdefault("result_max_h", 1.08)
-    layout.setdefault("takeaway_min_h", 0.50)
-    layout.setdefault("takeaway_max_h", 0.84)
-
-    outer = _outer(layout, header_result)
-    layout_result = layout_analytic_panel(
+def _prepare_layout(content: Mapping[str, Any], layout: dict[str, Any], outer: Box, requested_mode: str) -> AnalyticPanelLayoutResult:
+    result = layout_analytic_panel(
         outer,
         explanation_text=content["explanation"],
         steps_text=content["steps_text"],
@@ -285,8 +260,10 @@ def build_analytic_panel_slide(prs: Presentation, spec: dict[str, Any], counters
         takeaway_min_h=float(layout.get("takeaway_min_h", 0.50)),
         takeaway_max_h=float(layout.get("takeaway_max_h", 0.84)),
     )
-    layout_result = _fallback_layout(outer, content, layout, layout_result)
+    return _fallback_layout(outer, content, layout, result)
 
+
+def _render_layout(slide, content: Mapping[str, Any], style: Mapping[str, Any], layout_result: AnalyticPanelLayoutResult) -> None:
     suppress_caption = (
         layout_result.diagram_box.h < CAPTION_MIN_H_TO_SHOW
         or layout_result.diagram_box.w < VISUAL_MIN_W_FOR_CAPTION
@@ -333,7 +310,124 @@ def build_analytic_panel_slide(prs: Presentation, spec: dict[str, Any], counters
     if layout_result.takeaway_box.h > 0 and content["takeaway"]:
         _text_card(slide, layout_result.takeaway_box, content["takeaway_label"], content["takeaway"], style, style["takeaway_color"], 10, 13, 4, bold=True)
 
+
+def _overview_text(content: Mapping[str, Any]) -> str:
+    if content["explanation"]:
+        return content["explanation"]
+    for step in content["steps"]:
+        body = _clean(step.get("body"))
+        if body:
+            return body
+    if content["result_text"]:
+        return content["result_text"]
+    return content["takeaway"]
+
+
+def _render_overview_slide(slide, header_result, content: Mapping[str, Any], style: Mapping[str, Any]) -> None:
+    outer = Box(0.86, header_result.content_top_y + 0.10, 11.30, 5.18)
+    visual_w = min(6.0, max(5.3, outer.w * 0.54))
+    gap = 0.22
+    visual = Box(outer.x, outer.y, visual_w, outer.h)
+    right_x = visual.x + visual.w + gap
+    right_w = max(0.0, outer.w - visual.w - gap)
+    expl_text = _overview_text(content)
+    expl_h = max(1.2, min(2.2, _estimate(expl_text, right_w - 0.24, 12, 16, 6, extra=0.10))) if expl_text else 0.0
+    take_h = max(0.70, min(1.15, _estimate(content["takeaway"], right_w - 0.24, 11, 14, 4, extra=0.08))) if content["takeaway"] else 0.0
+    explanation = Box(right_x, outer.y, right_w, expl_h) if expl_h > 0 else Box(right_x, outer.y, 0.0, 0.0)
+    takeaway = Box(right_x, outer.y + expl_h + (0.18 if take_h > 0 and expl_h > 0 else 0.0), right_w, take_h) if take_h > 0 else Box(right_x, outer.y, 0.0, 0.0)
+    _visual_card(slide, visual, content, style, suppress_caption=False)
+    if expl_h > 0:
+        _text_card(slide, explanation, content["explanation_label"], expl_text, style, style["body_color"], 12, 16, 6)
+    if take_h > 0:
+        _text_card(slide, takeaway, content["takeaway_label"], content["takeaway"], style, style["takeaway_color"], 11, 14, 4, bold=True)
     add_footer(slide, dark=style["footer_dark"], color=style["footer_color"])
+
+
+def _derivation_content(content: Mapping[str, Any], *, omit_takeaway: bool) -> dict[str, Any]:
+    copied = dict(content)
+    copied["explanation"] = ""
+    if omit_takeaway:
+        copied["takeaway"] = ""
+    return copied
+
+
+def _render_derivation_slide(prs: Presentation, spec: dict[str, Any], bg: str, style: Mapping[str, Any], content: Mapping[str, Any], theme_obj) -> None:
+    slide = new_slide(prs, bg)
+    spec_copy = dict(spec)
+    subtitle = _clean(spec_copy.get("subtitle"))
+    spec_copy["subtitle"] = f"{subtitle} — derivation" if subtitle else "Worked derivation"
+    header = render_header_from_spec(slide, spec_copy, theme=theme_obj)
+    layout = {
+        "top_pad": 0.16,
+        "bottom_pad": 0.14,
+        "side_pad": 0.20,
+        "gap": 0.10,
+        "col_gap": 0.20,
+        "min_steps_h": 2.0,
+        "explanation_min_h": 0.0,
+        "explanation_max_h": 0.0,
+        "result_min_h": 0.74,
+        "result_max_h": 1.10,
+        "takeaway_min_h": 0.0,
+        "takeaway_max_h": 0.0,
+    }
+    derivation = _derivation_content(content, omit_takeaway=bool(content["takeaway"]))
+    outer = _outer(layout, header)
+    layout_result = layout_analytic_panel(
+        outer,
+        explanation_text="",
+        steps_text=derivation["steps_text"],
+        result_text=derivation["result_text"],
+        takeaway_text=derivation["takeaway"],
+        layout_mode="two_column",
+        visual_kind=derivation["mini_visual"],
+        force_candidates=["two_column_text_heavy", "two_column", "two_column_requested"],
+        **layout,
+    )
+    _render_layout(slide, derivation, style, layout_result)
+    add_footer(slide, dark=style["footer_dark"], color=style["footer_color"])
+
+
+def build_analytic_panel_slide(prs: Presentation, spec: dict[str, Any], counters: dict[str, int]) -> None:
+    theme_name = spec.get("theme", "concept")
+    theme_obj = get_theme(slide_theme_name=theme_name)
+    bg = spec.get("background") or choose_background(theme_name, counters)
+    style = _style(spec, theme_obj)
+    content = _content(spec)
+    layout = dict(spec.get("layout", {}) or {})
+
+    requested_mode = _clean(layout.get("worked_layout_mode") or layout.get("layout_mode") or "two_column").lower() or "two_column"
+    density = _density(content)
+    layout.setdefault("top_pad", 0.16)
+    layout.setdefault("bottom_pad", 0.14)
+    layout.setdefault("side_pad", 0.20)
+    layout.setdefault("gap", 0.10)
+    layout.setdefault("col_gap", layout.get("column_gap", 0.20))
+    layout.setdefault("min_steps_h", 2.0 if density >= 8 else 1.8)
+    layout.setdefault("explanation_min_h", 0.34)
+    layout.setdefault("explanation_max_h", 0.62)
+    layout.setdefault("result_min_h", 0.72)
+    layout.setdefault("result_max_h", 1.08)
+    layout.setdefault("takeaway_min_h", 0.50)
+    layout.setdefault("takeaway_max_h", 0.84)
+
+    first_slide = new_slide(prs, bg)
+    header_result = render_header_from_spec(first_slide, spec, theme=theme_obj)
+    outer = _outer(layout, header_result)
+    layout_result = _prepare_layout(content, layout, outer, requested_mode)
+
+    if layout_result.all_candidates_failed:
+        overview_spec = dict(spec)
+        subtitle = _clean(overview_spec.get("subtitle"))
+        overview_spec["subtitle"] = f"{subtitle} — concept" if subtitle else "Concept view"
+        # Use current first slide as the overview slide; keep original title if desired but update subtitle region.
+        # We render the overview body below the existing header for stability.
+        _render_overview_slide(first_slide, header_result, content, style)
+        _render_derivation_slide(prs, spec, bg, style, content, theme_obj)
+        return
+
+    _render_layout(first_slide, content, style, layout_result)
+    add_footer(first_slide, dark=style["footer_dark"], color=style["footer_color"])
 
 
 __all__ = ["build_analytic_panel_slide"]
