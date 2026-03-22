@@ -38,13 +38,14 @@ The ML lecture deck is the current example project, not the architectural bounda
 
 The intended build flow is:
 
-**project slide specs -> builder registry -> slide builders -> theme/header/layout helpers -> rendering helpers / mini visuals -> pptx output**
+**project slide specs -> builder registry -> slide builders -> theme/header/layout helpers -> rendering helpers / visual packs -> pptx output**
 
-In the refactored architecture:
+In the current architecture:
 - `src/slideforge/app/build_deck.py` is the generic engine entrypoint
-- `build_deck(slides, output_file, theme_overrides=None)` is the primary programmatic API
+- `build_deck(slides, output_file, theme_overrides=None, validate_assets=True)` is the primary programmatic API
+- `load_slides(...)` resolves either a direct list of specs or a `module.path:ATTRIBUTE` target
 - the CLI or launcher chooses the project spec target
-- `src/slideforge_app.py` becomes an example launcher, not the engine core
+- `src/slideforge_app.py` is an example launcher, not the engine core
 - builder dispatch is handled by a declarative registry with manifest support and compatibility aliases
 
 ---
@@ -65,6 +66,7 @@ SlideForge/
 │     │  ├─ presentation_factory.py
 │     │  └─ slide_utils.py
 │     ├─ assets/
+│     │  ├─ mini_visual_contracts.py
 │     │  ├─ mini_visuals.py
 │     │  ├─ mini_visuals_common.py
 │     │  ├─ mini_visuals_core.py
@@ -84,60 +86,74 @@ SlideForge/
 │     │  ├─ common.py
 │     │  ├─ concept_poster.py
 │     │  ├─ dependency_map.py
+│     │  ├─ example_pipeline.py
+│     │  ├─ manifests/default.json
 │     │  ├─ multi_panel_summary.py
 │     │  ├─ notation_panel.py
 │     │  ├─ pipeline.py
 │     │  ├─ prereq_grid.py
+│     │  ├─ registry.py
 │     │  ├─ section_divider.py
 │     │  ├─ title_composite.py
-│     │  └─ compatibility aliases such as:
-│     │     ├─ worked_example_panel.py
-│     │     ├─ example_pipeline.py
-│     │     └─ triple_role.py
+│     │  ├─ compatibility wrappers such as:
+│     │  │  ├─ worked_example_panel.py
+│     │  │  ├─ example_pipeline.py
+│     │  │  └─ triple_role.py
+│     │  └─ legacy helper wrappers still present in the tree:
+│     │     ├─ triple_role_bands.py
+│     │     ├─ triple_role_panels.py
+│     │     └─ triple_role_style.py
 │     ├─ config/
 │     │  ├─ constants.py
 │     │  ├─ paths.py
 │     │  └─ themes.py
+│     ├─ debug/
+│     │  └─ slide_qc.py
 │     ├─ io/
 │     │  └─ backgrounds.py
 │     ├─ layout/
 │     │  ├─ analytic_panel.py
-│     │  ├─ poster.py
+│     │  ├─ autofit.py
+│     │  ├─ base.py
+│     │  ├─ cards.py
 │     │  ├─ dependency.py
 │     │  ├─ grid.py
+│     │  ├─ multi_panel_summary.py
+│     │  ├─ pipeline.py
+│     │  ├─ poster.py
 │     │  ├─ stack.py
 │     │  ├─ table.py
 │     │  ├─ text_fit.py
-│     │  └─ other generic layout helpers
+│     │  ├─ title_composite.py
+│     │  └─ worked_example.py
 │     ├─ projects/
 │     │  └─ ml_foundations/
 │     │     ├─ __init__.py
 │     │     ├─ slides_part1.py
 │     │     └─ slides_part2.py
 │     ├─ render/
-│     │  ├─ header.py
-│     │  ├─ text.py
 │     │  ├─ cards.py
 │     │  ├─ connectors.py
 │     │  ├─ decorations.py
-│     │  ├─ primitives.py
-│     │  ├─ title_panels.py
-│     │  ├─ pipeline_blocks.py
+│     │  ├─ header.py
+│     │  ├─ math_blocks.py
 │     │  ├─ multi_panel_cards.py
-│     │  └─ math_blocks.py
+│     │  ├─ pipeline_blocks.py
+│     │  ├─ primitives.py
+│     │  ├─ text.py
+│     │  └─ title_panels.py
 │     ├─ spec/
-│     │  ├─ pipeline_normalization.py
-│     │  └─ other spec-normalization helpers
+│     │  ├─ __init__.py
+│     │  └─ pipeline_normalization.py
 │     ├─ style/
-│     │  ├─ title_style.py
 │     │  ├─ multi_panel_summary_style.py
-│     │  └─ other family style helpers
+│     │  └─ title_style.py
 │     └─ utils/
 │        ├─ text_layout.py
 │        └─ units.py
 ```
 
-This tree reflects the intended post-refactor organization: **generic engine modules first, project specs second, compatibility aliases where needed**.
+This tree reflects the current repository shape: **generic engine modules first, project specs second, compatibility aliases where needed**.
 
 ---
 
@@ -158,7 +174,7 @@ SlideForge should prefer **composition-semantic names** over lecture-semantic na
 - `multi_panel_summary`
 
 ### Compatibility aliases
-Old names may remain as compatibility wrappers so existing decks do not break:
+Old names remain as compatibility wrappers so existing decks do not break:
 - `worked_example_panel` -> `analytic_panel`
 - `worked_example` -> `analytic_panel`
 - `example_pipeline` -> `annotated_pipeline`
@@ -172,11 +188,12 @@ The universal name should be treated as canonical for all new work.
 
 The builder registry is moving toward a more declarative system.
 
-Current design direction:
+Current design:
 - compatibility façade in `builders/builder_registry.py`
 - real registry logic in `builders/registry.py`
-- data-driven built-in registry through JSON manifests
-- optional plugin-pack loading
+- data-driven built-in registry through `builders/manifests/default.json`
+- alias support in the manifest
+- optional plugin-pack loading and environment-driven registry extension
 - optional decorator-based builder registration
 
 The goal is to avoid a future where every new builder family requires editing one central hardcoded dictionary forever.
@@ -187,12 +204,36 @@ The goal is to avoid a future where every new builder family requires editing on
 
 SlideForge supports reusable mini visuals, but domain-specific visuals should be organized as **packs**, not treated as the engine core.
 
-Example:
-- geometry visuals live under `assets/packs/geometry/`
-- `mini_visuals_common.py` stays focused on shared drawing helpers
-- `mini_visuals_geometry.py` can remain as a compatibility façade or aggregation layer
+Current pattern:
+- shared drawing helpers live in `assets/mini_visuals_common.py`
+- public mini-visual dispatch lives in `assets/mini_visuals.py`
+- compatibility aggregation still exists in `assets/mini_visuals_geometry.py`
+- geometry-specific visuals live under `assets/packs/geometry/`
 
-This keeps the engine universal while still supporting geometry-heavy, math-heavy, or otherwise domain-specific projects.
+The current geometry pack already includes visual metadata for layout decisions such as:
+- preferred layout orientation
+- minimum width and height
+- preferred aspect ratio
+- label density
+- whether top-strip placement is allowed
+
+That keeps the engine universal while still supporting geometry-heavy, math-heavy, or otherwise domain-specific projects.
+
+---
+
+## Layout and Readability Direction
+
+A major current engine focus is **readability-aware layout**, especially for compact concept slides and analytic/worked-example slides.
+
+Current design direction includes:
+- candidate-layout search rather than forcing one layout family
+- metadata-aware layout rejection for visuals that are too compressed
+- hard readability thresholds for text and image regions
+- auto-switch between `top_visual` and `two_column` when one orientation becomes unreadable
+- optional auto-split recommendation when all layout candidates fail
+- conservative text-fitting safety margins to avoid the last line escaping or touching the bottom edge
+
+These rules exist because presentation quality depends not only on correct content, but also on whether diagrams, formulas, and derivations remain readable on the page.
 
 ---
 
@@ -225,6 +266,7 @@ Or by project/target selection from the launcher:
 ```bash
 python src/slideforge_app.py --project ml_foundations
 python src/slideforge_app.py --slides-target slideforge.projects.ml_foundations:ML_FOUNDATIONS_PART2_SLIDES
+python src/slideforge_app.py --project ml_foundations_part1 --output out/part1.pptx
 ```
 
 The engine should be able to render **arbitrary slide lists** without being hard-wired to the ML deck.
@@ -250,7 +292,7 @@ The repository includes:
 - `LLM_CONTEXT.md` — architecture and continuity guide for future development and LLM-assisted work
 - `SLIDE_SPEC_RULES.md` — rules for writing and maintaining slide specs
 
-These files should be updated **together** whenever the engine architecture, naming, or project structure changes.
+These files should be updated **together** whenever the engine architecture, naming, layout strategy, or project structure changes.
 
 ---
 
@@ -264,6 +306,7 @@ That means:
 - keep registries and project specs easy to trace
 - keep compatibility aliases when renaming a family
 - make global behavior opt-in through specs or profiles rather than hidden heuristics
+- keep layout and rendering behavior measurable and debuggable
 
 The goal is not to create framework theater.
 The goal is to make the engine easier to extend, safer to edit, and less likely to break one deck while fixing another.

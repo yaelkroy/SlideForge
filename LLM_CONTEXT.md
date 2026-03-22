@@ -49,170 +49,99 @@ This means:
 - layout helpers should be domain-agnostic
 - theme systems should remain presentation-agnostic
 - render helpers should stay reusable across many deck types
-- domain visuals should be organized as packs
-- project-specific content should live above the engine layer
-- naming should support reuse across many kinds of presentations
+- domain-specific visuals should be organized as packs
+- project specs should live above the engine layer
+- the app entrypoint should build arbitrary slide sequences, not one hardcoded deck
 
-Prefer composition-semantic names like:
-- `analytic_panel`
-- `multi_panel_summary`
-- `annotated_pipeline`
-- `concept_poster`
-- `dependency_map`
-- `notation_panel`
-- `title_composite`
-
-Compatibility aliases may exist for legacy decks, but they should not be treated as the long-term architectural vocabulary.
+When a future change makes the engine more specific to one deck, pull that change back up into `projects/` or a project-local preset layer.
 
 ---
 
-## Current Architectural Direction
+## Current Repository Truth
 
-The engine is moving toward a structure with four clear layers:
+When editing this repo, describe it in terms of the **actual working tree first**.
 
-1. **builders/**
-   - orchestration only
-   - choose style, layout, and rendering helpers
-   - no large embedded solver logic
+Current repository facts reflected in the fresh tree:
+- `src/slideforge/app/build_deck.py` is the generic build entrypoint
+- `src/slideforge_app.py` is only an example launcher
+- `build_deck(...)`, `load_slides(...)`, and project aliases under `PROJECT_TARGETS` are the current build-facing API
+- the builder registry is now manifest-driven through `src/slideforge/builders/manifests/default.json`
+- the real registry implementation lives in `src/slideforge/builders/registry.py`
+- compatibility builder wrappers remain in the tree for migration safety
+- geometry visuals have been split into pack modules under `src/slideforge/assets/packs/geometry/`
+- the engine now includes `analytic_panel`, `annotated_pipeline`, and `multi_panel_summary` as primary composition-semantic families
 
-2. **layout/**
-   - box allocation only
-   - no theme logic
-   - no deck-semantic guessing
-
-3. **render/**
-   - reusable drawing primitives and block renderers
-   - no project-specific behavior
-
-4. **projects/**
-   - slide specs and project-local content only
-   - long declarative slide files are acceptable here
-
-Additional support layers:
-- **assets/** for visual packs and drawing helpers
-- **style/** for builder-family style resolution layered on top of themes
-- **spec/** for normalization of family-specific spec shapes
-- **config/** for constants, theme system, and paths
+Documentation should not pretend that current files are already gone if they still exist as wrappers.
+If compatibility files remain in the tree, say so.
 
 ---
 
-## File Size and Responsibility Rules
+## File Size Rule
 
-### Hard limit rule
 For **logic and engine files**, keep Python files under **500 lines when practical**.
 
-This applies especially to:
+This primarily applies to:
 - builders
-- layout modules
-- render modules
+- layout helpers
+- render helpers
+- registry helpers
 - style helpers
-- registry modules
-- spec normalizers
-- asset generation helpers
+- asset-generation helpers
+- normalization helpers
 
-### Preferred target
+If a logic file drifts beyond 500 lines, that is a strong signal to split responsibilities.
+
 Most engine files should preferably be around **200 lines** when practical.
+That is a preference, not a rigid rule, but it should guide refactoring decisions.
 
-This is not a rigid aesthetic rule. It exists because smaller files improve:
-- LLM recoverability
-- reviewability
-- refactor safety
-- explicit separation of concerns
-
-### Exception
-Large declarative presentation-spec files are allowed when splitting them would hurt readability.
-
-Examples:
+### Important exception
+This rule does **not** apply the same way to presentation-spec files such as:
 - `slides_part1.py`
 - `slides_part2.py`
-- future long project deck specs
+- other future deck-spec modules
 
-These are content files, not engine-logic files.
-
----
-
-## No Semantic Guessing in Engine Modules
-
-One of the main architectural corrections in this repo is:
-
-**engine modules should not guess slide meaning when the spec can say it explicitly.**
-
-Prefer explicit spec/profile selection like:
-- `layout_profile="text_dominant"`
-- `layout_profile="visual_dominant"`
-- `poster_profile="compact_concept"`
-- `poster_profile="analytic_steps"`
-
-Avoid building more hidden heuristics like:
-- infer “dense math mode” from formula count unless strictly necessary for backward compatibility
-- infer “compact concept mode” from content density unless used only as a legacy fallback
-
-Backward-compatible inference may temporarily exist, but explicit profiles should be the long-term direction.
+Those may legitimately be longer when they are mostly declarative content and splitting them would hurt readability.
 
 ---
 
-## Current Repo Reality
+## Documentation Sync Rule
 
-Describe the repo according to the working tree that exists now or the intended post-refactor tree being actively maintained — not according to stale GitHub views, imagined future trees, or abandoned plans.
+Whenever the architecture, builder families, entrypoint, registry system, or project structure changes in a meaningful way, update:
+- `README.md`
+- `LLM_CONTEXT.md`
+- `SLIDE_SPEC_RULES.md`
 
-The modern codebase is a real modular repo under `src/slideforge/`, including:
-- `app/`
-- `assets/`
-- `builders/`
-- `config/`
-- `io/`
-- `layout/`
-- `projects/`
-- `render/`
-- `spec/`
-- `style/`
-- `utils/`
+Do not let docs silently drift behind the code.
 
-This is not a one-file prototype anymore.
+If a refactor changes naming, package layout, entrypoint usage, builder-family semantics, or registry behavior, the docs should be updated in the same working pass.
 
 ---
 
-## Practical Repository Structure
+## Priority Rule for Docs
 
-```text
-SlideForge/
-├─ README.md
-├─ LLM_CONTEXT.md
-├─ SLIDE_SPEC_RULES.md
-├─ pyproject.toml
-└─ src/
-   ├─ slideforge_app.py
-   └─ slideforge/
-      ├─ app/
-      ├─ assets/
-      │  └─ packs/
-      ├─ builders/
-      ├─ config/
-      ├─ io/
-      ├─ layout/
-      ├─ projects/
-      ├─ render/
-      ├─ spec/
-      ├─ style/
-      └─ utils/
-```
+When there is tension between docs:
+1. `LLM_CONTEXT.md` defines architectural intent and continuity rules
+2. `README.md` explains the current repo to humans using the project
+3. `SLIDE_SPEC_RULES.md` defines how slide specs should be written
 
-When documenting the repo, prefer this package-oriented structure over obsolete or overly narrow trees.
+These files should agree. If they do not, reconcile them instead of letting contradictions accumulate.
 
 ---
 
-## Entrypoint Rule
+## Current Build Flow
 
-SlideForge should not be hard-bound to one example deck.
+The working mental model should be:
 
-Preferred engine API:
-- `build_deck(slides, output_file, theme_overrides=None)`
+**slide specs -> build_deck -> builder registry -> builder family -> layout helpers -> render helpers / visual packs -> pptx output**
 
-Preferred launcher behavior:
-- CLI or runner chooses a project alias or a module target
-- `slideforge_app.py` acts as an example launcher, not the architectural core of the engine
+Current concrete pieces:
+- `slideforge.app.build_deck.build_deck(...)`
+- `slideforge.app.build_deck.load_slides(...)`
+- `slideforge.builders.builder_registry.BUILDERS`
+- builder manifest in `builders/manifests/default.json`
+- compatibility wrapper `src/slideforge_app.py`
 
-The engine should be able to render **arbitrary slide lists** without recoding the app entrypoint.
+The app layer should stay generic. The engine should not become hard-coded to `ML_FOUNDATIONS_SLIDES` again.
 
 ---
 
@@ -229,6 +158,7 @@ Use composition-semantic names as the primary vocabulary:
 - `card_grid`
 - `title_composite`
 - `section_divider`
+- `pipeline`
 
 ### Compatibility aliases
 Legacy names may exist as aliases for backward compatibility:
@@ -237,6 +167,7 @@ Legacy names may exist as aliases for backward compatibility:
 - `example_pipeline` -> `annotated_pipeline`
 - `triple_role` -> `multi_panel_summary`
 
+There are still compatibility wrapper files in the current tree. That is acceptable during migration.
 When writing new specs or new docs, prefer the canonical composition name.
 
 ---
@@ -245,14 +176,14 @@ When writing new specs or new docs, prefer the canonical composition name.
 
 ### Builders orchestrate only
 A builder should mainly:
-- resolve theme/family style
+- resolve theme or family style
 - normalize spec content if needed
-- ask layout for boxes
+- ask layout for boxes and candidate decisions
 - call render helpers to draw blocks
 - add footer and slide shell pieces
 
 Builders should avoid growing into monoliths that also own:
-- style preset engines
+- style preset engines disconnected from themes
 - large text-fit subsystems
 - layout solvers
 - domain-specific normalization logic
@@ -274,10 +205,11 @@ Not every family needs all of these immediately, but this is the preferred direc
 
 The builder registry should move toward a declarative model.
 
-Preferred direction:
+Current preferred direction:
 - compatibility façade in `builders/builder_registry.py`
 - real registry class in `builders/registry.py`
 - manifest-driven built-in builders
+- alias support in manifests
 - optional decorator registration
 - optional plugin-pack loading
 
@@ -287,79 +219,152 @@ The long-term goal is to avoid a hardcoded central dict that must be manually ed
 
 ## Assets Rule
 
-Domain-specific visuals are welcome, but they should be organized as **packs**.
+Domain-specific visuals are allowed, but they must not become the conceptual core of the engine.
 
-For example:
-- `assets/packs/geometry/heroes.py`
-- `assets/packs/geometry/points_vectors.py`
-- `assets/packs/geometry/norms_dots_angles.py`
-- `assets/packs/geometry/projections_orthogonality.py`
+Preferred pattern:
+- shared drawing primitives in `assets/mini_visuals_common.py`
+- public visual dispatch in `assets/mini_visuals.py`
+- domain packs in `assets/packs/<domain>/...`
+- compatibility aggregation layers only when needed
 
-`mini_visuals_common.py` should remain focused on shared drawing helpers.
+Current example:
+- geometry visuals live under `assets/packs/geometry/`
+- `mini_visuals_geometry.py` exists as a compatibility façade/aggregation layer
 
-This keeps SlideForge universal while still supporting heavy domain packs for math, science, business diagrams, or other content families.
-
----
-
-## Theme and Style Rule
-
-The theme system under `config/themes.py` is the main styling layer.
-
-Builder-family styling should preferably:
-- derive from `SlideTheme`
-- use family-specific helpers under `style/`
-- support explicit spec overrides
-
-Avoid creating detached local preset systems that duplicate theme logic and drift out of sync.
+That is the right direction.
 
 ---
 
-## Documentation Sync Rule
+## Visual Metadata Rule
 
-Whenever the architecture changes, update these files together:
-- `README.md`
-- `LLM_CONTEXT.md`
-- `SLIDE_SPEC_RULES.md`
+Visual assets that materially affect layout should expose metadata the layout solver can use.
 
-If builder names, registry behavior, entrypoint behavior, or repo structure changes, documentation must be updated in the same wave.
+Useful metadata includes:
+- preferred layout orientation
+- minimum readable width
+- minimum readable height
+- preferred aspect ratio
+- label density
+- whether the visual is text-bearing
+- whether shallow top-strip placement is allowed
+- whether hero simplification is needed for divider/title use
+
+Current geometry packs already follow this pattern in places. Continue it.
+
+This is important because the layout engine should not treat every image as equally flexible.
 
 ---
 
-## Priority of Documentation Sources
+## Layout Rule
 
-When resolving documentation conflicts:
+Layout modules should allocate boxes and evaluate layout choices, not draw content.
 
-1. **The working code tree** is the source of truth.
-2. `README.md` should describe the repo for a human reader.
-3. `LLM_CONTEXT.md` should explain architecture, continuity, and design intent.
-4. `SLIDE_SPEC_RULES.md` should define how slide specs are written and maintained.
+### Layout modules should do:
+- reserve regions
+- compute box sizes and positions
+- evaluate candidate layouts when needed
+- enforce readability thresholds
+- return a structured result the builder can render
 
-Do not let older documentation override the real code.
+### Layout modules should avoid:
+- theme resolution
+- direct drawing
+- domain-specific wording
+- project-specific content assumptions
+
+This is especially important for:
+- `layout/poster.py`
+- `layout/analytic_panel.py`
+- `layout/pipeline.py`
+- `layout/multi_panel_summary.py`
+
+---
+
+## Readability and Auto-Split Rule
+
+A slide should not be accepted just because a layout function returned boxes.
+
+The engine should increasingly prefer:
+- candidate-layout search instead of one fixed solve
+- hard readability thresholds for text and image regions
+- metadata-aware rejection of compressed visuals
+- conservative bottom-line safety margins for text boxes
+- automatic fallback from one orientation to another
+- optional split recommendation or auto-split when all candidates fail
+
+Current analytic-panel work is already moving in this direction. Keep pushing there rather than hardcoding slide-by-slide hacks.
+
+---
+
+## Render Rule
+
+Render modules should draw reusable blocks only.
+
+Examples:
+- text blocks
+- cards and surface panels
+- connectors and arrows
+- title panels
+- pipeline blocks
+- multi-panel cards
+- formula and derivation blocks
+
+They should not carry project semantics.
+
+---
+
+## Theme Rule
+
+The theme system under `config/themes.py` is the primary styling layer.
+
+Builder-family styling should prefer:
+- theme-derived values
+- family style helpers under `style/`
+- explicit spec overrides
+
+Avoid letting one builder family create an isolated parallel style system disconnected from the theme layer.
+
+---
+
+## Project Rule
+
+The `projects/` package is where deck semantics belong.
+
+Current example project:
+- `projects/ml_foundations/slides_part1.py`
+- `projects/ml_foundations/slides_part2.py`
+
+Project modules may legitimately be long when they are mostly declarative content.
+That is acceptable.
+
+What should **not** happen is engine code silently absorbing ML-deck-specific assumptions that belong in project specs.
 
 ---
 
 ## Compatibility Rule
 
-Refactors should preserve compatibility when practical.
+Compatibility aliases and wrapper files are acceptable when they reduce breakage during a family rename or architectural migration.
 
-Good strategies:
-- compatibility wrappers
-- registry aliases
-- façade modules that re-export moved functions
-- compatibility import paths during renames
+Examples currently present:
+- legacy builder names resolved by manifest aliases
+- compatibility wrapper files such as `worked_example_panel.py`, `example_pipeline.py`, and `triple_role.py`
 
-The goal is to improve architecture **without** forcing the entire project layer to be rewritten at once.
+However:
+- new work should prefer the canonical names
+- compatibility layers should stay thin
+- docs should describe them honestly as compatibility layers, not as the preferred architecture
 
 ---
 
-## Anti-Drift Reminder
+## Practical Recovery Rule
 
-Do not silently let the engine drift back toward:
-- giant builders
-- deck-specific logic inside engine modules
-- hidden behavior heuristics
-- one-off naming tied to one lecture deck
-- duplicated local styling systems
-- hardcoded app entrypoints for one project
+When making changes, prefer edits that improve future recoverability:
+- split large files
+- reduce duplicated helper logic
+- keep imports easy to trace
+- make global behavior explicit
+- keep registries and manifests inspectable
+- keep docs synchronized with the actual tree
 
-SlideForge should stay understandable, recoverable, and reusable.
+The goal is not abstraction for its own sake.
+The goal is to make the engine easier to understand, safer to evolve, and less likely to regress visually while being refactored.
