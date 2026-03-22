@@ -3,7 +3,6 @@ from __future__ import annotations
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_CONNECTOR, MSO_SHAPE
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
-from pptx.util import Pt
 
 from slideforge.config.constants import (
     ACCENT,
@@ -20,6 +19,136 @@ from slideforge.config.constants import (
 )
 from slideforge.io.backgrounds import ensure_background_exists
 from slideforge.utils.units import inches, pt
+
+
+# -----------------------------------------------------------------------------
+# Internal helpers
+# -----------------------------------------------------------------------------
+
+
+def _configure_text_frame(
+    text_frame,
+    *,
+    word_wrap: bool = True,
+    vertical_anchor=MSO_ANCHOR.TOP,
+) -> None:
+    text_frame.clear()
+    text_frame.word_wrap = word_wrap
+    text_frame.vertical_anchor = vertical_anchor
+
+
+def _apply_run_style(
+    run,
+    *,
+    font_name: str,
+    font_size: int,
+    color: RGBColor,
+    bold: bool = False,
+) -> None:
+    run.font.name = font_name
+    run.font.size = pt(font_size)
+    run.font.bold = bold
+    run.font.color.rgb = color
+
+
+def _add_single_paragraph_text(
+    text_frame,
+    *,
+    text: str,
+    font_name: str,
+    font_size: int,
+    color: RGBColor,
+    bold: bool = False,
+    align=PP_ALIGN.LEFT,
+    space_after_pt: int | None = None,
+    line_spacing: float | None = None,
+    first: bool = True,
+):
+    paragraph = text_frame.paragraphs[0] if first else text_frame.add_paragraph()
+    paragraph.alignment = align
+    if space_after_pt is not None:
+        paragraph.space_after = pt(space_after_pt)
+    if line_spacing is not None:
+        paragraph.line_spacing = line_spacing
+    run = paragraph.add_run()
+    run.text = text
+    _apply_run_style(
+        run,
+        font_name=font_name,
+        font_size=font_size,
+        color=color,
+        bold=bold,
+    )
+    return paragraph
+
+
+def _add_text_to_shape(
+    shape,
+    *,
+    text: str,
+    font_name: str,
+    font_size: int,
+    color: RGBColor,
+    bold: bool = False,
+    align=PP_ALIGN.LEFT,
+    vertical_anchor=MSO_ANCHOR.TOP,
+):
+    tf = shape.text_frame
+    _configure_text_frame(tf, vertical_anchor=vertical_anchor)
+    _add_single_paragraph_text(
+        tf,
+        text=text,
+        font_name=font_name,
+        font_size=font_size,
+        color=color,
+        bold=bold,
+        align=align,
+        first=True,
+    )
+    return tf
+
+
+def _set_shape_line_and_fill(
+    shape,
+    *,
+    line_color: RGBColor,
+    fill_color: RGBColor | None,
+    line_width_pt: float,
+) -> None:
+    if fill_color is None:
+        shape.fill.background()
+    else:
+        shape.fill.solid()
+        shape.fill.fore_color.rgb = fill_color
+    shape.line.color.rgb = line_color
+    shape.line.width = pt(line_width_pt)
+
+
+def _add_shape(
+    slide,
+    *,
+    shape_type,
+    x: float,
+    y: float,
+    w: float,
+    h: float,
+    line_color: RGBColor,
+    fill_color: RGBColor | None,
+    line_width_pt: float,
+):
+    shape = slide.shapes.add_shape(shape_type, inches(x), inches(y), inches(w), inches(h))
+    _set_shape_line_and_fill(
+        shape,
+        line_color=line_color,
+        fill_color=fill_color,
+        line_width_pt=line_width_pt,
+    )
+    return shape
+
+
+# -----------------------------------------------------------------------------
+# Backgrounds and text
+# -----------------------------------------------------------------------------
 
 
 def add_background(slide, prs, filename: str) -> None:
@@ -49,18 +178,17 @@ def add_textbox(
 ):
     box = slide.shapes.add_textbox(inches(x), inches(y), inches(w), inches(h))
     tf = box.text_frame
-    tf.clear()
-    tf.word_wrap = True
-    tf.vertical_anchor = vertical_anchor
-
-    p = tf.paragraphs[0]
-    p.alignment = align
-    run = p.add_run()
-    run.text = text
-    run.font.name = font_name
-    run.font.size = pt(font_size)
-    run.font.bold = bold
-    run.font.color.rgb = color
+    _configure_text_frame(tf, vertical_anchor=vertical_anchor)
+    _add_single_paragraph_text(
+        tf,
+        text=text,
+        font_name=font_name,
+        font_size=font_size,
+        color=color,
+        bold=bold,
+        align=align,
+        first=True,
+    )
     return box, tf
 
 
@@ -72,10 +200,13 @@ def style_paragraph(
     bold: bool = False,
 ) -> None:
     for run in paragraph.runs:
-        run.font.name = font_name
-        run.font.size = pt(font_size)
-        run.font.bold = bold
-        run.font.color.rgb = color
+        _apply_run_style(
+            run,
+            font_name=font_name,
+            font_size=font_size,
+            color=color,
+            bold=bold,
+        )
 
 
 def add_bullets_box(
@@ -94,34 +225,38 @@ def add_bullets_box(
 ) -> None:
     box = slide.shapes.add_textbox(inches(x), inches(y), inches(w), inches(h))
     tf = box.text_frame
-    tf.clear()
-    tf.word_wrap = True
-    tf.vertical_anchor = MSO_ANCHOR.TOP
+    _configure_text_frame(tf, vertical_anchor=MSO_ANCHOR.TOP)
 
     first = True
     for item in bullets:
-        if isinstance(item, tuple):
-            text, level = item
-        else:
-            text, level = item, 0
-
-        p = tf.paragraphs[0] if first else tf.add_paragraph()
-        first = False
-
-        p.alignment = PP_ALIGN.LEFT
+        text, level = item if isinstance(item, tuple) else (item, 0)
         prefix = "• " if level == 0 else "– "
         indent = "    " * level
-        p.text = f"{indent}{prefix}{text}"
-        p.space_after = pt(top_space_after_pt if level == 0 else sub_space_after_pt)
-        p.line_spacing = line_spacing
-
+        paragraph = _add_single_paragraph_text(
+            tf,
+            text=f"{indent}{prefix}{text}",
+            font_name=BODY_FONT,
+            font_size=top_font_size if level == 0 else sub_font_size,
+            color=color,
+            bold=False,
+            align=PP_ALIGN.LEFT,
+            space_after_pt=top_space_after_pt if level == 0 else sub_space_after_pt,
+            line_spacing=line_spacing,
+            first=first,
+        )
         style_paragraph(
-            p,
+            paragraph,
             font_name=BODY_FONT,
             font_size=top_font_size if level == 0 else sub_font_size,
             color=color,
             bold=False,
         )
+        first = False
+
+
+# -----------------------------------------------------------------------------
+# Simple lines and cards
+# -----------------------------------------------------------------------------
 
 
 def add_divider_line(
@@ -135,16 +270,17 @@ def add_divider_line(
     color: RGBColor | None = None,
 ) -> None:
     actual_color = color or (OFFWHITE if dark else ACCENT)
-    shape = slide.shapes.add_shape(
-        MSO_SHAPE.RECTANGLE,
-        inches(x),
-        inches(y),
-        inches(w),
-        inches(h),
+    _add_shape(
+        slide,
+        shape_type=MSO_SHAPE.RECTANGLE,
+        x=x,
+        y=y,
+        w=w,
+        h=h,
+        line_color=actual_color,
+        fill_color=actual_color,
+        line_width_pt=0.75,
     )
-    shape.fill.solid()
-    shape.fill.fore_color.rgb = actual_color
-    shape.line.color.rgb = actual_color
 
 
 def add_header_rule(
@@ -169,21 +305,17 @@ def add_rounded_box(
     fill_color: RGBColor | None = LIGHT_BOX_FILL,
     line_width_pt: float = 1.25,
 ):
-    shape = slide.shapes.add_shape(
-        MSO_SHAPE.ROUNDED_RECTANGLE,
-        inches(x),
-        inches(y),
-        inches(w),
-        inches(h),
+    return _add_shape(
+        slide,
+        shape_type=MSO_SHAPE.ROUNDED_RECTANGLE,
+        x=x,
+        y=y,
+        w=w,
+        h=h,
+        line_color=line_color,
+        fill_color=fill_color,
+        line_width_pt=line_width_pt,
     )
-    if fill_color is None:
-        shape.fill.background()
-    else:
-        shape.fill.solid()
-        shape.fill.fore_color.rgb = fill_color
-    shape.line.color.rgb = line_color
-    shape.line.width = pt(line_width_pt)
-    return shape
 
 
 def add_surface_card(
@@ -253,18 +385,21 @@ def add_footer(
 ) -> None:
     actual_color = color or (OFFWHITE if dark else MUTED)
     box = slide.shapes.add_textbox(inches(x), inches(y), inches(w), inches(h))
-    tf = box.text_frame
-    tf.clear()
-    tf.word_wrap = True
-    tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+    _add_text_to_shape(
+        box,
+        text=text,
+        font_name=BODY_FONT,
+        font_size=font_size,
+        color=actual_color,
+        bold=False,
+        align=align,
+        vertical_anchor=MSO_ANCHOR.MIDDLE,
+    )
 
-    p = tf.paragraphs[0]
-    p.alignment = align
-    run = p.add_run()
-    run.text = text
-    run.font.name = BODY_FONT
-    run.font.size = pt(font_size)
-    run.font.color.rgb = actual_color
+
+# -----------------------------------------------------------------------------
+# Nodes, connectors, and labels
+# -----------------------------------------------------------------------------
 
 
 def add_node_box(
@@ -281,32 +416,26 @@ def add_node_box(
     bold: bool = True,
     line_width_pt: float = 1.25,
 ):
-    shape = slide.shapes.add_shape(
-        MSO_SHAPE.ROUNDED_RECTANGLE,
-        inches(x),
-        inches(y),
-        inches(w),
-        inches(h),
+    shape = add_rounded_box(
+        slide,
+        x=x,
+        y=y,
+        w=w,
+        h=h,
+        line_color=line_color,
+        fill_color=fill_color,
+        line_width_pt=line_width_pt,
     )
-    shape.fill.solid()
-    shape.fill.fore_color.rgb = fill_color
-    shape.line.color.rgb = line_color
-    shape.line.width = Pt(line_width_pt)
-
-    tf = shape.text_frame
-    tf.clear()
-    tf.word_wrap = True
-    tf.vertical_anchor = MSO_ANCHOR.MIDDLE
-
-    p = tf.paragraphs[0]
-    p.alignment = PP_ALIGN.CENTER
-    run = p.add_run()
-    run.text = text
-    run.font.name = BODY_FONT
-    run.font.size = pt(font_size)
-    run.font.bold = bold
-    run.font.color.rgb = text_color
-
+    _add_text_to_shape(
+        shape,
+        text=text,
+        font_name=BODY_FONT,
+        font_size=font_size,
+        color=text_color,
+        bold=bold,
+        align=PP_ALIGN.CENTER,
+        vertical_anchor=MSO_ANCHOR.MIDDLE,
+    )
     return shape
 
 
@@ -339,6 +468,34 @@ def add_hub_box(
     )
 
 
+def _add_straight_connector(
+    slide,
+    *,
+    x1: float,
+    y1: float,
+    x2: float,
+    y2: float,
+    color: RGBColor,
+    width_pt: float,
+    end_arrowhead: bool = False,
+):
+    conn = slide.shapes.add_connector(
+        MSO_CONNECTOR.STRAIGHT,
+        inches(x1),
+        inches(y1),
+        inches(x2),
+        inches(y2),
+    )
+    conn.line.color.rgb = color
+    conn.line.width = pt(width_pt)
+    if end_arrowhead:
+        try:
+            conn.line.end_arrowhead = True
+        except Exception:
+            pass
+    return conn
+
+
 def add_soft_connector(
     slide,
     x1: float,
@@ -348,15 +505,16 @@ def add_soft_connector(
     color: RGBColor = TITLE_PANEL_LINE,
     width_pt: float = 1.5,
 ) -> None:
-    conn = slide.shapes.add_connector(
-        MSO_CONNECTOR.STRAIGHT,
-        inches(x1),
-        inches(y1),
-        inches(x2),
-        inches(y2),
+    _add_straight_connector(
+        slide,
+        x1=x1,
+        y1=y1,
+        x2=x2,
+        y2=y2,
+        color=color,
+        width_pt=width_pt,
+        end_arrowhead=False,
     )
-    conn.line.color.rgb = color
-    conn.line.width = Pt(width_pt)
 
 
 def add_arrow(
@@ -368,20 +526,16 @@ def add_arrow(
     color: RGBColor = ACCENT,
     width_pt: float = 1.75,
 ):
-    line = slide.shapes.add_connector(
-        MSO_CONNECTOR.STRAIGHT,
-        inches(x1),
-        inches(y1),
-        inches(x2),
-        inches(y2),
+    return _add_straight_connector(
+        slide,
+        x1=x1,
+        y1=y1,
+        x2=x2,
+        y2=y2,
+        color=color,
+        width_pt=width_pt,
+        end_arrowhead=True,
     )
-    line.line.color.rgb = color
-    line.line.width = Pt(width_pt)
-    try:
-        line.line.end_arrowhead = True
-    except Exception:
-        pass
-    return line
 
 
 def add_callout(
@@ -424,31 +578,26 @@ def add_pill_tag(
     font_size: int = 12,
     bold: bool = False,
 ):
-    shape = slide.shapes.add_shape(
-        MSO_SHAPE.ROUNDED_RECTANGLE,
-        inches(x),
-        inches(y),
-        inches(w),
-        inches(h),
+    shape = add_rounded_box(
+        slide,
+        x=x,
+        y=y,
+        w=w,
+        h=h,
+        line_color=line_color,
+        fill_color=fill_color,
+        line_width_pt=1.0,
     )
-    shape.fill.solid()
-    shape.fill.fore_color.rgb = fill_color
-    shape.line.color.rgb = line_color
-    shape.line.width = Pt(1.0)
-
-    tf = shape.text_frame
-    tf.clear()
-    tf.word_wrap = True
-    tf.vertical_anchor = MSO_ANCHOR.MIDDLE
-
-    p = tf.paragraphs[0]
-    p.alignment = PP_ALIGN.CENTER
-    run = p.add_run()
-    run.text = text
-    run.font.name = BODY_FONT
-    run.font.size = pt(font_size)
-    run.font.bold = bold
-    run.font.color.rgb = text_color
+    _add_text_to_shape(
+        shape,
+        text=text,
+        font_name=BODY_FONT,
+        font_size=font_size,
+        color=text_color,
+        bold=bold,
+        align=PP_ALIGN.CENTER,
+        vertical_anchor=MSO_ANCHOR.MIDDLE,
+    )
 
 
 def add_ghost_label(
@@ -491,17 +640,16 @@ def add_title_panel(
     title_font_size: int = 11,
     embedded_label_font_size: int = 10,
 ) -> None:
-    shape = slide.shapes.add_shape(
-        MSO_SHAPE.ROUNDED_RECTANGLE,
-        inches(x),
-        inches(y),
-        inches(w),
-        inches(h),
+    shape = add_rounded_box(
+        slide,
+        x=x,
+        y=y,
+        w=w,
+        h=h,
+        line_color=line_color,
+        fill_color=fill_color,
+        line_width_pt=1.2,
     )
-    shape.fill.solid()
-    shape.fill.fore_color.rgb = fill_color
-    shape.line.color.rgb = line_color
-    shape.line.width = Pt(1.2)
 
     add_textbox(
         slide,
@@ -533,3 +681,25 @@ def add_title_panel(
             bold=False,
             align=PP_ALIGN.CENTER,
         )
+
+
+__all__ = [
+    "add_arrow",
+    "add_background",
+    "add_box_title",
+    "add_bullets_box",
+    "add_callout",
+    "add_divider_line",
+    "add_footer",
+    "add_ghost_label",
+    "add_header_rule",
+    "add_hub_box",
+    "add_node_box",
+    "add_pill_tag",
+    "add_rounded_box",
+    "add_soft_connector",
+    "add_surface_card",
+    "add_textbox",
+    "add_title_panel",
+    "style_paragraph",
+]

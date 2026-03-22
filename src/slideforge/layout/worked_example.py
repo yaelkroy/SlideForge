@@ -19,236 +19,212 @@ class WorkedExampleLayoutResult:
     diagram_share: float
 
 
+@dataclass(frozen=True)
+class _SectionSpec:
+    key: str
+    text: str
+    min_font: int
+    max_font: int
+    max_lines: int | None
+    min_h: Unit
+    max_h: Unit | None
+    line_spacing: float = 1.14
+    extra_pad: Unit = 0.04
+    priority: int = 0  # lower means shrink later
+
+
+def _clean(text: str | None) -> str:
+    return str(text or "").strip()
+
+
 def _zero_box(x: Unit, y: Unit, w: Unit = 0.0) -> Box:
     return Box(x, y, max(0.0, w), 0.0)
 
 
-def _clean_text(text: str | None) -> str:
-    return str(text or "").strip()
+def _usable_box(outer: Box, *, top_pad: Unit, bottom_pad: Unit, side_pad: Unit) -> Box:
+    return Box(
+        outer.x + side_pad,
+        outer.y + top_pad,
+        max(0.0, outer.w - 2 * side_pad),
+        max(0.0, outer.h - top_pad - bottom_pad),
+    )
 
 
-def _estimate_text_fit(
-    text: str,
-    *,
-    width: Unit,
-    min_font_size: int,
-    max_font_size: int,
-    max_lines: int | None,
-    line_spacing: float = 1.15,
-    prefer_single_line: bool = False,
-) -> TextFit | None:
-    text = _clean_text(text)
+def _fit(text: str, *, width: Unit, min_font: int, max_font: int, max_lines: int | None, line_spacing: float) -> TextFit | None:
+    text = _clean(text)
     if not text or width <= 0:
         return None
     return fit_text(
         text,
         width,
         10.0,
-        min_font_size=min_font_size,
-        max_font_size=max_font_size,
-        line_spacing=line_spacing,
-        prefer_single_line=prefer_single_line,
+        min_font_size=min_font,
+        max_font_size=max_font,
         max_lines=max_lines,
+        line_spacing=line_spacing,
     )
 
 
-def _reserve_text_height(
-    text: str,
-    *,
-    width: Unit,
-    min_font_size: int,
-    max_font_size: int,
-    max_lines: int | None,
-    min_h: Unit,
-    max_h: Unit | None,
-    line_spacing: float = 1.15,
-    prefer_single_line: bool = False,
-    extra_pad: Unit = 0.04,
-) -> tuple[Unit, TextFit | None]:
-    fit = _estimate_text_fit(
-        text,
+def _measure(spec: _SectionSpec, *, width: Unit) -> tuple[Unit, TextFit | None]:
+    fit = _fit(
+        spec.text,
         width=width,
-        min_font_size=min_font_size,
-        max_font_size=max_font_size,
-        max_lines=max_lines,
-        line_spacing=line_spacing,
-        prefer_single_line=prefer_single_line,
+        min_font=spec.min_font,
+        max_font=spec.max_font,
+        max_lines=spec.max_lines,
+        line_spacing=spec.line_spacing,
     )
     if fit is None:
         return 0.0, None
-
-    height = max(min_h, fit.estimated_height + extra_pad)
-    if max_h is not None:
-        height = min(height, max_h)
+    height = max(spec.min_h, fit.estimated_height + spec.extra_pad)
+    if spec.max_h is not None:
+        height = min(height, spec.max_h)
     return max(0.0, height), fit
 
 
-def _weighted_reduce(heights: dict[str, Unit], reducible: dict[str, Unit], overflow: Unit) -> dict[str, Unit]:
-    """Reduce box heights proportionally, but only down to each box's minimum."""
+def _reduce_to_fit(
+    heights: dict[str, Unit],
+    mins: dict[str, Unit],
+    *,
+    overflow: Unit,
+    priority: dict[str, int],
+) -> dict[str, Unit]:
     if overflow <= 0:
-        return heights
+        return dict(heights)
 
     adjusted = dict(heights)
     remaining = float(overflow)
-    # A few passes avoids one box exhausting early and leaves a stable distribution.
-    for _ in range(4):
-        if remaining <= 1e-6:
-            break
-        available_total = sum(max(0.0, adjusted[name] - reducible.get(name, adjusted[name])) for name in adjusted)
-        if available_total <= 1e-6:
-            break
-        for name in list(adjusted.keys()):
-            room = max(0.0, adjusted[name] - reducible.get(name, adjusted[name]))
+    # Higher priority value shrinks first.
+    keys = sorted(adjusted, key=lambda key: priority.get(key, 0), reverse=True)
+    while remaining > 1e-6:
+        changed = False
+        for key in keys:
+            room = max(0.0, adjusted.get(key, 0.0) - mins.get(key, 0.0))
             if room <= 0:
                 continue
-            cut = min(room, remaining * (room / available_total))
-            adjusted[name] -= cut
-        remaining = sum(max(0.0, adjusted[name] - reducible.get(name, adjusted[name])) for name in adjusted) - max(
-            0.0,
-            available_total - overflow,
-        )
-        # recompute actual overflow left after reductions
-        current_total = sum(adjusted.values())
-        min_total = sum(reducible.get(name, adjusted[name]) for name in adjusted)
-        if current_total <= min_total + 1e-6:
-            break
-
-    # Final deterministic trim in priority order to absorb tiny residual overflow.
-    residual = max(0.0, sum(adjusted.values()) - (sum(heights.values()) - overflow))
-    if residual > 1e-6:
-        for name in ("takeaway", "result", "explanation"):
-            if residual <= 1e-6:
+            cut = min(room, remaining)
+            adjusted[key] -= cut
+            remaining -= cut
+            changed = True
+            if remaining <= 1e-6:
                 break
-            room = max(0.0, adjusted.get(name, 0.0) - reducible.get(name, adjusted.get(name, 0.0)))
-            cut = min(room, residual)
-            adjusted[name] = adjusted.get(name, 0.0) - cut
-            residual -= cut
-
+        if not changed:
+            break
     return adjusted
 
 
-def _step_height_for_width(
-    steps_text: str,
-    *,
-    width: Unit,
-    min_font_size: int,
-    max_font_size: int,
-    min_h: Unit,
-    max_h: Unit | None,
-    line_spacing: float = 1.14,
-    extra_pad: Unit = 0.06,
-) -> tuple[Unit, TextFit | None]:
-    fit = _estimate_text_fit(
-        steps_text,
-        width=width,
-        min_font_size=min_font_size,
-        max_font_size=max_font_size,
-        max_lines=None,
-        line_spacing=line_spacing,
-    )
-    if fit is None:
-        return 0.0, None
-    height = max(min_h, fit.estimated_height + extra_pad)
-    if max_h is not None:
-        height = min(height, max_h)
-    return max(0.0, height), fit
+def _assemble_vertical_boxes(
+    x: Unit,
+    y: Unit,
+    w: Unit,
+    gap: Unit,
+    heights: dict[str, Unit],
+) -> dict[str, Box]:
+    boxes: dict[str, Box] = {}
+    current_y = y
+    order = ["explanation", "steps", "result", "takeaway"]
+    for idx, key in enumerate(order):
+        h = max(0.0, heights.get(key, 0.0))
+        boxes[key] = _zero_box(x, current_y, w)
+        if h > 0:
+            boxes[key] = Box(x, current_y, w, h)
+            current_y = boxes[key].bottom
+            if any(max(0.0, heights.get(next_key, 0.0)) > 0 for next_key in order[idx + 1 :]):
+                current_y += gap
+    return boxes
 
 
-def _pick_two_column_widths(
-    usable: Box,
+def _content_specs(
     *,
-    steps_text: str,
     explanation_text: str,
+    steps_text: str,
     result_text: str,
     takeaway_text: str,
+    explanation_min_h: Unit,
+    explanation_max_h: Unit,
+    result_min_h: Unit,
+    result_max_h: Unit,
+    takeaway_min_h: Unit,
+    takeaway_max_h: Unit,
+    min_steps_h: Unit,
+) -> list[_SectionSpec]:
+    return [
+        _SectionSpec("explanation", explanation_text, 14, 18, 4, explanation_min_h, explanation_max_h, 1.14, 0.04, 2),
+        _SectionSpec("steps", steps_text, 11, 15, None, min_steps_h, None, 1.14, 0.06, 0),
+        _SectionSpec("result", result_text, 13, 18, 5, result_min_h, result_max_h, 1.12, 0.04, 3),
+        _SectionSpec("takeaway", takeaway_text, 12, 15, 4, takeaway_min_h, takeaway_max_h, 1.12, 0.04, 4),
+    ]
+
+
+def _evaluate_column(
+    *,
+    width: Unit,
+    specs: list[_SectionSpec],
+    available_h: Unit,
+    gap: Unit,
+) -> tuple[dict[str, Unit], dict[str, TextFit]]:
+    heights: dict[str, Unit] = {}
+    fits: dict[str, TextFit] = {}
+    present = 0
+    for spec in specs:
+        h, fit = _measure(spec, width=width)
+        heights[spec.key] = h
+        if fit is not None:
+            fits[spec.key] = fit
+            present += 1
+    gaps_total = max(0, present - 1) * gap
+    total = sum(heights.values()) + gaps_total
+    mins = {spec.key: (spec.min_h if heights.get(spec.key, 0.0) > 0 else 0.0) for spec in specs}
+    priorities = {spec.key: spec.priority for spec in specs}
+    if total > available_h:
+        heights = _reduce_to_fit(heights, mins, overflow=total - available_h, priority=priorities)
+        total = sum(heights.values()) + gaps_total
+    slack = max(0.0, available_h - total)
+    if heights.get("steps", 0.0) > 0 and slack > 0.02:
+        heights["steps"] += slack
+    return heights, fits
+
+
+def _choose_two_column_share(
+    *,
+    usable: Box,
     col_gap: Unit,
+    gap: Unit,
+    specs: list[_SectionSpec],
     diagram_min_share: float,
     diagram_max_share: float,
     diagram_preferred_share: float,
-    min_steps_h: Unit,
-) -> tuple[Unit, Unit, dict[str, TextFit], dict[str, Unit], float]:
-    """Choose diagram width by looking at actual text demand, not only a fixed share."""
-    diagram_min_share = clamp(diagram_min_share, 0.0, 1.0)
-    diagram_max_share = clamp(diagram_max_share, diagram_min_share, 1.0)
-    preferred_share = clamp(diagram_preferred_share, diagram_min_share, diagram_max_share)
+) -> tuple[float, Unit, Unit, dict[str, Unit], dict[str, TextFit]]:
+    min_share = clamp(diagram_min_share, 0.0, 1.0)
+    max_share = clamp(diagram_max_share, min_share, 1.0)
+    pref_share = clamp(diagram_preferred_share, min_share, max_share)
+    candidates = [min_share, (min_share + pref_share) / 2.0, pref_share, max_share]
 
-    candidates = []
-    # Prefer smaller diagram widths first when text is dense.
-    for share in (diagram_min_share, (diagram_min_share + preferred_share) / 2.0, preferred_share, diagram_max_share):
-        d_w = usable.w * share
-        r_w = max(0.0, usable.w - d_w - col_gap)
-        if r_w <= 0.6:
+    best: tuple[float, float, Unit, Unit, dict[str, Unit], dict[str, TextFit]] | None = None
+    for share in candidates:
+        diagram_w = usable.w * share
+        right_w = max(0.0, usable.w - diagram_w - col_gap)
+        if right_w <= 0.6:
             continue
-
-        exp_h, exp_fit = _reserve_text_height(
-            explanation_text,
-            width=r_w,
-            min_font_size=14,
-            max_font_size=18,
-            max_lines=4,
-            min_h=0.30,
-            max_h=0.78,
-            line_spacing=1.14,
-        )
-        result_h, result_fit = _reserve_text_height(
-            result_text,
-            width=r_w,
-            min_font_size=13,
-            max_font_size=18,
-            max_lines=5,
-            min_h=0.28,
-            max_h=0.74,
-            line_spacing=1.12,
-        )
-        takeaway_h, takeaway_fit = _reserve_text_height(
-            takeaway_text,
-            width=r_w,
-            min_font_size=12,
-            max_font_size=15,
-            max_lines=4,
-            min_h=0.24,
-            max_h=0.58,
-            line_spacing=1.12,
-        )
-        steps_h, steps_fit = _step_height_for_width(
-            steps_text,
-            width=r_w,
-            min_font_size=11,
-            max_font_size=15,
-            min_h=min_steps_h,
-            max_h=None,
-        )
-        fits = {
-            name: fit
-            for name, fit in {
-                "explanation": exp_fit,
-                "result": result_fit,
-                "takeaway": takeaway_fit,
-                "steps": steps_fit,
-            }.items()
-            if fit is not None
-        }
-        heights = {
-            "explanation": exp_h,
-            "result": result_h,
-            "takeaway": takeaway_h,
-            "steps": steps_h,
-        }
-        # Score: prefer meeting steps height first, then smaller diagram when text is dense.
-        vertical_need = exp_h + result_h + takeaway_h + steps_h
-        gap_count = int(exp_h > 0) + int(result_h > 0) + int(takeaway_h > 0) + int(steps_h > 0) - 1
-        total_need = vertical_need + max(0, gap_count) * 0.08
-        shortage = max(0.0, total_need - usable.h)
-        score = shortage * 10.0 + share
-        candidates.append((score, d_w, r_w, fits, heights, share))
-
-    if not candidates:
-        fallback_d_w = usable.w * preferred_share
-        fallback_r_w = max(0.0, usable.w - fallback_d_w - col_gap)
-        return fallback_d_w, fallback_r_w, {}, {}, preferred_share
-
-    _, d_w, r_w, fits, heights, share = min(candidates, key=lambda item: item[0])
-    return d_w, r_w, fits, heights, share
+        heights, fits = _evaluate_column(width=right_w, specs=specs, available_h=usable.h, gap=gap)
+        natural_total = 0.0
+        present = 0
+        for spec in specs:
+            h, _ = _measure(spec, width=right_w)
+            natural_total += h
+            if h > 0:
+                present += 1
+        natural_total += max(0, present - 1) * gap
+        shortage = max(0.0, natural_total - usable.h)
+        score = shortage * 100.0 + abs(share - pref_share) * 10.0 + share
+        candidate = (score, share, diagram_w, right_w, heights, fits)
+        if best is None or candidate[0] < best[0]:
+            best = candidate
+    if best is None:
+        right_w = max(0.0, usable.w - usable.w * pref_share - col_gap)
+        return pref_share, usable.w * pref_share, right_w, {}, {}
+    _, share, diagram_w, right_w, heights, fits = best
+    return share, diagram_w, right_w, heights, fits
 
 
 def layout_worked_example_two_column(
@@ -275,131 +251,51 @@ def layout_worked_example_two_column(
     takeaway_max_h: Unit = 0.56,
     min_diagram_h_share: float = 0.62,
 ) -> WorkedExampleLayoutResult:
-    usable = Box(
-        outer_box.x + side_pad,
-        outer_box.y + top_pad,
-        max(0.0, outer_box.w - 2 * side_pad),
-        max(0.0, outer_box.h - top_pad - bottom_pad),
-    )
+    usable = _usable_box(outer_box, top_pad=top_pad, bottom_pad=bottom_pad, side_pad=side_pad)
     if usable.w <= 0 or usable.h <= 0:
-        empty = _zero_box(outer_box.x, outer_box.y, 0.0)
-        return WorkedExampleLayoutResult(
-            outer_box=outer_box,
-            diagram_box=empty,
-            steps_box=empty,
-            result_box=empty,
-            takeaway_box=empty,
-            explanation_box=empty,
-            text_fits={},
-            mode="two_column",
-            diagram_share=0.0,
-        )
+        empty = _zero_box(outer_box.x, outer_box.y)
+        return WorkedExampleLayoutResult(outer_box, empty, empty, empty, empty, empty, {}, "two_column", 0.0)
 
-    diagram_w, right_w, text_fits, initial_heights, chosen_share = _pick_two_column_widths(
-        usable,
-        steps_text=steps_text,
+    specs = _content_specs(
         explanation_text=explanation_text,
+        steps_text=steps_text,
         result_text=result_text,
         takeaway_text=takeaway_text,
+        explanation_min_h=explanation_min_h,
+        explanation_max_h=explanation_max_h,
+        result_min_h=result_min_h,
+        result_max_h=result_max_h,
+        takeaway_min_h=takeaway_min_h,
+        takeaway_max_h=takeaway_max_h,
+        min_steps_h=min_steps_h,
+    )
+    share, diagram_w, right_w, heights, fits = _choose_two_column_share(
+        usable=usable,
         col_gap=col_gap,
+        gap=gap,
+        specs=specs,
         diagram_min_share=diagram_min_share,
         diagram_max_share=diagram_max_share,
         diagram_preferred_share=diagram_preferred_share,
-        min_steps_h=min_steps_h,
     )
+    right_x = usable.x + diagram_w + col_gap
+    boxes = _assemble_vertical_boxes(right_x, usable.y, right_w, gap, heights)
 
-    diagram_box = Box(usable.x, usable.y, diagram_w, usable.h)
-    right_x = diagram_box.right + col_gap
-
-    exp_h = initial_heights.get("explanation", 0.0)
-    steps_h = initial_heights.get("steps", 0.0)
-    result_h = initial_heights.get("result", 0.0)
-    takeaway_h = initial_heights.get("takeaway", 0.0)
-
-    present_names = [name for name, h in (("explanation", exp_h), ("steps", steps_h), ("result", result_h), ("takeaway", takeaway_h)) if h > 0]
-    gaps_total = max(0, len(present_names) - 1) * gap
-    total_needed = exp_h + steps_h + result_h + takeaway_h + gaps_total
-
-    min_heights = {
-        "explanation": explanation_min_h if exp_h > 0 else 0.0,
-        "result": result_min_h if result_h > 0 else 0.0,
-        "takeaway": takeaway_min_h if takeaway_h > 0 else 0.0,
-        "steps": min_steps_h if steps_h > 0 else 0.0,
-    }
-
-    # Keep steps as the priority box. Compress result/takeaway/explanation first.
-    overflow = max(0.0, total_needed - usable.h)
-    if overflow > 0:
-        reduced = _weighted_reduce(
-            {
-                "explanation": exp_h,
-                "result": result_h,
-                "takeaway": takeaway_h,
-            },
-            {
-                "explanation": min_heights["explanation"],
-                "result": min_heights["result"],
-                "takeaway": min_heights["takeaway"],
-            },
-            overflow,
-        )
-        exp_h = reduced.get("explanation", exp_h)
-        result_h = reduced.get("result", result_h)
-        takeaway_h = reduced.get("takeaway", takeaway_h)
-        total_needed = exp_h + steps_h + result_h + takeaway_h + gaps_total
-
-    overflow = max(0.0, total_needed - usable.h)
-    if overflow > 0 and steps_h > min_heights["steps"]:
-        cut = min(overflow, steps_h - min_heights["steps"])
-        steps_h -= cut
-        total_needed -= cut
-
-    # If there is spare room, reward the steps box first, then the diagram height is just full-column.
-    slack = max(0.0, usable.h - total_needed)
-    if steps_h > 0 and slack > 0.02:
-        steps_h += slack
-        total_needed += slack
-        slack = 0.0
-
-    # Build the right column top-down.
-    current_y = usable.y
-
-    explanation_box = _zero_box(right_x, current_y, right_w)
-    if exp_h > 0:
-        explanation_box = Box(right_x, current_y, right_w, exp_h)
-        current_y = explanation_box.bottom + gap
-
-    steps_box = _zero_box(right_x, current_y, right_w)
-    if steps_h > 0:
-        steps_box = Box(right_x, current_y, right_w, max(0.0, steps_h))
-        current_y = steps_box.bottom + (gap if result_h > 0 or takeaway_h > 0 else 0.0)
-
-    result_box = _zero_box(right_x, current_y, right_w)
-    if result_h > 0:
-        result_box = Box(right_x, current_y, right_w, result_h)
-        current_y = result_box.bottom + (gap if takeaway_h > 0 else 0.0)
-
-    takeaway_box = _zero_box(right_x, current_y, right_w)
-    if takeaway_h > 0:
-        takeaway_box = Box(right_x, current_y, right_w, takeaway_h)
-
-    # Keep the diagram from feeling absurdly tall when right-column content is modest.
+    content_bottom = max([usable.y] + [box.bottom for box in boxes.values() if box.h > 0])
     min_diagram_h = usable.h * clamp(min_diagram_h_share, 0.0, 1.0)
-    diagram_h = max(min_diagram_h, max(explanation_box.bottom, steps_box.bottom, result_box.bottom, takeaway_box.bottom) - usable.y)
-    diagram_h = min(usable.h, diagram_h)
+    diagram_h = min(usable.h, max(min_diagram_h, content_bottom - usable.y))
     diagram_box = Box(usable.x, usable.y, diagram_w, diagram_h)
 
-    diagram_share = diagram_box.w / max(outer_box.w, 1e-6)
     return WorkedExampleLayoutResult(
         outer_box=outer_box,
         diagram_box=diagram_box,
-        steps_box=steps_box,
-        result_box=result_box,
-        takeaway_box=takeaway_box,
-        explanation_box=explanation_box,
-        text_fits=text_fits,
+        steps_box=boxes["steps"],
+        result_box=boxes["result"],
+        takeaway_box=boxes["takeaway"],
+        explanation_box=boxes["explanation"],
+        text_fits=fits,
         mode="two_column",
-        diagram_share=diagram_share,
+        diagram_share=share,
     )
 
 
@@ -425,151 +321,75 @@ def layout_worked_example_top_visual(
     takeaway_min_h: Unit = 0.20,
     takeaway_max_h: Unit = 0.50,
 ) -> WorkedExampleLayoutResult:
-    usable = Box(
-        outer_box.x + side_pad,
-        outer_box.y + top_pad,
-        max(0.0, outer_box.w - 2 * side_pad),
-        max(0.0, outer_box.h - top_pad - bottom_pad),
-    )
+    usable = _usable_box(outer_box, top_pad=top_pad, bottom_pad=bottom_pad, side_pad=side_pad)
     if usable.w <= 0 or usable.h <= 0:
-        empty = _zero_box(outer_box.x, outer_box.y, 0.0)
-        return WorkedExampleLayoutResult(
-            outer_box=outer_box,
-            diagram_box=empty,
-            steps_box=empty,
-            result_box=empty,
-            takeaway_box=empty,
-            explanation_box=empty,
-            text_fits={},
-            mode="top_visual",
-            diagram_share=0.0,
-        )
+        empty = _zero_box(outer_box.x, outer_box.y)
+        return WorkedExampleLayoutResult(outer_box, empty, empty, empty, empty, empty, {}, "top_visual", 0.0)
 
-    text_fits: dict[str, TextFit] = {}
-
-    exp_h, exp_fit = _reserve_text_height(
-        explanation_text,
-        width=usable.w,
-        min_font_size=14,
-        max_font_size=18,
-        max_lines=4,
-        min_h=explanation_min_h,
-        max_h=explanation_max_h,
-        line_spacing=1.14,
-    )
-    result_h, result_fit = _reserve_text_height(
-        result_text,
-        width=usable.w,
-        min_font_size=13,
-        max_font_size=18,
-        max_lines=5,
-        min_h=result_min_h,
-        max_h=result_max_h,
-        line_spacing=1.12,
-    )
-    takeaway_h, takeaway_fit = _reserve_text_height(
-        takeaway_text,
-        width=usable.w,
-        min_font_size=12,
-        max_font_size=15,
-        max_lines=4,
-        min_h=takeaway_min_h,
-        max_h=takeaway_max_h,
-        line_spacing=1.12,
-    )
-    steps_h, steps_fit = _step_height_for_width(
-        steps_text,
-        width=usable.w,
-        min_font_size=11,
-        max_font_size=15,
-        min_h=min_steps_h,
-        max_h=None,
-        line_spacing=1.14,
+    specs = _content_specs(
+        explanation_text=explanation_text,
+        steps_text=steps_text,
+        result_text=result_text,
+        takeaway_text=takeaway_text,
+        explanation_min_h=explanation_min_h,
+        explanation_max_h=explanation_max_h,
+        result_min_h=result_min_h,
+        result_max_h=result_max_h,
+        takeaway_min_h=takeaway_min_h,
+        takeaway_max_h=takeaway_max_h,
+        min_steps_h=min_steps_h,
     )
 
-    for name, fit in (("explanation", exp_fit), ("result", result_fit), ("takeaway", takeaway_fit), ("steps", steps_fit)):
-        if fit is not None:
-            text_fits[name] = fit
-
-    present = [name for name, h in (("diagram", 1.0), ("explanation", exp_h), ("steps", steps_h), ("result", result_h), ("takeaway", takeaway_h)) if h > 0]
-    gap_total = max(0, len(present) - 1) * gap
+    content_heights, fits = _evaluate_column(width=usable.w, specs=specs, available_h=usable.h, gap=gap)
+    text_total = sum(content_heights.values()) + max(0, sum(1 for v in content_heights.values() if v > 0) - 1) * gap
 
     min_diagram_h = usable.h * clamp(diagram_min_share, 0.0, 1.0)
-    max_diagram_h = usable.h * clamp(diagram_max_share, diagram_min_share, 1.0)
-    preferred_diagram_h = usable.h * clamp(diagram_preferred_share, diagram_min_share, diagram_max_share)
+    max_diagram_h = usable.h * clamp(diagram_max_share, clamp(diagram_min_share, 0.0, 1.0), 1.0)
+    pref_diagram_h = usable.h * clamp(diagram_preferred_share, clamp(diagram_min_share, 0.0, 1.0), clamp(diagram_max_share, clamp(diagram_min_share, 0.0, 1.0), 1.0))
+    available_for_diagram = max(0.0, usable.h - text_total - gap)
+    diagram_h = max(min_diagram_h, min(max_diagram_h, max(available_for_diagram, pref_diagram_h)))
 
-    non_diagram_h = exp_h + steps_h + result_h + takeaway_h + gap_total
-    diagram_h = min(max_diagram_h, max(min_diagram_h, usable.h - (non_diagram_h - preferred_diagram_h)))
-
-    total_needed = diagram_h + exp_h + steps_h + result_h + takeaway_h + gap_total
-    overflow = max(0.0, total_needed - usable.h)
-    if overflow > 0:
-        reducible = {
+    total = diagram_h + (gap if text_total > 0 and diagram_h > 0 else 0.0) + text_total
+    if total > usable.h:
+        overflow = total - usable.h
+        mins = {
             "diagram": min_diagram_h,
-            "explanation": explanation_min_h if exp_h > 0 else 0.0,
-            "result": result_min_h if result_h > 0 else 0.0,
-            "takeaway": takeaway_min_h if takeaway_h > 0 else 0.0,
+            "explanation": explanation_min_h if content_heights.get("explanation", 0.0) > 0 else 0.0,
+            "result": result_min_h if content_heights.get("result", 0.0) > 0 else 0.0,
+            "takeaway": takeaway_min_h if content_heights.get("takeaway", 0.0) > 0 else 0.0,
         }
-        reduced = _weighted_reduce(
+        priorities = {"diagram": 3, "explanation": 2, "result": 4, "takeaway": 5}
+        reduced = _reduce_to_fit(
             {
                 "diagram": diagram_h,
-                "explanation": exp_h,
-                "result": result_h,
-                "takeaway": takeaway_h,
+                "explanation": content_heights.get("explanation", 0.0),
+                "result": content_heights.get("result", 0.0),
+                "takeaway": content_heights.get("takeaway", 0.0),
             },
-            reducible,
-            overflow,
+            mins,
+            overflow=overflow,
+            priority=priorities,
         )
-        diagram_h = reduced.get("diagram", diagram_h)
-        exp_h = reduced.get("explanation", exp_h)
-        result_h = reduced.get("result", result_h)
-        takeaway_h = reduced.get("takeaway", takeaway_h)
-        total_needed = diagram_h + exp_h + steps_h + result_h + takeaway_h + gap_total
+        diagram_h = reduced["diagram"]
+        content_heights["explanation"] = reduced["explanation"]
+        content_heights["result"] = reduced["result"]
+        content_heights["takeaway"] = reduced["takeaway"]
+        text_total = sum(content_heights.values()) + max(0, sum(1 for v in content_heights.values() if v > 0) - 1) * gap
 
-    overflow = max(0.0, total_needed - usable.h)
-    if overflow > 0 and steps_h > min_steps_h:
-        cut = min(overflow, steps_h - min_steps_h)
-        steps_h -= cut
-        total_needed -= cut
+    text_start_y = usable.y + diagram_h + (gap if text_total > 0 and diagram_h > 0 else 0.0)
+    boxes = _assemble_vertical_boxes(usable.x, text_start_y, usable.w, gap, content_heights)
+    diagram_box = Box(usable.x, usable.y, usable.w, max(0.0, diagram_h))
 
-    slack = max(0.0, usable.h - total_needed)
-    if steps_h > 0 and slack > 0.02:
-        steps_h += slack
-
-    current_y = usable.y
-    diagram_box = Box(usable.x, current_y, usable.w, max(0.0, diagram_h))
-    current_y = diagram_box.bottom + gap
-
-    explanation_box = _zero_box(usable.x, current_y, usable.w)
-    if exp_h > 0:
-        explanation_box = Box(usable.x, current_y, usable.w, exp_h)
-        current_y = explanation_box.bottom + gap
-
-    steps_box = _zero_box(usable.x, current_y, usable.w)
-    if steps_h > 0:
-        steps_box = Box(usable.x, current_y, usable.w, steps_h)
-        current_y = steps_box.bottom + (gap if result_h > 0 or takeaway_h > 0 else 0.0)
-
-    result_box = _zero_box(usable.x, current_y, usable.w)
-    if result_h > 0:
-        result_box = Box(usable.x, current_y, usable.w, result_h)
-        current_y = result_box.bottom + (gap if takeaway_h > 0 else 0.0)
-
-    takeaway_box = _zero_box(usable.x, current_y, usable.w)
-    if takeaway_h > 0:
-        takeaway_box = Box(usable.x, current_y, usable.w, takeaway_h)
-
-    diagram_share = diagram_box.h / max(outer_box.h, 1e-6)
     return WorkedExampleLayoutResult(
         outer_box=outer_box,
         diagram_box=diagram_box,
-        steps_box=steps_box,
-        result_box=result_box,
-        takeaway_box=takeaway_box,
-        explanation_box=explanation_box,
-        text_fits=text_fits,
+        steps_box=boxes["steps"],
+        result_box=boxes["result"],
+        takeaway_box=boxes["takeaway"],
+        explanation_box=boxes["explanation"],
+        text_fits=fits,
         mode="top_visual",
-        diagram_share=diagram_share,
+        diagram_share=diagram_box.h / max(outer_box.h, 1e-6),
     )
 
 
@@ -583,12 +403,6 @@ def layout_worked_example(
     layout_mode: str = "two_column",
     **kwargs,
 ) -> WorkedExampleLayoutResult:
-    """Compute reusable boxes for worked-example slides.
-
-    Modes:
-    - ``two_column``: left diagram, right explanation/steps/result/takeaway stack
-    - ``top_visual``: wide diagram at top, text stack below
-    """
     mode = str(layout_mode or "two_column").strip().lower()
     if mode == "top_visual":
         return layout_worked_example_top_visual(
@@ -599,7 +413,6 @@ def layout_worked_example(
             takeaway_text=takeaway_text,
             **kwargs,
         )
-
     return layout_worked_example_two_column(
         outer_box,
         explanation_text=explanation_text,
@@ -608,3 +421,11 @@ def layout_worked_example(
         takeaway_text=takeaway_text,
         **kwargs,
     )
+
+
+__all__ = [
+    "WorkedExampleLayoutResult",
+    "layout_worked_example",
+    "layout_worked_example_two_column",
+    "layout_worked_example_top_visual",
+]

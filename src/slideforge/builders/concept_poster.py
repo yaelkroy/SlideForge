@@ -8,37 +8,20 @@ from pptx.enum.text import PP_ALIGN
 from slideforge.assets.mini_visuals import add_mini_visual
 from slideforge.builders.common import new_slide
 from slideforge.config.constants import BODY_FONT, FORMULA_FONT, OFFWHITE
-from slideforge.config.themes import SlideTheme, get_theme, resolve_color
+from slideforge.config.themes import get_theme, resolve_color
 from slideforge.io.backgrounds import choose_background
 from slideforge.layout.autofit import Box, layout_concept_poster
 from slideforge.render.header import render_header_from_spec
 from slideforge.render.primitives import add_footer, add_rounded_box, add_textbox
 
-
-def _clean_items(items: list[str]) -> list[str]:
-    return [item.strip() for item in items if item and item.strip()]
+INLINE_SEP = "   •   "
 
 
-def _join_items(items: list[str], *, separator: str = "   •   ") -> str:
-    return separator.join(_clean_items(items))
+def _text(value: Any) -> str:
+    return str(value or "").strip()
 
 
-def _format_formulas(
-    formulas: list[str],
-    *,
-    stack_formulas: bool,
-    stacked_separator: str = "\n",
-    inline_separator: str = "   •   ",
-) -> str:
-    cleaned = _clean_items(formulas)
-    if not cleaned:
-        return ""
-    if stack_formulas:
-        return stacked_separator.join(cleaned)
-    return inline_separator.join(cleaned)
-
-
-def _as_bool(value: Any, default: bool = False) -> bool:
+def _bool(value: Any, default: bool = False) -> bool:
     if value is None:
         return default
     if isinstance(value, bool):
@@ -52,654 +35,304 @@ def _as_bool(value: Any, default: bool = False) -> bool:
     return bool(value)
 
 
-def _infer_dense_math_mode(
-    *,
-    spec: Mapping[str, Any],
-    layout: Mapping[str, Any],
-    formulas: list[str],
-    bullets: list[str],
-    explanation: str,
-    takeaway: str,
-    note_text: str,
-) -> bool:
-    explicit = layout.get("dense_math_mode", spec.get("dense_math_mode"))
-    if explicit is not None:
-        return _as_bool(explicit)
-
-    formula_count = len(_clean_items(formulas))
-    bullet_count = len(_clean_items(bullets))
-    char_load = sum(len(item) for item in formulas) + len(explanation) + len(note_text) + len(takeaway)
-
-    return (
-        formula_count >= 2
-        or (formula_count >= 1 and bullet_count >= 3)
-        or char_load >= 300
-        or _as_bool(spec.get("required_formulas"), False)
-    )
+def _clean_items(items: list[Any] | tuple[Any, ...] | None) -> list[str]:
+    return [_text(item) for item in (items or []) if _text(item)]
 
 
-def _infer_compact_concept_mode(
-    *,
-    spec: Mapping[str, Any],
-    layout: Mapping[str, Any],
-    dense_math_mode: bool,
-    formulas: list[str],
-    bullets: list[str],
-    explanation: str,
-    takeaway: str,
-    note_text: str,
-) -> bool:
-    explicit = layout.get("compact_concept_mode", spec.get("compact_concept_mode"))
-    if explicit is not None:
-        return _as_bool(explicit)
-
-    if dense_math_mode:
-        return False
-
-    formula_count = len(_clean_items(formulas))
-    bullet_count = len(_clean_items(bullets))
-    char_load = len(explanation) + len(takeaway) + len(note_text) + sum(len(item) for item in formulas) + sum(
-        len(item) for item in bullets
-    )
-
-    return (
-        char_load <= 240
-        and bullet_count <= 2
-        and formula_count <= 2
-        and bool(str(spec.get("mini_visual", "")).strip())
-    )
+def _join(items: list[Any] | tuple[Any, ...] | None, separator: str = INLINE_SEP) -> str:
+    return separator.join(_clean_items(items))
 
 
-def _resolve_priority_options(
-    *,
-    spec: Mapping[str, Any],
-    layout: Mapping[str, Any],
-    dense_math_mode: bool,
-    compact_concept_mode: bool,
-    formulas: list[str],
-) -> dict[str, Any]:
-    prioritize_text_over_visual = _as_bool(
-        layout.get(
-            "prioritize_text_over_visual",
-            spec.get("prioritize_text_over_visual", False),
-        )
-    )
-
-    stack_formulas = _as_bool(
-        layout.get(
-            "stack_formulas",
-            spec.get(
-                "stack_formulas",
-                prioritize_text_over_visual or dense_math_mode or len(_clean_items(formulas)) > 1,
-            ),
-        )
-    )
-
-    if prioritize_text_over_visual:
-        visual_min_share = float(layout.get("text_priority_visual_min_share", 0.40))
-        visual_max_share = float(layout.get("text_priority_visual_max_share", 0.60))
-        preferred_visual_share = float(layout.get("text_priority_preferred_visual_share", 0.48))
-        layout_mode = "worked_math"
-    elif dense_math_mode:
-        visual_min_share = float(layout.get("dense_math_visual_min_share", 0.44))
-        visual_max_share = float(layout.get("dense_math_visual_max_share", 0.66))
-        preferred_visual_share = float(layout.get("dense_math_preferred_visual_share", 0.54))
-        layout_mode = "worked_math"
-    elif compact_concept_mode:
-        visual_min_share = float(layout.get("compact_visual_min_share", 0.66))
-        visual_max_share = float(layout.get("compact_visual_max_share", 0.84))
-        preferred_visual_share = float(layout.get("compact_preferred_visual_share", 0.74))
-        layout_mode = "compact_concept"
-    else:
-        visual_min_share = float(layout.get("visual_min_share", 0.60))
-        visual_max_share = float(layout.get("visual_max_share", 0.82))
-        preferred_visual_share = float(layout.get("preferred_visual_share", 0.70))
-        layout_mode = "concept"
-
-    return {
-        "dense_math_mode": dense_math_mode,
-        "compact_concept_mode": compact_concept_mode,
-        "prioritize_text_over_visual": prioritize_text_over_visual,
-        "stack_formulas": stack_formulas,
-        "visual_min_share": visual_min_share,
-        "visual_max_share": visual_max_share,
-        "preferred_visual_share": preferred_visual_share,
-        "layout_mode": layout_mode,
-    }
-
-
-def _add_fitted_text(
-    slide,
-    *,
-    box: Box,
-    text: str,
-    font_name: str,
-    font_size: int,
-    color,
-    bold: bool = False,
-    align=PP_ALIGN.CENTER,
-) -> None:
-    if not text.strip() or box.w <= 0 or box.h <= 0:
-        return
-
-    add_textbox(
-        slide,
-        x=box.x,
-        y=box.y,
-        w=box.w,
-        h=box.h,
-        text=text,
-        font_name=font_name,
-        font_size=font_size,
-        color=color,
-        bold=bold,
-        align=align,
-    )
-
-
-def _box_from_dict(raw: Mapping[str, Any], fallback: Box) -> Box:
+def _box(raw: Mapping[str, Any], fallback: Box) -> Box:
     return Box(
-        raw.get("x", fallback.x),
-        raw.get("y", fallback.y),
-        raw.get("w", fallback.w),
-        raw.get("h", fallback.h),
+        float(raw.get("x", fallback.x)),
+        float(raw.get("y", fallback.y)),
+        float(raw.get("w", fallback.w)),
+        float(raw.get("h", fallback.h)),
     )
 
 
-def _resolve_poster_style(
-    spec: Mapping[str, Any],
-    *,
-    theme_obj: SlideTheme,
-) -> dict[str, Any]:
-    poster_style = dict(spec.get("poster_style", {}) or {})
-
-    box_fill_default = theme_obj.box_fill_color
-    if box_fill_default is None:
-        box_fill_default = theme_obj.panel_fill_color
-    if box_fill_default is None:
-        box_fill_default = OFFWHITE
-
+def _style(spec: Mapping[str, Any], theme) -> dict[str, Any]:
+    raw = dict(spec.get("poster_style", {}) or {})
+    fill_default = theme.box_fill_color or theme.panel_fill_color or OFFWHITE
     return {
-        "poster_fill_color": resolve_color(
-            poster_style.get("poster_fill_color"),
-            box_fill_default,
-        ),
-        "poster_line_color": resolve_color(
-            poster_style.get("poster_line_color"),
-            theme_obj.box_line_color,
-        ),
-        "poster_line_width_pt": float(
-            poster_style.get("poster_line_width_pt", 1.25)
-        ),
-        "visual_variant": str(
-            poster_style.get("visual_variant", theme_obj.panel_visual_variant)
-        ),
-        "explanation_color": resolve_color(
-            poster_style.get("explanation_color"),
-            theme_obj.subtitle_color,
-        ),
-        "bullets_color": resolve_color(
-            poster_style.get("bullets_color"),
-            theme_obj.subtitle_color,
-        ),
-        "formulas_color": resolve_color(
-            poster_style.get("formulas_color"),
-            theme_obj.body_color,
-        ),
-        "note_color": resolve_color(
-            poster_style.get("note_color"),
-            theme_obj.subtitle_color,
-        ),
-        "takeaway_color": resolve_color(
-            poster_style.get("takeaway_color"),
-            theme_obj.subtitle_color,
-        ),
-        "footer_color": resolve_color(
-            poster_style.get("footer_color"),
-            theme_obj.footer_color,
-        ),
-        "footer_dark": bool(
-            poster_style.get("footer_dark", theme_obj.footer_dark)
-        ),
-        "show_anchor_text": bool(
-            poster_style.get("show_anchor_text", False)
-        ),
+        "poster_fill_color": resolve_color(raw.get("poster_fill_color"), fill_default),
+        "poster_line_color": resolve_color(raw.get("poster_line_color"), theme.box_line_color),
+        "poster_line_width_pt": float(raw.get("poster_line_width_pt", 1.25)),
+        "visual_variant": str(raw.get("visual_variant", theme.panel_visual_variant)),
+        "explanation_color": resolve_color(raw.get("explanation_color"), theme.subtitle_color),
+        "bullets_color": resolve_color(raw.get("bullets_color"), theme.subtitle_color),
+        "formulas_color": resolve_color(raw.get("formulas_color"), theme.body_color),
+        "note_color": resolve_color(raw.get("note_color"), theme.subtitle_color),
+        "takeaway_color": resolve_color(raw.get("takeaway_color"), theme.subtitle_color),
+        "footer_color": resolve_color(raw.get("footer_color"), theme.footer_color),
+        "footer_dark": bool(raw.get("footer_dark", theme.footer_dark)),
+        "show_anchor_text": bool(raw.get("show_anchor_text", False)),
     }
 
 
-def _candidate_content_variants(
-    *,
-    explanation: str,
-    bullets_text: str,
-    formulas_text: str,
-    note_text: str,
-    takeaway_text: str,
-    required_bullets: bool,
-    required_formulas: bool,
-    required_note: bool,
-    required_takeaway: bool,
-) -> list[dict[str, str]]:
-    def maybe_drop(text: str, required: bool) -> list[str]:
-        return [text] if required or not text.strip() else [text, ""]
+def _legacy_dense(formulas: list[str], bullets: list[str], explanation: str, takeaway: str, note: str, required: bool) -> bool:
+    formula_count = len(_clean_items(formulas))
+    bullet_count = len(_clean_items(bullets))
+    char_load = sum(len(item) for item in formulas) + len(explanation) + len(note) + len(takeaway)
+    return formula_count >= 2 or (formula_count >= 1 and bullet_count >= 3) or char_load >= 300 or required
 
-    variants: list[dict[str, str]] = []
-    seen: set[tuple[str, str, str, str, str]] = set()
 
-    bullet_options = maybe_drop(bullets_text, required_bullets)
-    formula_options = maybe_drop(formulas_text, required_formulas)
-    note_options = maybe_drop(note_text, required_note)
-    takeaway_options = maybe_drop(takeaway_text, required_takeaway)
+def _legacy_compact(formulas: list[str], bullets: list[str], explanation: str, takeaway: str, note: str, mini_visual: str) -> bool:
+    char_load = len(explanation) + len(takeaway) + len(note) + sum(len(x) for x in formulas) + sum(len(x) for x in bullets)
+    return bool(mini_visual) and char_load <= 240 and len(_clean_items(bullets)) <= 2 and len(_clean_items(formulas)) <= 2
 
-    for bullets in bullet_options:
-        for formulas in formula_options:
-            for note in note_options:
-                for takeaway in takeaway_options:
+
+def _profile(spec: Mapping[str, Any], layout: Mapping[str, Any], *, formulas: list[str], bullets: list[str], explanation: str, takeaway: str, note: str, mini_visual: str) -> dict[str, Any]:
+    profile = _text(
+        layout.get("poster_profile")
+        or spec.get("poster_profile")
+        or layout.get("layout_profile")
+        or spec.get("layout_profile")
+    ).lower()
+    explicit_dense = layout.get("dense_math_mode", spec.get("dense_math_mode"))
+    explicit_compact = layout.get("compact_concept_mode", spec.get("compact_concept_mode"))
+    explicit_text = layout.get("prioritize_text_over_visual", spec.get("prioritize_text_over_visual"))
+    prioritize_text = _bool(explicit_text) if explicit_text is not None else False
+    required_formulas = _bool(spec.get("required_formulas"), False)
+
+    if profile in {"text_first", "worked_math", "dense_math"}:
+        dense, compact, mode = True, False, "worked_math"
+        if profile == "text_first":
+            prioritize_text = True
+    elif profile in {"compact", "compact_concept", "concept_compact"}:
+        dense, compact, mode = False, True, "compact_concept"
+    elif profile in {"concept", "default", "visual_dominant"}:
+        dense, compact, mode = False, False, "concept"
+    else:
+        dense = _bool(explicit_dense) if explicit_dense is not None else _legacy_dense(
+            formulas, bullets, explanation, takeaway, note, required_formulas
+        )
+        compact = _bool(explicit_compact) if explicit_compact is not None else (not dense and _legacy_compact(
+            formulas, bullets, explanation, takeaway, note, mini_visual
+        ))
+        mode = "worked_math" if (prioritize_text or dense) else ("compact_concept" if compact else "concept")
+        profile = "text_first" if prioritize_text else ("dense_math" if dense else ("compact_concept" if compact else "concept"))
+
+    explicit_stack = layout.get("stack_formulas", spec.get("stack_formulas"))
+    stack = _bool(explicit_stack) if explicit_stack is not None else prioritize_text or dense or len(_clean_items(formulas)) > 1
+
+    if prioritize_text:
+        shares = (
+            float(layout.get("text_priority_visual_min_share", 0.40)),
+            float(layout.get("text_priority_visual_max_share", 0.60)),
+            float(layout.get("text_priority_preferred_visual_share", 0.48)),
+        )
+    elif dense:
+        shares = (
+            float(layout.get("dense_math_visual_min_share", 0.44)),
+            float(layout.get("dense_math_visual_max_share", 0.66)),
+            float(layout.get("dense_math_preferred_visual_share", 0.54)),
+        )
+    elif compact:
+        shares = (
+            float(layout.get("compact_visual_min_share", 0.66)),
+            float(layout.get("compact_visual_max_share", 0.84)),
+            float(layout.get("compact_preferred_visual_share", 0.74)),
+        )
+    else:
+        shares = (
+            float(layout.get("visual_min_share", 0.60)),
+            float(layout.get("visual_max_share", 0.82)),
+            float(layout.get("preferred_visual_share", 0.70)),
+        )
+
+    return {
+        "name": profile or mode,
+        "dense_math_mode": dense,
+        "compact_concept_mode": compact,
+        "prioritize_text_over_visual": prioritize_text,
+        "stack_formulas": stack,
+        "layout_mode": mode,
+        "visual_min_share": shares[0],
+        "visual_max_share": shares[1],
+        "preferred_visual_share": shares[2],
+    }
+
+
+def _content(spec: Mapping[str, Any], style: Mapping[str, Any], profile: Mapping[str, Any], layout: Mapping[str, Any]) -> dict[str, str]:
+    formulas = list(spec.get("formulas", []) or [])
+    visible_anchor = _text(spec.get("visible_anchor_text"))
+    anchor = _text(spec.get("concrete_example_anchor"))
+    note = visible_anchor or (anchor if _bool(spec.get("show_anchor_text", style["show_anchor_text"])) else "")
+    formula_sep = str(layout.get("formula_separator", INLINE_SEP))
+    formulas_text = "\n".join(_clean_items(formulas)) if profile["stack_formulas"] else _join(formulas, formula_sep)
+    return {
+        "explanation": _text(spec.get("text_explanation") or spec.get("explanation")),
+        "bullets": _join(spec.get("bullets", [])),
+        "formulas": formulas_text,
+        "note": note,
+        "takeaway": _text(spec.get("takeaway")),
+    }
+
+
+def _variants(base: Mapping[str, str], *, required_bullets: bool, required_formulas: bool, required_note: bool, required_takeaway: bool) -> list[dict[str, str]]:
+    opts = {
+        "bullets": [base["bullets"]] if required_bullets or not base["bullets"] else [base["bullets"], ""],
+        "formulas": [base["formulas"]] if required_formulas or not base["formulas"] else [base["formulas"], ""],
+        "note": [base["note"]] if required_note or not base["note"] else [base["note"], ""],
+        "takeaway": [base["takeaway"]] if required_takeaway or not base["takeaway"] else [base["takeaway"], ""],
+    }
+    out, seen = [], set()
+    for bullets in opts["bullets"]:
+        for formulas in opts["formulas"]:
+            for note in opts["note"]:
+                for takeaway in opts["takeaway"]:
                     variant = {
-                        "explanation": explanation,
+                        "explanation": base["explanation"],
                         "bullets": bullets,
                         "formulas": formulas,
                         "note": note,
                         "takeaway": takeaway,
                     }
-                    key = (
-                        variant["explanation"],
-                        variant["bullets"],
-                        variant["formulas"],
-                        variant["note"],
-                        variant["takeaway"],
-                    )
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    variants.append(variant)
-
-    def richness_score(v: dict[str, str]) -> tuple[int, int, int, int]:
-        return (
-            1 if v["takeaway"].strip() else 0,
-            1 if v["formulas"].strip() else 0,
-            1 if v["bullets"].strip() else 0,
-            1 if v["note"].strip() else 0,
-        )
-
-    variants.sort(key=richness_score, reverse=True)
-    return variants
+                    key = tuple(variant[k] for k in ("explanation", "bullets", "formulas", "note", "takeaway"))
+                    if key not in seen:
+                        seen.add(key)
+                        out.append(variant)
+    out.sort(key=lambda v: (1 if v["takeaway"] else 0, 1 if v["formulas"] else 0, 1 if v["bullets"] else 0, 1 if v["note"] else 0), reverse=True)
+    return out
 
 
-def _variant_text_stats(variant: Mapping[str, str]) -> tuple[int, int]:
-    kept_count = sum(
-        1
-        for key in ("bullets", "formulas", "note", "takeaway")
-        if str(variant.get(key, "")).strip()
-    )
-    text_chars = sum(
-        len(str(variant.get(key, "")).strip())
-        for key in ("explanation", "bullets", "formulas", "note", "takeaway")
-    )
-    return kept_count, text_chars
-
-
-def _choose_best_poster_layout(
-    *,
-    outer_box: Box,
-    explanation: str,
-    bullets_text: str,
-    formulas_text: str,
-    note_text: str,
-    takeaway_text: str,
-    layout: Mapping[str, Any],
-    required_bullets: bool,
-    required_formulas: bool,
-    required_note: bool,
-    required_takeaway: bool,
-    prioritize_text_over_visual: bool,
-    dense_math_mode: bool,
-    compact_concept_mode: bool,
-    visual_min_share: float,
-    visual_max_share: float,
-    preferred_visual_share: float,
-    layout_mode: str,
-):
-    variants = _candidate_content_variants(
-        explanation=explanation,
-        bullets_text=bullets_text,
-        formulas_text=formulas_text,
-        note_text=note_text,
-        takeaway_text=takeaway_text,
-        required_bullets=required_bullets,
-        required_formulas=required_formulas,
-        required_note=required_note,
-        required_takeaway=required_takeaway,
+def _layout_for_variant(outer_box: Box, variant: Mapping[str, str], profile: Mapping[str, Any], layout: Mapping[str, Any]):
+    return layout_concept_poster(
+        outer_box,
+        explanation=variant["explanation"],
+        bullets_text=variant["bullets"],
+        formulas_text=variant["formulas"],
+        note_text=variant["note"],
+        takeaway_text=variant["takeaway"],
+        top_pad=float(layout.get("top_pad", 0.18)),
+        bottom_pad=float(layout.get("bottom_pad", 0.14)),
+        gap=float(layout.get("content_gap", 0.08)),
+        side_pad=float(layout.get("side_pad", 0.22)),
+        visual_min_share=profile["visual_min_share"],
+        visual_max_share=profile["visual_max_share"],
+        preferred_visual_share=profile["preferred_visual_share"],
+        layout_mode=profile["layout_mode"],
+        dense_math_mode=profile["dense_math_mode"],
+        prioritize_text_over_visual=profile["prioritize_text_over_visual"],
+        reserve_formula_first=profile["prioritize_text_over_visual"] or profile["dense_math_mode"],
+        compact_concept_mode=profile["compact_concept_mode"],
     )
 
-    best_variant = variants[0]
-    best_layout = None
-    best_score = -10**9
 
-    for variant in variants:
-        poster_layout = layout_concept_poster(
-            outer_box,
-            explanation=variant["explanation"],
-            bullets_text=variant["bullets"],
-            formulas_text=variant["formulas"],
-            note_text=variant["note"],
-            takeaway_text=variant["takeaway"],
-            top_pad=float(layout.get("top_pad", 0.18)),
-            bottom_pad=float(layout.get("bottom_pad", 0.14)),
-            gap=float(layout.get("content_gap", 0.08)),
-            side_pad=float(layout.get("side_pad", 0.22)),
-            visual_min_share=visual_min_share,
-            visual_max_share=visual_max_share,
-            preferred_visual_share=preferred_visual_share,
-            layout_mode=layout_mode,
-            dense_math_mode=dense_math_mode,
-            prioritize_text_over_visual=prioritize_text_over_visual,
-            reserve_formula_first=prioritize_text_over_visual or dense_math_mode,
-            compact_concept_mode=compact_concept_mode,
+def _variant_stats(variant: Mapping[str, str]) -> tuple[int, int]:
+    kept = sum(1 for k in ("bullets", "formulas", "note", "takeaway") if variant[k])
+    chars = sum(len(variant[k]) for k in ("explanation", "bullets", "formulas", "note", "takeaway"))
+    return kept, chars
+
+
+def _score(variant: Mapping[str, str], poster_layout: Any, profile: Mapping[str, Any]) -> float:
+    kept, chars = _variant_stats(variant)
+    fits = sum(1 for fit in poster_layout.text_fits.values() if getattr(fit, "fits", False))
+    bad = sum(1 for fit in poster_layout.text_fits.values() if getattr(fit, "fits", True) is False)
+    text_share = max(0.0, 1.0 - poster_layout.visual_share)
+    visual_distance = abs(poster_layout.visual_share - profile["preferred_visual_share"])
+    if profile["prioritize_text_over_visual"]:
+        return kept * 18 + fits * 6 + text_share * 100 + min(chars, 600) * 0.02 - poster_layout.visual_share * 18 - bad * 20
+    if profile["dense_math_mode"]:
+        return kept * 12 + fits * 4 + text_share * 55 + min(chars, 600) * 0.012 + poster_layout.visual_share * 18 - bad * 14
+    if profile["compact_concept_mode"]:
+        return poster_layout.visual_share * 115 + fits * 5 + kept * 5 - visual_distance * 45 - bad * 16
+    return poster_layout.visual_share * 100 + kept * 3 + fits * 2 - visual_distance * 24 - bad * 12
+
+
+def _good_enough(variant: Mapping[str, str], poster_layout: Any, profile: Mapping[str, Any]) -> bool:
+    kept, _ = _variant_stats(variant)
+    fits = sum(1 for fit in poster_layout.text_fits.values() if getattr(fit, "fits", False))
+    if profile["prioritize_text_over_visual"]:
+        return kept == 4 and poster_layout.visual_share <= profile["preferred_visual_share"]
+    if profile["dense_math_mode"]:
+        return (kept == 4 and poster_layout.visual_share <= profile["preferred_visual_share"]) or (
+            poster_layout.visual_share >= profile["preferred_visual_share"] and fits >= max(1, kept - 1)
         )
+    if profile["compact_concept_mode"]:
+        return fits >= max(1, kept) and abs(poster_layout.visual_share - profile["preferred_visual_share"]) <= 0.05
+    return poster_layout.visual_share >= profile["preferred_visual_share"] and fits >= max(1, kept - 1)
 
-        kept_count, text_chars = _variant_text_stats(variant)
-        text_share = max(0.0, 1.0 - poster_layout.visual_share)
-        fit_bonus = sum(
-            1
-            for fit in poster_layout.text_fits.values()
-            if getattr(fit, "fits", False)
-        )
-        unreadable_penalty = sum(
-            1
-            for fit in poster_layout.text_fits.values()
-            if getattr(fit, "fits", True) is False
-        )
 
-        if prioritize_text_over_visual:
-            score = (
-                kept_count * 18.0
-                + fit_bonus * 6.0
-                + text_share * 100.0
-                + min(text_chars, 600) * 0.02
-                - poster_layout.visual_share * 18.0
-                - unreadable_penalty * 20.0
-            )
-        elif dense_math_mode:
-            score = (
-                kept_count * 12.0
-                + fit_bonus * 4.0
-                + text_share * 55.0
-                + min(text_chars, 600) * 0.012
-                + poster_layout.visual_share * 18.0
-                - unreadable_penalty * 14.0
-            )
-        elif compact_concept_mode:
-            score = (
-                poster_layout.visual_share * 115.0
-                + fit_bonus * 5.0
-                + kept_count * 5.0
-                - abs(poster_layout.visual_share - preferred_visual_share) * 45.0
-                - unreadable_penalty * 16.0
-            )
-        else:
-            score = (
-                poster_layout.visual_share * 100.0
-                + kept_count * 3.0
-                + fit_bonus * 2.0
-                - abs(poster_layout.visual_share - preferred_visual_share) * 24.0
-                - unreadable_penalty * 12.0
-            )
-
-        if prioritize_text_over_visual:
-            if kept_count == 4 and poster_layout.visual_share <= preferred_visual_share:
-                return variant, poster_layout
-        elif dense_math_mode:
-            if kept_count == 4 and poster_layout.visual_share <= preferred_visual_share:
-                return variant, poster_layout
-            if poster_layout.visual_share >= preferred_visual_share and fit_bonus >= max(1, kept_count - 1):
-                return variant, poster_layout
-        elif compact_concept_mode:
-            if fit_bonus >= max(1, kept_count) and abs(poster_layout.visual_share - preferred_visual_share) <= 0.05:
-                return variant, poster_layout
-        else:
-            if poster_layout.visual_share >= preferred_visual_share and fit_bonus >= max(1, kept_count - 1):
-                return variant, poster_layout
-
+def _pick_variant(outer_box: Box, base: Mapping[str, str], profile: Mapping[str, Any], layout: Mapping[str, Any], *, required_bullets: bool, required_formulas: bool, required_note: bool, required_takeaway: bool) -> tuple[dict[str, str], Any]:
+    best_variant, best_layout, best_score = dict(base), None, float("-inf")
+    for variant in _variants(base, required_bullets=required_bullets, required_formulas=required_formulas, required_note=required_note, required_takeaway=required_takeaway):
+        poster_layout = _layout_for_variant(outer_box, variant, profile, layout)
+        if _good_enough(variant, poster_layout, profile):
+            return variant, poster_layout
+        score = _score(variant, poster_layout, profile)
         if score > best_score:
-            best_score = score
-            best_variant = variant
-            best_layout = poster_layout
-
-    return best_variant, best_layout
+            best_variant, best_layout, best_score = variant, poster_layout, score
+    return best_variant, best_layout or _layout_for_variant(outer_box, base, profile, layout)
 
 
-def build_concept_poster_slide(
-    prs: Presentation,
-    spec: dict[str, Any],
-    counters: dict[str, int],
-) -> None:
-    slide_theme_name = spec.get("theme", "concept")
-    theme_obj = get_theme(slide_theme_name=slide_theme_name)
+def _draw_text(slide, box: Box, text: str, *, font_name: str, font_size: int, color, bold: bool = False, align=PP_ALIGN.CENTER) -> None:
+    if text.strip() and box.w > 0 and box.h > 0:
+        add_textbox(slide, x=box.x, y=box.y, w=box.w, h=box.h, text=text, font_name=font_name, font_size=font_size, color=color, bold=bold, align=align)
 
-    bg = spec.get("background") or choose_background(slide_theme_name, counters)
-    slide = new_slide(prs, bg)
 
-    layout = dict(spec.get("layout", {}) or {})
-    poster_style = _resolve_poster_style(spec, theme_obj=theme_obj)
-
-    mini_visual = str(spec.get("mini_visual", "")).strip()
-
-    explanation = (
-        str(spec.get("text_explanation", "")).strip()
-        or str(spec.get("explanation", "")).strip()
-    )
-
-    bullets = list(spec.get("bullets", []) or [])
-    bullets_text = _join_items(bullets)
-
-    formulas = list(spec.get("formulas", []) or [])
-
-    anchor_text = str(spec.get("concrete_example_anchor", "")).strip()
-    visible_anchor_text = str(spec.get("visible_anchor_text", "")).strip()
-    show_anchor_text = bool(
-        spec.get("show_anchor_text", poster_style["show_anchor_text"])
-    )
-    note_text = visible_anchor_text or (anchor_text if show_anchor_text else "")
-
-    takeaway = str(spec.get("takeaway", "")).strip()
-
-    dense_math_mode = _infer_dense_math_mode(
-        spec=spec,
-        layout=layout,
-        formulas=formulas,
-        bullets=bullets,
-        explanation=explanation,
-        takeaway=takeaway,
-        note_text=note_text,
-    )
-    compact_concept_mode = _infer_compact_concept_mode(
-        spec=spec,
-        layout=layout,
-        dense_math_mode=dense_math_mode,
-        formulas=formulas,
-        bullets=bullets,
-        explanation=explanation,
-        takeaway=takeaway,
-        note_text=note_text,
-    )
-    priority_options = _resolve_priority_options(
-        spec=spec,
-        layout=layout,
-        dense_math_mode=dense_math_mode,
-        compact_concept_mode=compact_concept_mode,
-        formulas=formulas,
-    )
-
-    formulas_text = _format_formulas(
-        formulas,
-        stack_formulas=priority_options["stack_formulas"],
-        stacked_separator=str(layout.get("stacked_formula_separator", "\n")),
-        inline_separator=str(layout.get("formula_separator", "   •   ")),
-    )
-
-    required_bullets = bool(spec.get("required_bullets", False))
-    required_formulas = bool(spec.get("required_formulas", False)) or dense_math_mode
-    required_note = bool(spec.get("required_note", False))
-    required_takeaway = bool(spec.get("required_takeaway", True))
-
-    header_result = render_header_from_spec(
-        slide,
-        spec,
-        theme=theme_obj,
-    )
-
-    fallback_outer_box = Box(
-        float(layout.get("poster_x", 0.96)),
-        float(
-            layout.get(
-                "poster_y",
-                header_result.content_top_y
-                + float(layout.get("content_to_poster_gap", 0.12)),
+def _render_blocks(slide, variant: Mapping[str, str], poster_layout: Any, profile: Mapping[str, Any], layout: Mapping[str, Any], style: Mapping[str, Any]) -> None:
+    text_specs = [
+        ("explanation", BODY_FONT, "explanation_min_font", 15, style["explanation_color"], False, layout.get("explanation_align", PP_ALIGN.CENTER)),
+        ("bullets", BODY_FONT, "bullets_min_font", 13, style["bullets_color"], _bool(layout.get("bullets_bold", False)), layout.get("bullets_align", PP_ALIGN.CENTER)),
+        ("formulas", FORMULA_FONT, "formulas_min_font", 12, style["formulas_color"], False, layout.get("formulas_align", PP_ALIGN.LEFT if profile["stack_formulas"] else PP_ALIGN.CENTER)),
+        ("note", BODY_FONT, "note_min_font", 12, style["note_color"], _bool(layout.get("note_bold", False)), layout.get("note_align", PP_ALIGN.CENTER)),
+        ("takeaway", BODY_FONT, "takeaway_min_font", 12, style["takeaway_color"], True, layout.get("takeaway_align", PP_ALIGN.CENTER)),
+    ]
+    for key, font_name, min_key, default_min, color, bold, align in text_specs:
+        if key in poster_layout.text_boxes and key in poster_layout.text_fits and variant[key]:
+            _draw_text(
+                slide,
+                poster_layout.text_boxes[key],
+                variant[key],
+                font_name=font_name,
+                font_size=max(int(layout.get(min_key, default_min)), poster_layout.text_fits[key].font_size),
+                color=color,
+                bold=bold,
+                align=align,
             )
-        ),
+
+
+def build_concept_poster_slide(prs: Presentation, spec: dict[str, Any], counters: dict[str, int]) -> None:
+    theme = get_theme(slide_theme_name=spec.get("theme", "concept"))
+    style = _style(spec, theme)
+    layout = dict(spec.get("layout", {}) or {})
+    mini_visual = _text(spec.get("mini_visual"))
+    formulas = list(spec.get("formulas", []) or [])
+    bullets = list(spec.get("bullets", []) or [])
+    explanation = _text(spec.get("text_explanation") or spec.get("explanation"))
+    takeaway = _text(spec.get("takeaway"))
+    tmp_note = _text(spec.get("visible_anchor_text")) or (_text(spec.get("concrete_example_anchor")) if _bool(spec.get("show_anchor_text", style["show_anchor_text"])) else "")
+    profile = _profile(spec, layout, formulas=formulas, bullets=bullets, explanation=explanation, takeaway=takeaway, note=tmp_note, mini_visual=mini_visual)
+    base = _content(spec, style, profile, layout)
+
+    slide = new_slide(prs, spec.get("background") or choose_background(spec.get("theme", "concept"), counters))
+    header = render_header_from_spec(slide, spec, theme=theme)
+    fallback_outer = Box(
+        float(layout.get("poster_x", 0.96)),
+        float(layout.get("poster_y", header.content_top_y + float(layout.get("content_to_poster_gap", 0.12)))),
         float(layout.get("poster_w", 11.10)),
         float(layout.get("poster_h", 4.98)),
     )
+    outer_box = _box(layout["poster_box"], fallback_outer) if isinstance(layout.get("poster_box"), Mapping) else fallback_outer
 
-    poster_box_dict = layout.get("poster_box")
-    outer_box = (
-        _box_from_dict(poster_box_dict, fallback_outer_box)
-        if isinstance(poster_box_dict, Mapping)
-        else fallback_outer_box
+    add_rounded_box(slide, outer_box.x, outer_box.y, outer_box.w, outer_box.h, line_color=style["poster_line_color"], fill_color=style["poster_fill_color"], line_width_pt=style["poster_line_width_pt"])
+    variant, poster_layout = _pick_variant(
+        outer_box,
+        base,
+        profile,
+        layout,
+        required_bullets=_bool(spec.get("required_bullets", False)),
+        required_formulas=_bool(spec.get("required_formulas", False)) or profile["dense_math_mode"],
+        required_note=_bool(spec.get("required_note", False)),
+        required_takeaway=_bool(spec.get("required_takeaway", True)),
     )
 
-    add_rounded_box(
-        slide,
-        outer_box.x,
-        outer_box.y,
-        outer_box.w,
-        outer_box.h,
-        line_color=poster_style["poster_line_color"],
-        fill_color=poster_style["poster_fill_color"],
-        line_width_pt=poster_style["poster_line_width_pt"],
-    )
-
-    chosen_variant, poster_layout = _choose_best_poster_layout(
-        outer_box=outer_box,
-        explanation=explanation,
-        bullets_text=bullets_text,
-        formulas_text=formulas_text,
-        note_text=note_text,
-        takeaway_text=takeaway,
-        layout=layout,
-        required_bullets=required_bullets,
-        required_formulas=required_formulas,
-        required_note=required_note,
-        required_takeaway=required_takeaway,
-        prioritize_text_over_visual=priority_options["prioritize_text_over_visual"],
-        dense_math_mode=priority_options["dense_math_mode"],
-        compact_concept_mode=priority_options["compact_concept_mode"],
-        visual_min_share=priority_options["visual_min_share"],
-        visual_max_share=priority_options["visual_max_share"],
-        preferred_visual_share=priority_options["preferred_visual_share"],
-        layout_mode=priority_options["layout_mode"],
-    )
-
-    visual_override = layout.get("visual_box")
-    visual_box = (
-        _box_from_dict(visual_override, poster_layout.visual_box)
-        if isinstance(visual_override, Mapping)
-        else poster_layout.visual_box
-    )
-
+    visual_box = _box(layout["visual_box"], poster_layout.visual_box) if isinstance(layout.get("visual_box"), Mapping) else poster_layout.visual_box
     if mini_visual:
-        add_mini_visual(
-            slide,
-            kind=mini_visual,
-            x=visual_box.x,
-            y=visual_box.y,
-            w=visual_box.w,
-            h=visual_box.h,
-            suffix="_concept_poster",
-            variant=poster_style["visual_variant"],
-        )
+        add_mini_visual(slide, kind=mini_visual, x=visual_box.x, y=visual_box.y, w=visual_box.w, h=visual_box.h, suffix="_concept_poster", variant=style["visual_variant"])
 
-    fits = poster_layout.text_fits
-    boxes = poster_layout.text_boxes
-
-    if "explanation" in boxes and "explanation" in fits:
-        _add_fitted_text(
-            slide,
-            box=boxes["explanation"],
-            text=chosen_variant["explanation"],
-            font_name=BODY_FONT,
-            font_size=max(
-                int(layout.get("explanation_min_font", 15)),
-                fits["explanation"].font_size,
-            ),
-            color=poster_style["explanation_color"],
-            bold=False,
-            align=layout.get("explanation_align", PP_ALIGN.CENTER),
-        )
-
-    if "bullets" in boxes and "bullets" in fits:
-        _add_fitted_text(
-            slide,
-            box=boxes["bullets"],
-            text=chosen_variant["bullets"],
-            font_name=BODY_FONT,
-            font_size=max(
-                int(layout.get("bullets_min_font", 13)),
-                fits["bullets"].font_size,
-            ),
-            color=poster_style["bullets_color"],
-            bold=bool(layout.get("bullets_bold", False)),
-            align=layout.get("bullets_align", PP_ALIGN.CENTER),
-        )
-
-    formula_align_default = PP_ALIGN.LEFT if priority_options["stack_formulas"] else PP_ALIGN.CENTER
-    if "formulas" in boxes and "formulas" in fits:
-        _add_fitted_text(
-            slide,
-            box=boxes["formulas"],
-            text=chosen_variant["formulas"],
-            font_name=FORMULA_FONT,
-            font_size=max(
-                int(layout.get("formulas_min_font", 12)),
-                fits["formulas"].font_size,
-            ),
-            color=poster_style["formulas_color"],
-            bold=False,
-            align=layout.get("formulas_align", formula_align_default),
-        )
-
-    if "note" in boxes and "note" in fits:
-        _add_fitted_text(
-            slide,
-            box=boxes["note"],
-            text=chosen_variant["note"],
-            font_name=BODY_FONT,
-            font_size=max(
-                int(layout.get("note_min_font", 12)),
-                fits["note"].font_size,
-            ),
-            color=poster_style["note_color"],
-            bold=bool(layout.get("note_bold", False)),
-            align=layout.get("note_align", PP_ALIGN.CENTER),
-        )
-
-    if "takeaway" in boxes and "takeaway" in fits:
-        _add_fitted_text(
-            slide,
-            box=boxes["takeaway"],
-            text=chosen_variant["takeaway"],
-            font_name=BODY_FONT,
-            font_size=max(
-                int(layout.get("takeaway_min_font", 12)),
-                fits["takeaway"].font_size,
-            ),
-            color=poster_style["takeaway_color"],
-            bold=True,
-            align=layout.get("takeaway_align", PP_ALIGN.CENTER),
-        )
-
-    add_footer(
-        slide,
-        dark=poster_style["footer_dark"],
-        color=poster_style["footer_color"],
-    )
+    _render_blocks(slide, variant, poster_layout, profile, layout, style)
+    add_footer(slide, dark=style["footer_dark"], color=style["footer_color"])
