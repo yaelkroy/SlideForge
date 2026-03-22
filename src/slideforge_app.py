@@ -10,7 +10,6 @@ from slideforge.config.paths import OUTPUT_FILE
 # Example launcher target. The engine itself is generic; this file only provides
 # a convenient default for local development.
 DEFAULT_PROJECT = "ml_foundations"
-DEFAULT_SLIDES = load_slides(DEFAULT_PROJECT)
 
 
 def build_example_deck(
@@ -18,8 +17,9 @@ def build_example_deck(
     output_file: str | Path = OUTPUT_FILE,
     theme_overrides: Mapping[str, Any] | None = None,
 ) -> Path:
+    resolved_slides = slides if slides is not None else load_slides(DEFAULT_PROJECT)
     return build_deck(
-        slides or DEFAULT_SLIDES,
+        resolved_slides,
         output_file=output_file,
         theme_overrides=theme_overrides,
     )

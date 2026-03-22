@@ -7,15 +7,8 @@ from pptx.dml.color import RGBColor
 from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.util import Inches, Pt
 
-from slideforge.config.constants import (
-    BODY_FONT,
-    FORMULA_FONT,
-    LIGHT_BOX_FILL,
-    NAVY,
-    OFFWHITE,
-    SLATE,
-)
-from slideforge.layout.autofit import Box, estimate_text_height, fit_text
+from slideforge.config.constants import BODY_FONT, FORMULA_FONT, LIGHT_BOX_FILL, NAVY, OFFWHITE, SLATE
+from slideforge.layout.autofit import Box, fit_text
 from slideforge.render.primitives import add_box_title, add_rounded_box, style_paragraph
 
 
@@ -38,14 +31,6 @@ class MathBlockStyle:
     card_fill_color: RGBColor | None = LIGHT_BOX_FILL
     card_line_color: RGBColor = RGBColor(173, 185, 220)
     final_answer_fill_color: RGBColor | None = OFFWHITE
-
-
-# Conservative safety margins used to avoid the last line touching or escaping the box.
-_BOTTOM_SAFETY_IN = 0.055
-_TOP_SAFETY_IN = 0.02
-_SIDE_SAFETY_IN = 0.01
-_DEFAULT_TEXT_SAFETY_RATIO = 0.89
-_RESULT_TEXT_SAFETY_RATIO = 0.86
 
 
 def _clean_text(value: Any) -> str:
@@ -82,43 +67,16 @@ def _normalize_steps(steps: Sequence[Any] | None) -> list[dict[str, str]]:
     return [_normalize_step(step, idx + 1) for idx, step in enumerate(steps or [])]
 
 
-def _shrink_box(
-    box: Box,
-    *,
-    top: float = _TOP_SAFETY_IN,
-    bottom: float = _BOTTOM_SAFETY_IN,
-    side: float = _SIDE_SAFETY_IN,
-    ratio: float = _DEFAULT_TEXT_SAFETY_RATIO,
-) -> Box:
-    if box.w <= 0 or box.h <= 0:
-        return box
-
-    inner_x = box.x + side
-    inner_y = box.y + top
-    inner_w = max(0.0, box.w - 2 * side)
-    inner_h = max(0.0, box.h - top - bottom)
-    safe_h = max(0.0, inner_h * ratio)
-    return Box(inner_x, inner_y, inner_w, safe_h)
+def _shrink_box(box: Box, *, left: float = 0.0, top: float = 0.0, right: float = 0.0, bottom: float = 0.0) -> Box:
+    x = box.x + left
+    y = box.y + top
+    w = max(0.0, box.w - left - right)
+    h = max(0.0, box.h - top - bottom)
+    return Box(x, y, w, h)
 
 
-def _estimate_safe_height(
-    text: str,
-    *,
-    width: float,
-    font_size: int,
-    line_spacing: float,
-    min_lines: int = 1,
-) -> float:
-    if not text or width <= 0:
-        return 0.0
-    estimated = estimate_text_height(
-        text,
-        width,
-        font_size=font_size,
-        line_spacing=line_spacing,
-    )
-    min_height = min_lines * (font_size / 72.0) * line_spacing
-    return max(estimated, min_height) + _BOTTOM_SAFETY_IN
+def _safe_fit_box(box: Box, *, pad_x: float = 0.02, pad_top: float = 0.02, pad_bottom: float = 0.05) -> Box:
+    return _shrink_box(box, left=pad_x, right=pad_x, top=pad_top, bottom=pad_bottom)
 
 
 def _fit_font_size(
@@ -130,42 +88,52 @@ def _fit_font_size(
     max_lines: int | None,
     line_spacing: float = 1.12,
     prefer_single_line: bool = False,
-    safety_ratio: float = _DEFAULT_TEXT_SAFETY_RATIO,
-    extra_shrink_loops: int = 2,
+    pad_x: float = 0.02,
+    pad_top: float = 0.02,
+    pad_bottom: float = 0.05,
+    safety_height_ratio: float = 0.90,
+    shrink_steps: int = 3,
 ) -> int:
     if not text.strip() or box.w <= 0 or box.h <= 0:
         return max_font
 
-    safe_box = _shrink_box(box, ratio=safety_ratio)
+    safe_box = _safe_fit_box(box, pad_x=pad_x, pad_top=pad_top, pad_bottom=pad_bottom)
+    if safe_box.w <= 0 or safe_box.h <= 0:
+        return min_font
+
+    fit_h = max(0.05, safe_box.h * safety_height_ratio)
     fitted = fit_text(
         text,
         safe_box.w,
-        safe_box.h,
+        fit_h,
         min_font_size=min_font,
         max_font_size=max_font,
         max_lines=max_lines,
         line_spacing=line_spacing,
         prefer_single_line=prefer_single_line,
     )
-    font_size = max(min_font, fitted.font_size)
+    size = max(min_font, min(max_font, fitted.font_size))
 
-    # Extra conservative shrink loop in case the initial fit is too optimistic.
-    for _ in range(max(0, extra_shrink_loops)):
-        est_h = _estimate_safe_height(
+    # Extra shrink loop to protect the bottom line from touching/leaving the box.
+    for _ in range(max(0, shrink_steps)):
+        trial = fit_text(
             text,
-            width=safe_box.w,
-            font_size=font_size,
+            safe_box.w,
+            fit_h,
+            min_font_size=min_font,
+            max_font_size=size,
+            max_lines=max_lines,
             line_spacing=line_spacing,
-            min_lines=1,
+            prefer_single_line=prefer_single_line,
         )
-        if est_h <= safe_box.h + 1e-6:
+        size = max(min_font, min(size, trial.font_size))
+        if getattr(trial, 'estimated_height', 0.0) <= fit_h * 0.96:
             break
-        font_size -= 1
-        if font_size <= min_font:
-            font_size = min_font
+        if size <= min_font:
             break
+        size -= 1
 
-    return max(min_font, font_size)
+    return max(min_font, size)
 
 
 def _add_text_frame(slide, *, box: Box, vertical_anchor=MSO_ANCHOR.TOP):
@@ -174,10 +142,10 @@ def _add_text_frame(slide, *, box: Box, vertical_anchor=MSO_ANCHOR.TOP):
     tf.clear()
     tf.word_wrap = True
     tf.vertical_anchor = vertical_anchor
-    tf.margin_left = Inches(0)
-    tf.margin_right = Inches(0)
-    tf.margin_top = Inches(0)
-    tf.margin_bottom = Inches(0)
+    tf.margin_left = Inches(0.0)
+    tf.margin_right = Inches(0.0)
+    tf.margin_top = Inches(0.0)
+    tf.margin_bottom = Inches(0.0)
     return shape, tf
 
 
@@ -214,55 +182,51 @@ def estimate_multiline_formula_height(
     formulas: str | Sequence[Any],
     *,
     width: float,
-    font_size: int = 16,
+    min_font: int = 14,
+    max_font: int = 22,
+    max_lines: int | None = 8,
     line_spacing: float = 1.10,
 ) -> float:
-    lines = _normalize_formula_lines(formulas)
-    if not lines:
-        return 0.0
-    return sum(
-        _estimate_safe_height(line, width=width, font_size=font_size, line_spacing=line_spacing)
-        for line in lines
-    )
+    text = "\n".join(_normalize_formula_lines(formulas))
+    fit = fit_text(text, width, 10.0, min_font_size=min_font, max_font_size=max_font, max_lines=max_lines, line_spacing=line_spacing)
+    return float(getattr(fit, 'estimated_height', 0.0)) + 0.06
 
 
 def estimate_derivation_height(
     steps: Sequence[Any],
     *,
     width: float,
-    body_font_size: int = 12,
-    formula_font_size: int = 13,
+    min_body_font: int = 11,
+    max_body_font: int = 15,
+    line_spacing: float = 1.10,
 ) -> float:
-    normalized_steps = _normalize_steps(steps)
-    if not normalized_steps:
-        return 0.0
-    total = 0.0
-    for step in normalized_steps:
-        total += _estimate_safe_height(step["title"], width=width, font_size=body_font_size, line_spacing=1.08)
-        if step["body"]:
-            total += _estimate_safe_height(step["body"], width=width, font_size=body_font_size, line_spacing=1.08)
-        if step["formula"]:
-            total += _estimate_safe_height(step["formula"], width=width, font_size=formula_font_size, line_spacing=1.06)
-        if step["note"]:
-            total += _estimate_safe_height(step["note"], width=width, font_size=max(10, body_font_size - 1), line_spacing=1.06)
-    return total
+    normalized = _normalize_steps(steps)
+    lines: list[str] = []
+    for step in normalized:
+        lines.append(step['title'])
+        if step['body']:
+            lines.append(step['body'])
+        if step['formula']:
+            lines.append(step['formula'])
+        if step['note']:
+            lines.append(step['note'])
+    text = "\n".join(lines)
+    fit = fit_text(text, width, 10.0, min_font_size=min_body_font, max_font_size=max_body_font, max_lines=max(8, len(lines)+2), line_spacing=line_spacing)
+    return float(getattr(fit, 'estimated_height', 0.0)) + 0.08
 
 
 def estimate_result_callout_height(
     result_lines: str | Sequence[Any],
     *,
     width: float,
-    font_size: int = 14,
-    label_h: float = 0.22,
+    min_font: int = 13,
+    max_font: int = 18,
+    line_spacing: float = 1.10,
 ) -> float:
     lines = _normalize_formula_lines(result_lines)
-    if not lines:
-        return 0.0
-    body_h = sum(
-        _estimate_safe_height(line, width=width, font_size=font_size + (1 if idx == len(lines) - 1 else 0), line_spacing=1.08)
-        for idx, line in enumerate(lines)
-    )
-    return label_h + body_h + 0.16
+    text = "\n".join(lines)
+    fit = fit_text(text, max(0.1, width - 0.36), 10.0, min_font_size=min_font, max_font_size=max_font, max_lines=max(3, len(lines)+1), line_spacing=line_spacing)
+    return float(getattr(fit, 'estimated_height', 0.0)) + 0.46
 
 
 def render_multiline_formulas(
@@ -276,34 +240,33 @@ def render_multiline_formulas(
     max_lines: int | None = 8,
     align=PP_ALIGN.LEFT,
     line_spacing: float = 1.10,
-    emphasize_last: bool = False,
 ) -> MathBlockRenderResult:
-    """Render one or more formulas as native PowerPoint text with safer bottom padding."""
     style = style or MathBlockStyle()
     lines = _normalize_formula_lines(formulas)
     text = "\n".join(lines)
-    safe_box = _shrink_box(box)
     font_size = _fit_font_size(
         text,
-        safe_box,
+        box,
         min_font=min_font,
         max_font=max_font,
         max_lines=max_lines,
         line_spacing=line_spacing,
-        safety_ratio=_DEFAULT_TEXT_SAFETY_RATIO,
+        pad_x=0.03,
+        pad_top=0.02,
+        pad_bottom=0.06,
     )
-    _, tf = _add_text_frame(slide, box=safe_box)
+    inner = _safe_fit_box(box, pad_x=0.02, pad_top=0.02, pad_bottom=0.05)
+    _, tf = _add_text_frame(slide, box=inner)
     for idx, line in enumerate(lines):
-        is_last = idx == len(lines) - 1
         _add_paragraph(
             tf,
             text=line,
             font_name=style.formula_font_name,
-            font_size=font_size + (1 if emphasize_last and is_last else 0),
+            font_size=font_size,
             color=style.formula_color,
-            bold=bool(emphasize_last and is_last),
+            bold=False,
             align=align,
-            space_after_pt=3 if not is_last else 0,
+            space_after_pt=4,
             line_spacing=line_spacing,
             first=idx == 0,
         )
@@ -322,124 +285,57 @@ def render_compact_derivation_stack(
     max_formula_font: int = 16,
     final_answer: str = "",
     emphasize_final_answer: bool = True,
-    final_answer_style: str = "inline",
     align=PP_ALIGN.LEFT,
 ) -> MathBlockRenderResult:
-    """Render a compact step-by-step derivation stack with conservative fit rules."""
     style = style or MathBlockStyle()
     normalized_steps = _normalize_steps(steps)
 
     plain_lines: list[str] = []
     for step in normalized_steps:
-        plain_lines.append(step["title"])
-        if step["body"]:
-            plain_lines.append(step["body"])
-        if step["formula"]:
-            plain_lines.append(step["formula"])
-        if step["note"]:
-            plain_lines.append(step["note"])
+        plain_lines.append(step['title'])
+        if step['body']:
+            plain_lines.append(step['body'])
+        if step['formula']:
+            plain_lines.append(step['formula'])
+        if step['note']:
+            plain_lines.append(step['note'])
     final_answer_text = _clean_text(final_answer)
-    if final_answer_text and final_answer_style == "inline":
+    if final_answer_text:
         plain_lines.append(final_answer_text)
 
     text = "\n".join(plain_lines)
-    safe_box = _shrink_box(box)
+    # Stronger bottom-line safety for dense stacks.
     body_font = _fit_font_size(
         text,
-        safe_box,
+        box,
         min_font=min_body_font,
         max_font=max_body_font,
         max_lines=max(8, len(plain_lines) + 2),
         line_spacing=1.08,
-        safety_ratio=_DEFAULT_TEXT_SAFETY_RATIO,
+        pad_x=0.03,
+        pad_top=0.02,
+        pad_bottom=0.09,
+        safety_height_ratio=0.88,
+        shrink_steps=4,
     )
     formula_font = max(min_formula_font, min(max_formula_font, body_font + 1))
+    result_font = max(formula_font, body_font + 1)
 
-    if final_answer_text and final_answer_style == "callout":
-        callout_h = min(max(0.40, safe_box.h * 0.18), 0.75)
-        steps_box = Box(safe_box.x, safe_box.y, safe_box.w, max(0.0, safe_box.h - callout_h - 0.06))
-        callout_box = Box(safe_box.x, steps_box.y + steps_box.h + 0.06, safe_box.w, callout_h)
-    else:
-        steps_box = safe_box
-        callout_box = None
-
-    _, tf = _add_text_frame(slide, box=steps_box)
+    inner = _safe_fit_box(box, pad_x=0.02, pad_top=0.02, pad_bottom=0.08)
+    _, tf = _add_text_frame(slide, box=inner)
     first = True
     for step in normalized_steps:
-        _add_paragraph(
-            tf,
-            text=step["title"],
-            font_name=style.body_font_name,
-            font_size=body_font,
-            color=style.label_color,
-            bold=True,
-            align=align,
-            space_after_pt=2,
-            line_spacing=1.08,
-            first=first,
-        )
+        _add_paragraph(tf, text=step['title'], font_name=style.body_font_name, font_size=body_font, color=style.label_color, bold=True, align=align, space_after_pt=2, line_spacing=1.06, first=first)
         first = False
-        if step["body"]:
-            _add_paragraph(
-                tf,
-                text=step["body"],
-                font_name=style.body_font_name,
-                font_size=body_font,
-                color=style.body_color,
-                align=align,
-                space_after_pt=2,
-                line_spacing=1.08,
-            )
-        if step["formula"]:
-            _add_paragraph(
-                tf,
-                text=step["formula"],
-                font_name=style.formula_font_name,
-                font_size=formula_font,
-                color=style.formula_color,
-                align=align,
-                space_after_pt=2,
-                line_spacing=1.06,
-            )
-        if step["note"]:
-            _add_paragraph(
-                tf,
-                text=step["note"],
-                font_name=style.body_font_name,
-                font_size=max(min_body_font, body_font - 1),
-                color=style.body_color,
-                align=align,
-                space_after_pt=4,
-                line_spacing=1.05,
-            )
+        if step['body']:
+            _add_paragraph(tf, text=step['body'], font_name=style.body_font_name, font_size=body_font, color=style.body_color, align=align, space_after_pt=2, line_spacing=1.06)
+        if step['formula']:
+            _add_paragraph(tf, text=step['formula'], font_name=style.formula_font_name, font_size=formula_font, color=style.formula_color, align=align, space_after_pt=2, line_spacing=1.04)
+        if step['note']:
+            _add_paragraph(tf, text=step['note'], font_name=style.body_font_name, font_size=max(min_body_font, body_font - 1), color=style.body_color, align=align, space_after_pt=4, line_spacing=1.06)
 
     if final_answer_text:
-        if callout_box is not None:
-            render_result_callout(
-                slide,
-                box=callout_box,
-                result_lines=[final_answer_text],
-                label="Result",
-                style=style,
-                min_font=max(min_formula_font, formula_font),
-                max_font=max_formula_font + 1,
-                emphasize_final_answer=True,
-                align=align,
-                line_spacing=1.05,
-                draw_card=True,
-            )
-        else:
-            _add_paragraph(
-                tf,
-                text=final_answer_text,
-                font_name=style.formula_font_name,
-                font_size=max(formula_font, body_font + 1),
-                color=style.result_color,
-                bold=emphasize_final_answer,
-                align=align,
-                space_after_pt=0,
-                line_spacing=1.05,
-            )
+        _add_paragraph(tf, text=final_answer_text, font_name=style.formula_font_name, font_size=result_font, color=style.result_color, bold=emphasize_final_answer, align=align, space_after_pt=0, line_spacing=1.02)
 
     return MathBlockRenderResult(box=box, font_size=body_font, line_count=len(plain_lines), text=text)
 
@@ -449,61 +345,42 @@ def render_result_callout(
     *,
     box: Box,
     result_lines: str | Sequence[Any],
-    label: str = "Result",
+    label: str = 'Result',
     style: MathBlockStyle | None = None,
     min_font: int = 13,
     max_font: int = 18,
     emphasize_final_answer: bool = True,
     align=PP_ALIGN.LEFT,
-    line_spacing: float = 1.08,
+    line_spacing: float = 1.10,
     draw_card: bool = True,
 ) -> MathBlockRenderResult:
-    """Render a result strip/callout with stronger final-answer protection."""
     style = style or MathBlockStyle()
-    lines = _normalize_formula_lines(result_lines)
-    if not lines:
-        lines = [""]
+    lines = _normalize_formula_lines(result_lines) or ['']
 
     if draw_card:
-        add_rounded_box(
-            slide,
-            box.x,
-            box.y,
-            box.w,
-            box.h,
-            line_color=style.card_line_color,
-            fill_color=style.card_fill_color,
-            line_width_pt=1.25,
-        )
+        add_rounded_box(slide, box.x, box.y, box.w, box.h, line_color=style.card_line_color, fill_color=style.card_fill_color, line_width_pt=1.25)
 
     label_box = Box(box.x + 0.16, box.y + 0.08, max(0.0, box.w - 0.32), 0.20)
-    add_box_title(
-        slide,
-        x=label_box.x,
-        y=label_box.y,
-        w=label_box.w,
-        text=label,
-        color=style.label_color,
-        font_size=11,
-        bold=True,
-        align=PP_ALIGN.LEFT,
-    )
+    add_box_title(slide, x=label_box.x, y=label_box.y, w=label_box.w, text=label, color=style.label_color, font_size=11, bold=True, align=PP_ALIGN.LEFT)
 
-    body_box = Box(box.x + 0.18, box.y + 0.34, max(0.0, box.w - 0.36), max(0.0, box.h - 0.48))
-    body_safe_box = _shrink_box(body_box, ratio=_RESULT_TEXT_SAFETY_RATIO, bottom=max(_BOTTOM_SAFETY_IN, 0.075))
-    text = "\n".join(lines)
+    body_box = Box(box.x + 0.18, box.y + 0.34, max(0.0, box.w - 0.36), max(0.0, box.h - 0.46))
+    # Stronger safety for result boxes, especially last line.
     font_size = _fit_font_size(
-        text,
-        body_safe_box,
+        "\n".join(lines),
+        body_box,
         min_font=min_font,
         max_font=max_font,
         max_lines=max(3, len(lines) + 1),
         line_spacing=line_spacing,
-        safety_ratio=_RESULT_TEXT_SAFETY_RATIO,
-        extra_shrink_loops=3,
+        pad_x=0.01,
+        pad_top=0.01,
+        pad_bottom=0.10,
+        safety_height_ratio=0.86,
+        shrink_steps=5,
     )
 
-    _, tf = _add_text_frame(slide, box=body_safe_box, vertical_anchor=MSO_ANCHOR.MIDDLE)
+    inner = _safe_fit_box(body_box, pad_x=0.0, pad_top=0.0, pad_bottom=0.08)
+    _, tf = _add_text_frame(slide, box=inner, vertical_anchor=MSO_ANCHOR.MIDDLE)
     for idx, line in enumerate(lines):
         is_last = idx == len(lines) - 1
         _add_paragraph(
@@ -515,11 +392,11 @@ def render_result_callout(
             bold=bool(is_last and emphasize_final_answer),
             align=align,
             space_after_pt=2 if not is_last else 0,
-            line_spacing=1.05 if is_last else line_spacing,
+            line_spacing=1.06 if is_last else line_spacing,
             first=idx == 0,
         )
 
-    return MathBlockRenderResult(box=box, font_size=font_size, line_count=len(lines), text=text)
+    return MathBlockRenderResult(box=box, font_size=font_size, line_count=len(lines), text="\n".join(lines))
 
 
 def render_emphasized_final_answer(
@@ -532,55 +409,36 @@ def render_emphasized_final_answer(
     max_font: int = 20,
     align=PP_ALIGN.CENTER,
 ) -> MathBlockRenderResult:
-    """Render a small highlighted answer pill/card with conservative fit margins."""
     style = style or MathBlockStyle()
-    add_rounded_box(
-        slide,
-        box.x,
-        box.y,
-        box.w,
-        box.h,
-        line_color=style.card_line_color,
-        fill_color=style.final_answer_fill_color,
-        line_width_pt=1.0,
-    )
+    add_rounded_box(slide, box.x, box.y, box.w, box.h, line_color=style.card_line_color, fill_color=style.final_answer_fill_color, line_width_pt=1.0)
 
-    safe_box = _shrink_box(box, ratio=_RESULT_TEXT_SAFETY_RATIO, bottom=max(_BOTTOM_SAFETY_IN, 0.07))
     font_size = _fit_font_size(
         text,
-        safe_box,
+        box,
         min_font=min_font,
         max_font=max_font,
         max_lines=2,
-        line_spacing=1.03,
-        prefer_single_line=False,
-        safety_ratio=_RESULT_TEXT_SAFETY_RATIO,
-        extra_shrink_loops=3,
+        line_spacing=1.05,
+        pad_x=0.03,
+        pad_top=0.02,
+        pad_bottom=0.08,
+        safety_height_ratio=0.88,
+        shrink_steps=4,
     )
-    _, tf = _add_text_frame(slide, box=safe_box, vertical_anchor=MSO_ANCHOR.MIDDLE)
-    _add_paragraph(
-        tf,
-        text=text,
-        font_name=style.formula_font_name,
-        font_size=font_size,
-        color=style.result_color,
-        bold=True,
-        align=align,
-        space_after_pt=0,
-        line_spacing=1.03,
-        first=True,
-    )
+    inner = _safe_fit_box(box, pad_x=0.02, pad_top=0.02, pad_bottom=0.07)
+    _, tf = _add_text_frame(slide, box=inner, vertical_anchor=MSO_ANCHOR.MIDDLE)
+    _add_paragraph(tf, text=text, font_name=style.formula_font_name, font_size=font_size, color=style.result_color, bold=True, align=align, space_after_pt=0, line_spacing=1.04, first=True)
     return MathBlockRenderResult(box=box, font_size=font_size, line_count=1, text=text)
 
 
 __all__ = [
-    "MathBlockRenderResult",
-    "MathBlockStyle",
-    "estimate_multiline_formula_height",
-    "estimate_derivation_height",
-    "estimate_result_callout_height",
-    "render_multiline_formulas",
-    "render_compact_derivation_stack",
-    "render_result_callout",
-    "render_emphasized_final_answer",
+    'MathBlockRenderResult',
+    'MathBlockStyle',
+    'estimate_multiline_formula_height',
+    'estimate_derivation_height',
+    'estimate_result_callout_height',
+    'render_multiline_formulas',
+    'render_compact_derivation_stack',
+    'render_result_callout',
+    'render_emphasized_final_answer',
 ]
