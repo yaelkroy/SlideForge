@@ -1,504 +1,311 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any, Mapping, Sequence
 
-from slideforge.assets.packs.geometry.heroes import VISUAL_METADATA as HERO_VISUAL_METADATA
-from slideforge.assets.packs.geometry.norms_dots_angles import VISUAL_METADATA as NDA_VISUAL_METADATA
-from slideforge.layout.base import Box
-from slideforge.layout.text_fit import TextFit, clamp
-from slideforge.layout.worked_example import (
-    WorkedExampleLayoutResult,
-    layout_worked_example_top_visual,
-    layout_worked_example_two_column,
-)
+from pptx import Presentation
+from pptx.enum.text import PP_ALIGN
 
-
-@dataclass(frozen=True)
-class AnalyticPanelLayoutResult:
-    outer_box: Box
-    diagram_box: Box
-    steps_box: Box
-    result_box: Box
-    takeaway_box: Box
-    explanation_box: Box
-    text_fits: dict[str, TextFit]
-    mode: str
-    diagram_share: float
-    candidate_name: str
-    score: float
-    split_required: bool
-    overflow_sections: tuple[str, ...]
-    notes: tuple[str, ...] = ()
+from slideforge.assets.mini_visuals import add_mini_visual
+from slideforge.builders.common import new_slide
+from slideforge.config.constants import BODY_FONT, OFFWHITE
+from slideforge.config.themes import get_theme, resolve_color
+from slideforge.io.backgrounds import choose_background
+from slideforge.layout.autofit import Box, fit_text
+from slideforge.layout.analytic_panel import AnalyticPanelLayoutResult, layout_analytic_panel
+from slideforge.render.header import render_header_from_spec
+from slideforge.render.math_blocks import MathBlockStyle, render_compact_derivation_stack, render_result_callout
+from slideforge.render.primitives import add_box_title, add_footer, add_rounded_box, add_textbox
 
 
-_DEFAULT_VISUAL_METADATA: dict[str, dict[str, Any]] = {
-    # title/hero
-    "point_vector_projection_hero": {
-        "preferred_layout": "hero",
-        "min_width_in": 7.4,
-        "min_height_in": 2.15,
-        "preferred_aspect_ratio": 3.7,
-        "label_density": "low",
-        "text_bearing": False,
-        "allow_top_strip": True,
-        "hero_simplify_labels": True,
-    },
-    # points / vectors bridge slides
-    "point_and_vector_same_coords": {
-        "preferred_layout": "two_column",
-        "min_width_in": 4.6,
-        "min_height_in": 2.15,
-        "preferred_aspect_ratio": 2.5,
-        "label_density": "medium",
-        "text_bearing": False,
-        "allow_top_strip": False,
-    },
-    "vector_difference_geometry": {
-        "preferred_layout": "two_column",
-        "min_width_in": 4.8,
-        "min_height_in": 2.1,
-        "preferred_aspect_ratio": 2.7,
-        "label_density": "medium",
-        "text_bearing": False,
-        "allow_top_strip": False,
-    },
-    "displacement_geometry": {
-        "preferred_layout": "two_column",
-        "min_width_in": 4.5,
-        "min_height_in": 2.0,
-        "preferred_aspect_ratio": 2.4,
-        "label_density": "medium",
-        "text_bearing": False,
-        "allow_top_strip": False,
-    },
-}
-
-_ALLOWED_TWO_COLUMN_KEYS = {
-    "top_pad",
-    "bottom_pad",
-    "side_pad",
-    "col_gap",
-    "gap",
-    "diagram_min_share",
-    "diagram_max_share",
-    "diagram_preferred_share",
-    "min_steps_h",
-    "explanation_min_h",
-    "explanation_max_h",
-    "result_min_h",
-    "result_max_h",
-    "takeaway_min_h",
-    "takeaway_max_h",
-    "min_diagram_h_share",
-}
-
-_ALLOWED_TOP_VISUAL_KEYS = {
-    "top_pad",
-    "bottom_pad",
-    "side_pad",
-    "gap",
-    "diagram_min_share",
-    "diagram_max_share",
-    "diagram_preferred_share",
-    "min_steps_h",
-    "explanation_min_h",
-    "explanation_max_h",
-    "result_min_h",
-    "result_max_h",
-    "takeaway_min_h",
-    "takeaway_max_h",
-}
+def _clean(value: Any) -> str:
+    return str(value or "").strip()
 
 
-def _merged_visual_metadata(kind: str | None) -> dict[str, Any]:
-    key = str(kind or "").strip()
-    merged = dict(_DEFAULT_VISUAL_METADATA.get(key, {}))
-    merged.update(HERO_VISUAL_METADATA.get(key, {}))
-    merged.update(NDA_VISUAL_METADATA.get(key, {}))
-    return merged
+def _lines(items: Sequence[Any] | None) -> list[str]:
+    return [_clean(item) for item in (items or []) if _clean(item)]
 
 
-def _lines_count(text: str) -> int:
-    return len([line for line in str(text or "").splitlines() if line.strip()])
+def _fit(text: str, box: Box, min_font: int, max_font: int, max_lines: int | None, *, line_spacing: float = 1.10) -> int:
+    if not _clean(text) or box.w <= 0 or box.h <= 0:
+        return max_font
+    fitted = fit_text(
+        text,
+        box.w * 0.96,
+        box.h * 0.90,
+        min_font_size=min_font,
+        max_font_size=max_font,
+        max_lines=max_lines,
+        line_spacing=line_spacing,
+    )
+    return max(min_font, fitted.font_size - 1)
 
 
-def _density_score(
-    *,
-    explanation_text: str,
-    steps_text: str,
-    result_text: str,
-    takeaway_text: str,
-) -> float:
-    score = 0.0
-    score += steps_text.count("Step ") * 1.7
-    score += max(0.0, len(steps_text) / 260.0)
-    score += _lines_count(result_text) * 0.8
-    score += 0.7 if takeaway_text.strip() else 0.0
-    score += 0.7 if explanation_text.strip() else 0.0
-    score += max(0.0, len(result_text) / 180.0)
+def _estimate(text: str, width: float, min_font: int, max_font: int, max_lines: int | None, *, extra: float = 0.05) -> float:
+    if not _clean(text) or width <= 0:
+        return 0.0
+    fitted = fit_text(text, width * 0.96, 10.0, min_font_size=min_font, max_font_size=max_font, max_lines=max_lines)
+    return max(0.0, fitted.estimated_height + extra)
+
+
+def _box_from(raw: Mapping[str, Any] | None, fallback: Box) -> Box:
+    if not isinstance(raw, Mapping):
+        return fallback
+    return Box(float(raw.get("x", fallback.x)), float(raw.get("y", fallback.y)), float(raw.get("w", fallback.w)), float(raw.get("h", fallback.h)))
+
+
+def _style(spec: Mapping[str, Any], theme_obj) -> dict[str, Any]:
+    raw = dict(spec.get("worked_example_style", spec.get("analytic_panel_style", {})) or {})
+    surface_fill = resolve_color(raw.get("surface_fill_color"), theme_obj.box_fill_color or theme_obj.panel_fill_color or OFFWHITE)
+    surface_line = resolve_color(raw.get("surface_line_color"), theme_obj.box_line_color)
+    style = {
+        "surface_fill_color": surface_fill,
+        "surface_line_color": surface_line,
+        "surface_line_width_pt": float(raw.get("surface_line_width_pt", 1.2)),
+        "label_color": resolve_color(raw.get("label_color"), theme_obj.box_title_color),
+        "body_color": resolve_color(raw.get("body_color"), theme_obj.subtitle_color),
+        "formula_color": resolve_color(raw.get("formula_color"), theme_obj.body_color),
+        "result_color": resolve_color(raw.get("result_color"), theme_obj.body_color),
+        "takeaway_color": resolve_color(raw.get("takeaway_color"), theme_obj.subtitle_color),
+        "footer_color": resolve_color(raw.get("footer_color"), theme_obj.footer_color),
+        "footer_dark": bool(raw.get("footer_dark", theme_obj.footer_dark)),
+        "visual_variant": str(raw.get("visual_variant", theme_obj.panel_visual_variant)),
+    }
+    style["math"] = MathBlockStyle(
+        body_color=style["body_color"],
+        formula_color=style["formula_color"],
+        result_color=style["result_color"],
+        label_color=style["label_color"],
+        card_fill_color=surface_fill,
+        card_line_color=surface_line,
+        final_answer_fill_color=surface_fill,
+    )
+    return style
+
+
+def _normalize_steps(raw_steps: Sequence[Any] | None, explanation: str) -> list[dict[str, str]]:
+    out: list[dict[str, str]] = []
+    if explanation:
+        out.append({"title": "Idea", "body": explanation, "formula": "", "note": ""})
+    for idx, step in enumerate(raw_steps or [], start=1):
+        if isinstance(step, Mapping):
+            out.append(
+                {
+                    "title": _clean(step.get("title") or step.get("label") or f"Step {idx}"),
+                    "body": _clean(step.get("body") or step.get("text") or step.get("explanation")),
+                    "formula": _clean(step.get("formula") or step.get("equation") or step.get("result")),
+                    "note": _clean(step.get("note")),
+                }
+            )
+        else:
+            out.append({"title": f"Step {idx}", "body": _clean(step), "formula": "", "note": ""})
+    return out
+
+
+def _serialize_steps(steps: Sequence[Mapping[str, str]]) -> str:
+    blocks: list[str] = []
+    for step in steps:
+        block = "\n".join(v for v in [step.get("title"), step.get("body"), step.get("formula"), step.get("note")] if _clean(v))
+        if block:
+            blocks.append(block)
+    return "\n\n".join(blocks)
+
+
+def _result(result_raw: Any, fallback: Sequence[Any] | None) -> tuple[str, list[str]]:
+    if isinstance(result_raw, Mapping):
+        return _clean(result_raw.get("label") or result_raw.get("title") or "Result"), _lines([
+            result_raw.get("body") or result_raw.get("text") or result_raw.get("explanation"),
+            result_raw.get("formula") or result_raw.get("equation"),
+            result_raw.get("note"),
+        ])
+    return "Result", _lines([result_raw]) or _lines(fallback)
+
+
+def _content(spec: Mapping[str, Any]) -> dict[str, Any]:
+    explanation = _clean(spec.get("text_explanation") or spec.get("explanation"))
+    result_label, result_lines = _result(spec.get("result"), spec.get("formulas"))
+    raw_steps = list(spec.get("steps") or [])
+    step_count = len(raw_steps)
+    explanation_into_steps = explanation if step_count >= 3 else ""
+    steps = _normalize_steps(raw_steps, explanation_into_steps)
+    explanation_box_text = "" if explanation_into_steps else explanation
+    return {
+        "explanation": explanation_box_text,
+        "steps": steps,
+        "steps_text": _serialize_steps(steps),
+        "result_label": result_label,
+        "result_lines": result_lines,
+        "result_text": "\n".join(result_lines),
+        "takeaway": _clean(spec.get("takeaway")),
+        "mini_visual": _clean(spec.get("mini_visual")),
+        "visual_label": _clean(spec.get("visual_label") or "Geometry"),
+        "visual_caption": _clean(spec.get("visual_caption")),
+        "explanation_label": _clean(spec.get("explanation_label") or "Idea"),
+        "steps_label": _clean(spec.get("steps_label") or "Steps"),
+        "takeaway_label": _clean(spec.get("takeaway_label") or "Takeaway"),
+    }
+
+
+def _outer(layout: Mapping[str, Any], header_result) -> Box:
+    fallback = Box(
+        float(layout.get("content_x", 0.86)),
+        float(layout.get("content_y", header_result.content_top_y + float(layout.get("content_gap_from_header", 0.12)))),
+        float(layout.get("content_w", 11.30)),
+        float(layout.get("content_h", 5.18)),
+    )
+    return _box_from(layout.get("content_box"), fallback)
+
+
+def _card(slide, box: Box, style: Mapping[str, Any]) -> None:
+    add_rounded_box(slide, box.x, box.y, box.w, box.h, line_color=style["surface_line_color"], fill_color=style["surface_fill_color"], line_width_pt=style["surface_line_width_pt"])
+
+
+def _text_card(slide, box: Box, label: str, text: str, style: Mapping[str, Any], color, min_font: int, max_font: int, max_lines: int | None, *, bold: bool = False) -> None:
+    if box.w <= 0 or box.h <= 0 or not _clean(text):
+        return
+    _card(slide, box, style)
+    add_box_title(slide, x=box.x + 0.12, y=box.y + 0.06, w=max(0.0, box.w - 0.24), text=label, color=style["label_color"], font_size=11)
+    inner = Box(box.x + 0.16, box.y + 0.34, max(0.0, box.w - 0.32), max(0.0, box.h - 0.50))
+    add_textbox(slide, x=inner.x, y=inner.y, w=inner.w, h=inner.h, text=text, font_name=BODY_FONT, font_size=_fit(text, inner, min_font, max_font, max_lines), color=color, bold=bold, align=PP_ALIGN.LEFT)
+
+
+def _visual_card(slide, box: Box, content: Mapping[str, Any], style: Mapping[str, Any], *, suppress_caption: bool = False) -> None:
+    _card(slide, box, style)
+    add_box_title(slide, x=box.x + 0.12, y=box.y + 0.06, w=max(0.0, box.w - 0.24), text=content["visual_label"], color=style["label_color"], font_size=11)
+    caption_h = 0.0
+    caption = "" if suppress_caption else content["visual_caption"]
+    if caption:
+        caption_h = max(0.18, min(0.34, _estimate(caption, max(0.1, box.w - 0.36), 9, 11, 2, extra=0.02)))
+    img_box = Box(box.x + 0.16, box.y + 0.30, max(0.0, box.w - 0.32), max(0.0, box.h - 0.46 - caption_h))
+    if content["mini_visual"]:
+        add_mini_visual(slide, kind=content["mini_visual"], x=img_box.x, y=img_box.y, w=img_box.w, h=img_box.h, suffix="_analytic_panel", variant=style["visual_variant"])
+    if caption_h > 0:
+        cap = Box(box.x + 0.16, img_box.y + img_box.h + 0.03, max(0.0, box.w - 0.32), caption_h)
+        add_textbox(slide, x=cap.x, y=cap.y, w=cap.w, h=cap.h, text=caption, font_name=BODY_FONT, font_size=_fit(caption, cap, 9, 11, 2), color=style["body_color"], align=PP_ALIGN.CENTER)
+
+
+def _fallback_layout(outer: Box, content: Mapping[str, Any], layout: Mapping[str, Any], layout_result: AnalyticPanelLayoutResult) -> AnalyticPanelLayoutResult:
+    if not layout_result.split_required and layout_result.score < 34.0:
+        return layout_result
+    return layout_analytic_panel(
+        outer,
+        explanation_text=content["explanation"],
+        steps_text=content["steps_text"],
+        result_text=content["result_text"],
+        takeaway_text=content["takeaway"],
+        layout_mode="two_column",
+        visual_kind=content["mini_visual"],
+        force_candidates=["two_column_text_heavy", "two_column", "two_column_requested"],
+        top_pad=float(layout.get("top_pad", 0.16)),
+        bottom_pad=float(layout.get("bottom_pad", 0.14)),
+        side_pad=float(layout.get("side_pad", 0.20)),
+        gap=float(layout.get("gap", 0.10)),
+        col_gap=float(layout.get("col_gap", layout.get("column_gap", 0.20))),
+        min_steps_h=float(layout.get("min_steps_h", 1.95)),
+        explanation_min_h=float(layout.get("explanation_min_h", 0.34)),
+        explanation_max_h=float(layout.get("explanation_max_h", 0.62)),
+        result_min_h=float(layout.get("result_min_h", 0.72)),
+        result_max_h=float(layout.get("result_max_h", 1.08)),
+        takeaway_min_h=float(layout.get("takeaway_min_h", 0.50)),
+        takeaway_max_h=float(layout.get("takeaway_max_h", 0.84)),
+    )
+
+
+def _density(content: Mapping[str, Any]) -> int:
+    score = len(content["steps"]) * 2 + len(content["result_lines"]) + (1 if content["takeaway"] else 0) + (1 if content["explanation"] else 0)
+    score += 1 if len(content["steps_text"]) > 260 else 0
     return score
 
 
-def _underfill_penalty(layout: WorkedExampleLayoutResult) -> float:
-    occupied = 0.0
-    for box in [layout.diagram_box, layout.explanation_box, layout.steps_box, layout.result_box, layout.takeaway_box]:
-        occupied += max(0.0, box.w * box.h)
-    outer = max(0.01, layout.outer_box.w * layout.outer_box.h)
-    fill_ratio = occupied / outer
-    # Mild penalty only when the slide is visibly sparse.
-    return max(0.0, 0.54 - fill_ratio) * 18.0
+def build_analytic_panel_slide(prs: Presentation, spec: dict[str, Any], counters: dict[str, int]) -> None:
+    theme_name = spec.get("theme", "concept")
+    theme_obj = get_theme(slide_theme_name=theme_name)
+    slide = new_slide(prs, spec.get("background") or choose_background(theme_name, counters))
+    style = _style(spec, theme_obj)
+    content = _content(spec)
+    layout = dict(spec.get("layout", {}) or {})
+    header_result = render_header_from_spec(slide, spec, theme=theme_obj)
 
+    requested_mode = _clean(layout.get("worked_layout_mode") or layout.get("layout_mode") or "two_column").lower() or "two_column"
+    density = _density(content)
+    layout.setdefault("top_pad", 0.16)
+    layout.setdefault("bottom_pad", 0.14)
+    layout.setdefault("side_pad", 0.20)
+    layout.setdefault("gap", 0.10)
+    layout.setdefault("col_gap", layout.get("column_gap", 0.20))
+    layout.setdefault("min_steps_h", 2.0 if density >= 8 else 1.8)
+    layout.setdefault("explanation_min_h", 0.34)
+    layout.setdefault("explanation_max_h", 0.62)
+    layout.setdefault("result_min_h", 0.72)
+    layout.setdefault("result_max_h", 1.08)
+    layout.setdefault("takeaway_min_h", 0.50)
+    layout.setdefault("takeaway_max_h", 0.84)
 
-def _bottom_safety_penalty(layout: WorkedExampleLayoutResult) -> float:
-    penalty = 0.0
-    region_for = {
-        "explanation": layout.explanation_box,
-        "steps": layout.steps_box,
-        "result": layout.result_box,
-        "takeaway": layout.takeaway_box,
-    }
-    for key, fit in layout.text_fits.items():
-        box = region_for.get(key)
-        if box is None or box.h <= 0:
-            continue
-        ratio = fit.estimated_height / max(box.h, 1e-6)
-        if ratio > 0.90:
-            penalty += (ratio - 0.90) * 240.0
-        elif ratio > 0.84:
-            penalty += (ratio - 0.84) * 70.0
-        if not fit.fits:
-            penalty += 50.0
-    return penalty
-
-
-def _geometry_penalty(
-    *,
-    layout: WorkedExampleLayoutResult,
-    metadata: dict[str, Any],
-    candidate_mode: str,
-) -> tuple[float, list[str]]:
-    box = layout.diagram_box
-    notes: list[str] = []
-    penalty = 0.0
-
-    min_w = float(metadata.get("min_width_in", 0.0) or 0.0)
-    min_h = float(metadata.get("min_height_in", 0.0) or 0.0)
-    pref_ratio = float(metadata.get("preferred_aspect_ratio", 0.0) or 0.0)
-    density = str(metadata.get("label_density", "medium") or "medium").strip().lower()
-    preferred_layout = str(metadata.get("preferred_layout", "either") or "either").strip().lower()
-    allow_top_strip = bool(metadata.get("allow_top_strip", True))
-
-    if min_w and box.w < min_w:
-        penalty += (min_w - box.w) * 75.0
-        notes.append("diagram_too_narrow")
-    if min_h and box.h < min_h:
-        penalty += (min_h - box.h) * 95.0
-        notes.append("diagram_too_short")
-    if pref_ratio and box.h > 0:
-        actual_ratio = box.w / max(box.h, 1e-6)
-        penalty += abs(actual_ratio - pref_ratio) * 9.0
-        if abs(actual_ratio - pref_ratio) > 0.9:
-            notes.append("diagram_aspect_far_from_preference")
-
-    if candidate_mode == "top_visual" and not allow_top_strip:
-        penalty += 240.0
-        notes.append("top_strip_forbidden")
-
-    if preferred_layout == "two_column" and candidate_mode == "top_visual":
-        penalty += 28.0
-    elif preferred_layout in {"hero", "top_visual"} and candidate_mode.startswith("two_column"):
-        penalty += 16.0
-
-    density_weights = {"low": 0.0, "medium": 12.0, "high": 22.0}
-    if density in density_weights and candidate_mode == "top_visual":
-        penalty += density_weights[density]
-    if density == "high" and box.w < max(min_w, 3.6):
-        penalty += 24.0
-        notes.append("labels_at_risk")
-
-    return penalty, notes
-
-
-def _candidate_score(
-    layout: WorkedExampleLayoutResult,
-    *,
-    metadata: dict[str, Any],
-    candidate_name: str,
-    density_score: float,
-) -> tuple[float, tuple[str, ...]]:
-    notes: list[str] = []
-    overflow = tuple(sorted(k for k, fit in layout.text_fits.items() if not fit.fits))
-    if overflow:
-        notes.extend(f"overflow:{name}" for name in overflow)
-
-    penalty = 0.0
-    penalty += len(overflow) * 120.0
-    penalty += _bottom_safety_penalty(layout)
-    penalty += _underfill_penalty(layout)
-
-    geom_penalty, geom_notes = _geometry_penalty(
-        layout=layout,
-        metadata=metadata,
-        candidate_mode="top_visual" if candidate_name.startswith("top_visual") else "two_column",
+    outer = _outer(layout, header_result)
+    layout_result = layout_analytic_panel(
+        outer,
+        explanation_text=content["explanation"],
+        steps_text=content["steps_text"],
+        result_text=content["result_text"],
+        takeaway_text=content["takeaway"],
+        layout_mode=requested_mode,
+        visual_kind=content["mini_visual"],
+        top_pad=float(layout.get("top_pad", 0.16)),
+        bottom_pad=float(layout.get("bottom_pad", 0.14)),
+        side_pad=float(layout.get("side_pad", 0.20)),
+        gap=float(layout.get("gap", 0.10)),
+        col_gap=float(layout.get("col_gap", layout.get("column_gap", 0.20))),
+        min_steps_h=float(layout.get("min_steps_h", 1.95)),
+        explanation_min_h=float(layout.get("explanation_min_h", 0.34)),
+        explanation_max_h=float(layout.get("explanation_max_h", 0.62)),
+        result_min_h=float(layout.get("result_min_h", 0.72)),
+        result_max_h=float(layout.get("result_max_h", 1.08)),
+        takeaway_min_h=float(layout.get("takeaway_min_h", 0.50)),
+        takeaway_max_h=float(layout.get("takeaway_max_h", 0.84)),
     )
-    penalty += geom_penalty
-    notes.extend(geom_notes)
+    layout_result = _fallback_layout(outer, content, layout, layout_result)
 
-    # Penalize obviously awkward balance.
-    if candidate_name == "two_column_text_heavy":
-        penalty += abs(layout.diagram_share - 0.22) * 35.0
-    elif candidate_name == "two_column_visual_heavy":
-        penalty += abs(layout.diagram_share - 0.34) * 25.0
-    elif candidate_name.startswith("top_visual"):
-        penalty += abs(layout.diagram_share - 0.34) * 30.0
+    suppress_caption = layout_result.diagram_box.h < 1.45 or layout_result.candidate_name.startswith("top_visual")
+    _visual_card(slide, layout_result.diagram_box, content, style, suppress_caption=suppress_caption)
 
-    # Dense content should prefer text-heavy candidates.
-    if density_score >= 7.5 and candidate_name.startswith("top_visual"):
-        penalty += 18.0
-    if density_score >= 8.5 and candidate_name == "two_column_visual_heavy":
-        penalty += 14.0
+    if layout_result.explanation_box.h > 0 and content["explanation"]:
+        _text_card(slide, layout_result.explanation_box, content["explanation_label"], content["explanation"], style, style["body_color"], 11, 14, 4)
 
-    # Very small result/takeaway regions are risky.
-    if layout.result_box.h > 0 and layout.result_box.h < 0.55:
-        penalty += 20.0
-        notes.append("result_box_tight")
-    if layout.takeaway_box.h > 0 and layout.takeaway_box.h < 0.35:
-        penalty += 16.0
-        notes.append("takeaway_box_tight")
+    if layout_result.steps_box.h > 0 and content["steps"]:
+        _card(slide, layout_result.steps_box, style)
+        add_box_title(slide, x=layout_result.steps_box.x + 0.12, y=layout_result.steps_box.y + 0.06, w=max(0.0, layout_result.steps_box.w - 0.24), text=content["steps_label"], color=style["label_color"], font_size=11)
+        inner = Box(layout_result.steps_box.x + 0.16, layout_result.steps_box.y + 0.34, max(0.0, layout_result.steps_box.w - 0.32), max(0.0, layout_result.steps_box.h - 0.52))
+        render_compact_derivation_stack(
+            slide,
+            box=inner,
+            steps=content["steps"],
+            style=style["math"],
+            min_body_font=10,
+            max_body_font=12,
+            min_formula_font=11,
+            max_formula_font=13,
+            final_answer="",
+            emphasize_final_answer=False,
+            align=PP_ALIGN.LEFT,
+        )
 
-    return penalty, tuple(notes)
+    if layout_result.result_box.h > 0 and content["result_lines"]:
+        render_result_callout(
+            slide,
+            box=layout_result.result_box,
+            result_lines=content["result_lines"],
+            label=content["result_label"],
+            style=style["math"],
+            min_font=11,
+            max_font=15,
+            emphasize_final_answer=True,
+            align=PP_ALIGN.LEFT,
+            draw_card=True,
+        )
 
+    if layout_result.takeaway_box.h > 0 and content["takeaway"]:
+        _text_card(slide, layout_result.takeaway_box, content["takeaway_label"], content["takeaway"], style, style["takeaway_color"], 10, 13, 4, bold=True)
 
-def _safe_dict(kwargs: dict[str, Any], allowed: Iterable[str]) -> dict[str, Any]:
-    return {k: v for k, v in kwargs.items() if k in allowed and v is not None}
-
-
-def _build_two_column_candidate(
-    outer_box: Box,
-    *,
-    explanation_text: str,
-    steps_text: str,
-    result_text: str,
-    takeaway_text: str,
-    share_triplet: tuple[float, float, float],
-    kwargs: dict[str, Any],
-) -> WorkedExampleLayoutResult:
-    settings = _safe_dict(kwargs, _ALLOWED_TWO_COLUMN_KEYS)
-    settings.update(
-        {
-            "diagram_min_share": share_triplet[0],
-            "diagram_preferred_share": share_triplet[1],
-            "diagram_max_share": share_triplet[2],
-        }
-    )
-    return layout_worked_example_two_column(
-        outer_box,
-        explanation_text=explanation_text,
-        steps_text=steps_text,
-        result_text=result_text,
-        takeaway_text=takeaway_text,
-        **settings,
-    )
+    add_footer(slide, dark=style["footer_dark"], color=style["footer_color"])
 
 
-def _build_top_visual_candidate(
-    outer_box: Box,
-    *,
-    explanation_text: str,
-    steps_text: str,
-    result_text: str,
-    takeaway_text: str,
-    share_triplet: tuple[float, float, float],
-    kwargs: dict[str, Any],
-) -> WorkedExampleLayoutResult:
-    settings = _safe_dict(kwargs, _ALLOWED_TOP_VISUAL_KEYS)
-    settings.update(
-        {
-            "diagram_min_share": share_triplet[0],
-            "diagram_preferred_share": share_triplet[1],
-            "diagram_max_share": share_triplet[2],
-        }
-    )
-    return layout_worked_example_top_visual(
-        outer_box,
-        explanation_text=explanation_text,
-        steps_text=steps_text,
-        result_text=result_text,
-        takeaway_text=takeaway_text,
-        **settings,
-    )
-
-
-def _candidate_definitions(
-    *,
-    requested_mode: str,
-    metadata: dict[str, Any],
-    density_score: float,
-) -> list[tuple[str, str, tuple[float, float, float]]]:
-    allow_top = bool(metadata.get("allow_top_strip", True))
-    preferred_layout = str(metadata.get("preferred_layout", "either") or "either").strip().lower()
-
-    candidates: list[tuple[str, str, tuple[float, float, float]]] = []
-
-    # Put likely-good candidates first.
-    if preferred_layout in {"hero", "top_visual"} and allow_top:
-        candidates.append(("top_visual_hero", "top_visual", (0.28, 0.35, 0.44)))
-    if requested_mode == "top_visual" and allow_top:
-        candidates.append(("top_visual_requested", "top_visual", (0.24, 0.31, 0.40)))
-
-    # Analytic defaults lean text-first.
-    if density_score >= 7.5:
-        candidates.append(("two_column_text_heavy", "two_column", (0.20, 0.24, 0.30)))
-        candidates.append(("two_column", "two_column", (0.22, 0.27, 0.34)))
-    else:
-        candidates.append(("two_column", "two_column", (0.22, 0.28, 0.36)))
-        candidates.append(("two_column_visual_heavy", "two_column", (0.26, 0.32, 0.40)))
-
-    if allow_top and preferred_layout not in {"two_column"}:
-        candidates.append(("top_visual", "top_visual", (0.22, 0.29, 0.38)))
-
-    # Deduplicate by candidate name.
-    seen: set[str] = set()
-    deduped: list[tuple[str, str, tuple[float, float, float]]] = []
-    for item in candidates:
-        if item[0] in seen:
-            continue
-        seen.add(item[0])
-        deduped.append(item)
-    return deduped
-
-
-def _as_result(base: WorkedExampleLayoutResult, *, candidate_name: str, score: float, split_required: bool, overflow_sections: tuple[str, ...], notes: tuple[str, ...]) -> AnalyticPanelLayoutResult:
-    return AnalyticPanelLayoutResult(
-        outer_box=base.outer_box,
-        diagram_box=base.diagram_box,
-        steps_box=base.steps_box,
-        result_box=base.result_box,
-        takeaway_box=base.takeaway_box,
-        explanation_box=base.explanation_box,
-        text_fits=base.text_fits,
-        mode=base.mode,
-        diagram_share=base.diagram_share,
-        candidate_name=candidate_name,
-        score=score,
-        split_required=split_required,
-        overflow_sections=overflow_sections,
-        notes=notes,
-    )
-
-
-def layout_analytic_panel_top_visual(
-    outer_box,
-    *,
-    explanation_text: str = "",
-    steps_text: str = "",
-    result_text: str = "",
-    takeaway_text: str = "",
-    visual_kind: str | None = None,
-    **kwargs,
-) -> AnalyticPanelLayoutResult:
-    return layout_analytic_panel(
-        outer_box,
-        explanation_text=explanation_text,
-        steps_text=steps_text,
-        result_text=result_text,
-        takeaway_text=takeaway_text,
-        layout_mode="top_visual",
-        visual_kind=visual_kind,
-        **kwargs,
-    )
-
-
-def layout_analytic_panel_two_column(
-    outer_box,
-    *,
-    explanation_text: str = "",
-    steps_text: str = "",
-    result_text: str = "",
-    takeaway_text: str = "",
-    visual_kind: str | None = None,
-    **kwargs,
-) -> AnalyticPanelLayoutResult:
-    return layout_analytic_panel(
-        outer_box,
-        explanation_text=explanation_text,
-        steps_text=steps_text,
-        result_text=result_text,
-        takeaway_text=takeaway_text,
-        layout_mode="two_column",
-        visual_kind=visual_kind,
-        **kwargs,
-    )
-
-
-def layout_analytic_panel(
-    outer_box,
-    *,
-    explanation_text: str = "",
-    steps_text: str = "",
-    result_text: str = "",
-    takeaway_text: str = "",
-    layout_mode: str = "two_column",
-    visual_kind: str | None = None,
-    force_candidates: Iterable[str] | None = None,
-    split_score_threshold: float = 42.0,
-    **kwargs,
-) -> AnalyticPanelLayoutResult:
-    metadata = _merged_visual_metadata(visual_kind)
-    density = _density_score(
-        explanation_text=explanation_text,
-        steps_text=steps_text,
-        result_text=result_text,
-        takeaway_text=takeaway_text,
-    )
-
-    requested_mode = str(layout_mode or "two_column").strip().lower()
-    candidate_defs = _candidate_definitions(requested_mode=requested_mode, metadata=metadata, density_score=density)
-    if force_candidates:
-        wanted = {str(name) for name in force_candidates}
-        candidate_defs = [c for c in candidate_defs if c[0] in wanted]
-    if not candidate_defs:
-        candidate_defs = [("two_column", "two_column", (0.22, 0.28, 0.36))]
-
-    best_result: AnalyticPanelLayoutResult | None = None
-
-    for candidate_name, family, shares in candidate_defs:
-        if family == "top_visual":
-            base = _build_top_visual_candidate(
-                outer_box,
-                explanation_text=explanation_text,
-                steps_text=steps_text,
-                result_text=result_text,
-                takeaway_text=takeaway_text,
-                share_triplet=shares,
-                kwargs=kwargs,
-            )
-        else:
-            base = _build_two_column_candidate(
-                outer_box,
-                explanation_text=explanation_text,
-                steps_text=steps_text,
-                result_text=result_text,
-                takeaway_text=takeaway_text,
-                share_triplet=shares,
-                kwargs=kwargs,
-            )
-
-        score, notes = _candidate_score(base, metadata=metadata, candidate_name=candidate_name, density_score=density)
-        overflow = tuple(sorted(k for k, fit in base.text_fits.items() if not fit.fits))
-        split_required = bool(score >= split_score_threshold or (len(overflow) >= 2 and density >= 8.0))
-        result = _as_result(base, candidate_name=candidate_name, score=score, split_required=split_required, overflow_sections=overflow, notes=notes)
-        if best_result is None or result.score < best_result.score:
-            best_result = result
-
-    assert best_result is not None
-    return best_result
-
-
-__all__ = [
-    "AnalyticPanelLayoutResult",
-    "layout_analytic_panel",
-    "layout_analytic_panel_top_visual",
-    "layout_analytic_panel_two_column",
-]
+__all__ = ["build_analytic_panel_slide"]
