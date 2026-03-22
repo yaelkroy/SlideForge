@@ -16,6 +16,11 @@ from slideforge.render.header import render_header_from_spec
 from slideforge.render.math_blocks import MathBlockStyle, render_compact_derivation_stack, render_result_callout
 from slideforge.render.primitives import add_box_title, add_footer, add_rounded_box, add_textbox
 
+SAFE_TEXT_HEIGHT_RATIO = 0.86
+SAFE_TEXT_WIDTH_RATIO = 0.96
+CAPTION_MIN_H_TO_SHOW = 1.55
+VISUAL_MIN_W_FOR_CAPTION = 3.25
+
 
 def _clean(value: Any) -> str:
     return str(value or "").strip()
@@ -25,25 +30,41 @@ def _lines(items: Sequence[Any] | None) -> list[str]:
     return [_clean(item) for item in (items or []) if _clean(item)]
 
 
-def _fit(text: str, box: Box, min_font: int, max_font: int, max_lines: int | None, *, line_spacing: float = 1.10) -> int:
-    if not _clean(text) or box.w <= 0 or box.h <= 0:
+def _fit(text: str, box: Box, min_font: int, max_font: int, max_lines: int | None, *, line_spacing: float = 1.08) -> int:
+    text = _clean(text)
+    if not text or box.w <= 0 or box.h <= 0:
         return max_font
     fitted = fit_text(
         text,
-        box.w * 0.96,
-        box.h * 0.90,
+        box.w * SAFE_TEXT_WIDTH_RATIO,
+        box.h * SAFE_TEXT_HEIGHT_RATIO,
         min_font_size=min_font,
         max_font_size=max_font,
         max_lines=max_lines,
         line_spacing=line_spacing,
     )
-    return max(min_font, fitted.font_size - 1)
+    font = max(min_font, fitted.font_size)
+    while font > min_font:
+        probe = fit_text(
+            text,
+            box.w * SAFE_TEXT_WIDTH_RATIO,
+            box.h * SAFE_TEXT_HEIGHT_RATIO,
+            min_font_size=font,
+            max_font_size=font,
+            max_lines=max_lines,
+            line_spacing=line_spacing,
+        )
+        if probe.estimated_height <= box.h * SAFE_TEXT_HEIGHT_RATIO:
+            break
+        font -= 1
+    return max(min_font, font)
 
 
 def _estimate(text: str, width: float, min_font: int, max_font: int, max_lines: int | None, *, extra: float = 0.05) -> float:
-    if not _clean(text) or width <= 0:
+    text = _clean(text)
+    if not text or width <= 0:
         return 0.0
-    fitted = fit_text(text, width * 0.96, 10.0, min_font_size=min_font, max_font_size=max_font, max_lines=max_lines)
+    fitted = fit_text(text, width * SAFE_TEXT_WIDTH_RATIO, 10.0, min_font_size=min_font, max_font_size=max_font, max_lines=max_lines)
     return max(0.0, fitted.estimated_height + extra)
 
 
@@ -164,7 +185,7 @@ def _text_card(slide, box: Box, label: str, text: str, style: Mapping[str, Any],
         return
     _card(slide, box, style)
     add_box_title(slide, x=box.x + 0.12, y=box.y + 0.06, w=max(0.0, box.w - 0.24), text=label, color=style["label_color"], font_size=11)
-    inner = Box(box.x + 0.16, box.y + 0.34, max(0.0, box.w - 0.32), max(0.0, box.h - 0.50))
+    inner = Box(box.x + 0.16, box.y + 0.34, max(0.0, box.w - 0.32), max(0.0, box.h - 0.52))
     add_textbox(slide, x=inner.x, y=inner.y, w=inner.w, h=inner.h, text=text, font_name=BODY_FONT, font_size=_fit(text, inner, min_font, max_font, max_lines), color=color, bold=bold, align=PP_ALIGN.LEFT)
 
 
@@ -184,7 +205,9 @@ def _visual_card(slide, box: Box, content: Mapping[str, Any], style: Mapping[str
 
 
 def _fallback_layout(outer: Box, content: Mapping[str, Any], layout: Mapping[str, Any], layout_result: AnalyticPanelLayoutResult) -> AnalyticPanelLayoutResult:
-    if not layout_result.split_required and layout_result.score < 34.0:
+    # If hard readability violations remain, force the safest text-heavy two-column candidate.
+    hard_note = any(note.startswith("hard_") for note in layout_result.notes)
+    if not layout_result.split_required and layout_result.score < 34.0 and not hard_note:
         return layout_result
     return layout_analytic_panel(
         outer,
@@ -264,7 +287,12 @@ def build_analytic_panel_slide(prs: Presentation, spec: dict[str, Any], counters
     )
     layout_result = _fallback_layout(outer, content, layout, layout_result)
 
-    suppress_caption = layout_result.diagram_box.h < 1.45 or layout_result.candidate_name.startswith("top_visual")
+    suppress_caption = (
+        layout_result.diagram_box.h < CAPTION_MIN_H_TO_SHOW
+        or layout_result.diagram_box.w < VISUAL_MIN_W_FOR_CAPTION
+        or layout_result.candidate_name.startswith("top_visual")
+        or any(note.startswith("hard_diagram") or note == "hard_visual_labels_too_small" for note in layout_result.notes)
+    )
     _visual_card(slide, layout_result.diagram_box, content, style, suppress_caption=suppress_caption)
 
     if layout_result.explanation_box.h > 0 and content["explanation"]:
@@ -273,7 +301,7 @@ def build_analytic_panel_slide(prs: Presentation, spec: dict[str, Any], counters
     if layout_result.steps_box.h > 0 and content["steps"]:
         _card(slide, layout_result.steps_box, style)
         add_box_title(slide, x=layout_result.steps_box.x + 0.12, y=layout_result.steps_box.y + 0.06, w=max(0.0, layout_result.steps_box.w - 0.24), text=content["steps_label"], color=style["label_color"], font_size=11)
-        inner = Box(layout_result.steps_box.x + 0.16, layout_result.steps_box.y + 0.34, max(0.0, layout_result.steps_box.w - 0.32), max(0.0, layout_result.steps_box.h - 0.52))
+        inner = Box(layout_result.steps_box.x + 0.16, layout_result.steps_box.y + 0.34, max(0.0, layout_result.steps_box.w - 0.32), max(0.0, layout_result.steps_box.h - 0.54))
         render_compact_derivation_stack(
             slide,
             box=inner,

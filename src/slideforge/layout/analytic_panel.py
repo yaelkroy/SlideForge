@@ -5,7 +5,7 @@ from typing import Any, Iterable
 
 from slideforge.assets.mini_visuals import resolve_visual_kind
 from slideforge.layout.base import Box
-from slideforge.layout.text_fit import TextFit, clamp
+from slideforge.layout.text_fit import TextFit
 from slideforge.layout.worked_example import (
     WorkedExampleLayoutResult,
     layout_worked_example_top_visual,
@@ -31,20 +31,30 @@ class AnalyticPanelLayoutResult:
     notes: tuple[str, ...] = ()
 
 
-# Visual metadata lives here for now so the layout solver can reason about
-# geometry without requiring each drawer module to export metadata yet.
+# Hard readability thresholds. These are deliberately conservative.
+TEXT_HARD_RATIO = 0.88
+TEXT_WARN_RATIO = 0.82
+TEXT_SAFE_RATIO = 0.78
+MIN_RESULT_BOX_H = 0.62
+MIN_TAKEAWAY_BOX_H = 0.40
+HARD_SPLIT_SCORE = 46.0
+
+LABEL_MIN_PT = {
+    "low": 10.0,
+    "medium": 11.0,
+    "high": 12.0,
+}
+
 _VISUAL_METADATA: dict[str, dict[str, Any]] = {
-    # Title / divider hero
     "point_vector_projection_hero": {
         "preferred_layout": "hero",
         "min_width_in": 7.2,
-        "min_height_in": 2.2,
-        "preferred_aspect_ratio": 3.4,
+        "min_height_in": 2.25,
+        "preferred_aspect_ratio": 3.2,
         "label_density": "low",
         "text_bearing": False,
         "allow_top_strip": True,
     },
-    # Concept bridges
     "point_and_vector_same_coords": {
         "preferred_layout": "two_column",
         "min_width_in": 4.7,
@@ -57,7 +67,7 @@ _VISUAL_METADATA: dict[str, dict[str, Any]] = {
     "vector_difference_geometry": {
         "preferred_layout": "two_column",
         "min_width_in": 4.8,
-        "min_height_in": 2.05,
+        "min_height_in": 2.0,
         "preferred_aspect_ratio": 2.5,
         "label_density": "medium",
         "text_bearing": False,
@@ -72,29 +82,28 @@ _VISUAL_METADATA: dict[str, dict[str, Any]] = {
         "text_bearing": False,
         "allow_top_strip": False,
     },
-    # Analytic / worked visuals
     "norm_worked_geometry": {
         "preferred_layout": "two_column",
-        "min_width_in": 3.2,
-        "min_height_in": 2.2,
-        "preferred_aspect_ratio": 0.85,
+        "min_width_in": 3.4,
+        "min_height_in": 2.25,
+        "preferred_aspect_ratio": 0.88,
         "label_density": "medium",
         "text_bearing": False,
         "allow_top_strip": False,
     },
     "dot_product_worked_geometry": {
         "preferred_layout": "two_column",
-        "min_width_in": 3.6,
+        "min_width_in": 3.85,
         "min_height_in": 2.35,
-        "preferred_aspect_ratio": 0.95,
+        "preferred_aspect_ratio": 1.0,
         "label_density": "high",
         "text_bearing": False,
         "allow_top_strip": False,
     },
     "angle_homework_geometry": {
         "preferred_layout": "two_column",
-        "min_width_in": 4.3,
-        "min_height_in": 2.0,
+        "min_width_in": 4.35,
+        "min_height_in": 2.05,
         "preferred_aspect_ratio": 2.1,
         "label_density": "medium",
         "text_bearing": False,
@@ -111,7 +120,7 @@ _VISUAL_METADATA: dict[str, dict[str, Any]] = {
     },
     "orthogonal_vectors_geometry": {
         "preferred_layout": "two_column",
-        "min_width_in": 3.7,
+        "min_width_in": 3.8,
         "min_height_in": 2.1,
         "preferred_aspect_ratio": 1.0,
         "label_density": "medium",
@@ -120,9 +129,9 @@ _VISUAL_METADATA: dict[str, dict[str, Any]] = {
     },
     "projection_homework_geometry": {
         "preferred_layout": "two_column",
-        "min_width_in": 3.7,
+        "min_width_in": 3.8,
         "min_height_in": 2.15,
-        "preferred_aspect_ratio": 0.9,
+        "preferred_aspect_ratio": 0.92,
         "label_density": "medium",
         "text_bearing": False,
         "allow_top_strip": False,
@@ -248,12 +257,22 @@ def _underfill_penalty(layout: WorkedExampleLayoutResult) -> float:
         occupied += max(0.0, box.w * box.h)
     outer = max(0.01, layout.outer_box.w * layout.outer_box.h)
     fill = occupied / outer
-    return max(0.0, 0.56 - fill) * 22.0
+    return max(0.0, 0.58 - fill) * 26.0
 
 
-def _text_penalty(layout: WorkedExampleLayoutResult) -> tuple[float, list[str]]:
+def _estimate_label_pt(box: Box, *, density: str, text_bearing: bool) -> float:
+    w_factor = {"low": 2.6, "medium": 2.15, "high": 1.8}.get(density, 2.0)
+    h_factor = {"low": 5.6, "medium": 4.8, "high": 4.1}.get(density, 4.5)
+    est = min(box.w * w_factor, box.h * h_factor)
+    if text_bearing:
+        est -= 1.0
+    return est
+
+
+def _text_penalty(layout: WorkedExampleLayoutResult) -> tuple[float, list[str], list[str]]:
     penalty = 0.0
     notes: list[str] = []
+    hard: list[str] = []
     region = {
         "explanation": layout.explanation_box,
         "steps": layout.steps_box,
@@ -265,20 +284,40 @@ def _text_penalty(layout: WorkedExampleLayoutResult) -> tuple[float, list[str]]:
         if box is None or box.h <= 0:
             continue
         ratio = fit.estimated_height / max(box.h, 1e-6)
-        if not fit.fits:
-            penalty += 130.0
-            notes.append(f"overflow:{name}")
-        if ratio > 0.90:
-            penalty += (ratio - 0.90) * 260.0
+        if not fit.fits or ratio > TEXT_HARD_RATIO:
+            penalty += 420.0
+            notes.append(f"hard_text_overflow:{name}")
+            hard.append(name)
+            continue
+        if ratio > TEXT_WARN_RATIO:
+            penalty += 160.0 + (ratio - TEXT_WARN_RATIO) * 180.0
             notes.append(f"bottom_risk:{name}")
-        elif ratio > 0.84:
-            penalty += (ratio - 0.84) * 80.0
-    return penalty, notes
+        elif ratio > TEXT_SAFE_RATIO:
+            penalty += (ratio - TEXT_SAFE_RATIO) * 70.0
+
+    if layout.result_box.h > 0 and layout.result_box.h < MIN_RESULT_BOX_H:
+        penalty += 120.0
+        notes.append("hard_result_box_tight")
+        hard.append("result_box")
+    elif layout.result_box.h > 0 and layout.result_box.h < MIN_RESULT_BOX_H + 0.12:
+        penalty += 30.0
+        notes.append("result_box_tight")
+
+    if layout.takeaway_box.h > 0 and layout.takeaway_box.h < MIN_TAKEAWAY_BOX_H:
+        penalty += 90.0
+        notes.append("hard_takeaway_box_tight")
+        hard.append("takeaway_box")
+    elif layout.takeaway_box.h > 0 and layout.takeaway_box.h < MIN_TAKEAWAY_BOX_H + 0.10:
+        penalty += 18.0
+        notes.append("takeaway_box_tight")
+
+    return penalty, notes, hard
 
 
-def _geometry_penalty(layout: WorkedExampleLayoutResult, *, metadata: dict[str, Any], candidate_mode: str) -> tuple[float, list[str]]:
+def _geometry_penalty(layout: WorkedExampleLayoutResult, *, metadata: dict[str, Any], candidate_mode: str) -> tuple[float, list[str], list[str]]:
     penalty = 0.0
     notes: list[str] = []
+    hard: list[str] = []
     box = layout.diagram_box
     min_w = float(metadata.get("min_width_in", 0.0) or 0.0)
     min_h = float(metadata.get("min_height_in", 0.0) or 0.0)
@@ -286,41 +325,62 @@ def _geometry_penalty(layout: WorkedExampleLayoutResult, *, metadata: dict[str, 
     preferred_layout = str(metadata.get("preferred_layout", "either") or "either").strip().lower()
     allow_top_strip = bool(metadata.get("allow_top_strip", True))
     label_density = str(metadata.get("label_density", "medium") or "medium").strip().lower()
+    text_bearing = bool(metadata.get("text_bearing", False))
 
     if min_w and box.w < min_w:
-        penalty += (min_w - box.w) * 85.0
-        notes.append("diagram_too_narrow")
+        penalty += 360.0 + (min_w - box.w) * 90.0
+        notes.append("hard_diagram_too_narrow")
+        hard.append("diagram_width")
+    elif min_w and box.w < min_w * 1.08:
+        penalty += 80.0 + (min_w * 1.08 - box.w) * 40.0
+        notes.append("diagram_near_min_width")
+
     if min_h and box.h < min_h:
-        penalty += (min_h - box.h) * 95.0
-        notes.append("diagram_too_short")
+        penalty += 360.0 + (min_h - box.h) * 95.0
+        notes.append("hard_diagram_too_short")
+        hard.append("diagram_height")
+    elif min_h and box.h < min_h * 1.08:
+        penalty += 80.0 + (min_h * 1.08 - box.h) * 40.0
+        notes.append("diagram_near_min_height")
+
     if pref_ratio and box.h > 0:
         actual = box.w / max(box.h, 1e-6)
         delta = abs(actual - pref_ratio)
-        penalty += delta * 10.0
-        if delta > 0.8:
+        penalty += delta * 12.0
+        if delta > 1.1:
+            penalty += 110.0
+            notes.append("hard_diagram_aspect_far_from_preference")
+            hard.append("diagram_aspect")
+        elif delta > 0.7:
             notes.append("diagram_aspect_far_from_preference")
 
     if candidate_mode == "top_visual" and not allow_top_strip:
-        penalty += 260.0
-        notes.append("top_strip_forbidden")
+        penalty += 500.0
+        notes.append("hard_top_strip_forbidden")
+        hard.append("top_strip")
 
     if preferred_layout == "two_column" and candidate_mode == "top_visual":
-        penalty += 32.0
+        penalty += 36.0
     elif preferred_layout in {"hero", "top_visual"} and candidate_mode == "two_column":
         penalty += 14.0
 
-    if label_density == "high" and candidate_mode == "top_visual":
-        penalty += 30.0
-    elif label_density == "medium" and candidate_mode == "top_visual":
-        penalty += 14.0
+    if label_density in LABEL_MIN_PT:
+        est_pt = _estimate_label_pt(box, density=label_density, text_bearing=text_bearing)
+        min_pt = LABEL_MIN_PT[label_density]
+        if est_pt < min_pt:
+            penalty += 320.0 + (min_pt - est_pt) * 42.0
+            notes.append("hard_visual_labels_too_small")
+            hard.append("visual_labels")
+        elif est_pt < min_pt + 1.5:
+            penalty += 55.0
+            notes.append("visual_labels_near_min")
 
-    if layout.result_box.h > 0 and layout.result_box.h < 0.55:
+    if label_density == "high" and candidate_mode == "top_visual":
+        penalty += 40.0
+    elif label_density == "medium" and candidate_mode == "top_visual":
         penalty += 18.0
-        notes.append("result_box_tight")
-    if layout.takeaway_box.h > 0 and layout.takeaway_box.h < 0.34:
-        penalty += 14.0
-        notes.append("takeaway_box_tight")
-    return penalty, notes
+
+    return penalty, notes, hard
 
 
 def _candidate_definitions(*, requested_mode: str, density: float, metadata: dict[str, Any]) -> list[tuple[str, str, tuple[float, float, float]]]:
@@ -328,14 +388,13 @@ def _candidate_definitions(*, requested_mode: str, density: float, metadata: dic
     preferred_layout = str(metadata.get("preferred_layout", "either") or "either").strip().lower()
     candidates: list[tuple[str, str, tuple[float, float, float]]] = []
 
-    # Start with what the slide asked for, but don't trust it blindly.
     if requested_mode == "top_visual" and allow_top:
         candidates.append(("top_visual_requested", "top_visual", (0.24, 0.31, 0.40)))
     elif requested_mode == "two_column":
-        candidates.append(("two_column_requested", "two_column", (0.24, 0.30, 0.38)))
+        candidates.append(("two_column_requested", "two_column", (0.23, 0.30, 0.39)))
 
     if preferred_layout in {"hero", "top_visual"} and allow_top:
-        candidates.append(("top_visual_hero", "top_visual", (0.28, 0.35, 0.44)))
+        candidates.append(("top_visual_hero", "top_visual", (0.28, 0.35, 0.45)))
 
     if density >= 7.5:
         candidates.append(("two_column_text_heavy", "two_column", (0.20, 0.24, 0.30)))
@@ -344,7 +403,7 @@ def _candidate_definitions(*, requested_mode: str, density: float, metadata: dic
             candidates.append(("top_visual", "top_visual", (0.20, 0.27, 0.36)))
     else:
         candidates.append(("two_column", "two_column", (0.23, 0.29, 0.36)))
-        candidates.append(("two_column_visual_heavy", "two_column", (0.26, 0.33, 0.40)))
+        candidates.append(("two_column_visual_heavy", "two_column", (0.27, 0.34, 0.41)))
         if allow_top:
             candidates.append(("top_visual", "top_visual", (0.22, 0.29, 0.38)))
 
@@ -358,11 +417,12 @@ def _candidate_definitions(*, requested_mode: str, density: float, metadata: dic
     return deduped or [("two_column", "two_column", (0.22, 0.28, 0.36))]
 
 
-def _candidate_score(base: WorkedExampleLayoutResult, *, metadata: dict[str, Any], candidate_name: str, density: float) -> tuple[float, tuple[str, ...]]:
+def _candidate_score(base: WorkedExampleLayoutResult, *, metadata: dict[str, Any], candidate_name: str, density: float) -> tuple[float, tuple[str, ...], tuple[str, ...]]:
     notes: list[str] = []
+    hard: list[str] = []
     penalty = 0.0
-    text_penalty, text_notes = _text_penalty(base)
-    geom_penalty, geom_notes = _geometry_penalty(
+    text_penalty, text_notes, text_hard = _text_penalty(base)
+    geom_penalty, geom_notes, geom_hard = _geometry_penalty(
         base,
         metadata=metadata,
         candidate_mode="top_visual" if candidate_name.startswith("top_visual") else "two_column",
@@ -370,21 +430,22 @@ def _candidate_score(base: WorkedExampleLayoutResult, *, metadata: dict[str, Any
     penalty += text_penalty + geom_penalty + _underfill_penalty(base)
     notes.extend(text_notes)
     notes.extend(geom_notes)
+    hard.extend(text_hard)
+    hard.extend(geom_hard)
 
-    # Penalize awkward balance. Dense analytic slides usually want more text width.
     if candidate_name == "two_column_text_heavy":
         penalty += abs(base.diagram_share - 0.24) * 25.0
     elif candidate_name == "two_column_visual_heavy":
-        penalty += abs(base.diagram_share - 0.33) * 16.0
+        penalty += abs(base.diagram_share - 0.33) * 18.0
     elif candidate_name.startswith("top_visual"):
-        penalty += abs(base.diagram_share - 0.32) * 20.0
+        penalty += abs(base.diagram_share - 0.32) * 22.0
         if density >= 7.5:
-            penalty += 16.0
+            penalty += 18.0
 
     if density >= 8.5 and candidate_name == "two_column_visual_heavy":
         penalty += 12.0
 
-    return penalty, tuple(notes)
+    return penalty, tuple(dict.fromkeys(notes)), tuple(dict.fromkeys(hard))
 
 
 def _as_result(base: WorkedExampleLayoutResult, *, candidate_name: str, score: float, split_required: bool, overflow_sections: tuple[str, ...], notes: tuple[str, ...]) -> AnalyticPanelLayoutResult:
@@ -416,7 +477,7 @@ def layout_analytic_panel(
     layout_mode: str = "two_column",
     visual_kind: str | None = None,
     force_candidates: Iterable[str] | None = None,
-    split_score_threshold: float = 42.0,
+    split_score_threshold: float = HARD_SPLIT_SCORE,
     **kwargs,
 ) -> AnalyticPanelLayoutResult:
     metadata = _metadata(visual_kind)
@@ -455,10 +516,10 @@ def layout_analytic_panel(
                 kwargs=kwargs,
             )
 
-        score, notes = _candidate_score(base, metadata=metadata, candidate_name=candidate_name, density=density)
+        score, notes, hard = _candidate_score(base, metadata=metadata, candidate_name=candidate_name, density=density)
         overflow = tuple(sorted(k for k, fit in base.text_fits.items() if not fit.fits))
-        split_required = bool(score >= split_score_threshold or (len(overflow) >= 2 and density >= 8.0))
-        result = _as_result(base, candidate_name=candidate_name, score=score, split_required=split_required, overflow_sections=overflow, notes=notes)
+        split_required = bool(bool(hard) or score >= split_score_threshold or (len(overflow) >= 1 and density >= 8.0))
+        result = _as_result(base, candidate_name=candidate_name, score=score, split_required=split_required, overflow_sections=overflow or hard, notes=notes)
         if best is None or result.score < best.score:
             best = result
     assert best is not None
