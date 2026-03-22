@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import matplotlib.patches as mpatches
 
@@ -16,52 +17,106 @@ from slideforge.assets.mini_visuals_common import (
 )
 
 
-def _make_point_vector_projection_hero(path: Path, variant: str) -> Path:
-    """Large, sparse hero graphic for section-divider use.
+VISUAL_METADATA: dict[str, dict[str, Any]] = {
+    "point_vector_projection_hero": {
+        "preferred_layout": "hero",
+        "min_width_in": 7.6,
+        "min_height_in": 2.15,
+        "preferred_aspect_ratio": 3.8,
+        "label_density": "low",
+        "text_bearing": False,
+        "allow_top_strip": True,
+        "hero_simplify_labels": True,
+    },
+    "ml_norm_bridge": {
+        "preferred_layout": "top_visual",
+        "min_width_in": 3.8,
+        "min_height_in": 1.6,
+        "preferred_aspect_ratio": 2.2,
+        "label_density": "medium",
+        "text_bearing": False,
+        "allow_top_strip": True,
+    },
+    "ml_dot_bridge": {
+        "preferred_layout": "top_visual",
+        "min_width_in": 3.8,
+        "min_height_in": 1.6,
+        "preferred_aspect_ratio": 2.2,
+        "label_density": "medium",
+        "text_bearing": False,
+        "allow_top_strip": True,
+    },
+    "ml_projection_bridge": {
+        "preferred_layout": "top_visual",
+        "min_width_in": 4.0,
+        "min_height_in": 1.7,
+        "preferred_aspect_ratio": 2.3,
+        "label_density": "medium",
+        "text_bearing": False,
+        "allow_top_strip": True,
+    },
+}
 
-    This visual deliberately avoids tiny coordinate labels and thin annotation clutter.
-    The goal is legibility on dark title slides and in compressed PDF rendering.
+
+def get_visual_metadata(kind: str) -> dict[str, Any]:
+    return dict(VISUAL_METADATA.get(str(kind or "").strip(), {}))
+
+
+def _make_point_vector_projection_hero(path: Path, variant: str) -> Path:
+    """True title-slide hero.
+
+    This version intentionally suppresses instructional labels such as
+    "point" / "vector" and instead shows one bold geometric relation with
+    thicker strokes and a larger occupied band.
     """
     p = palette_for(variant)
-    fig, ax = _canvas(path, figsize=(8.4, 3.7))
+    fig, ax = _canvas(path, figsize=(9.2, 3.9))
     origin, x_end, y_end, z_end = _axes_3d_fake(ax, p)
 
-    # Push the geometry to occupy a much larger readable band.
-    point = (6.35, 3.55)
-    direction = (8.25, 2.10)
+    point = (6.65, 3.70)
+    direction = (8.95, 2.02)
     proj = _tip_projection(point, origin, direction)
+    helper_tip = (4.55, 3.22)
 
-    # Main axes slightly emphasized for title-slide readability.
-    ax.plot([origin[0], x_end[0]], [origin[1], x_end[1]], color=p["ghost"], lw=1.35)
-    ax.plot([origin[0], y_end[0]], [origin[1], y_end[1]], color=p["ghost"], lw=1.35)
-    ax.plot([origin[0], z_end[0]], [origin[1], z_end[1]], color=p["ghost"], lw=1.35)
+    # Emphasized axes.
+    ax.plot([origin[0], x_end[0]], [origin[1], x_end[1]], color=p["ghost"], lw=1.6)
+    ax.plot([origin[0], y_end[0]], [origin[1], y_end[1]], color=p["ghost"], lw=1.55)
+    ax.plot([origin[0], z_end[0]], [origin[1], z_end[1]], color=p["ghost"], lw=1.55)
 
-    # Projection construction.
-    ax.plot([point[0], proj[0]], [point[1], proj[1]], color=p["ghost"], lw=1.15, linestyle="--")
-    ax.plot([point[0], point[0]], [point[1], origin[1]], color=p["ghost"], lw=1.0, linestyle="--")
+    # Large hero vectors.
+    _vector_arrow(ax, origin, point, p, color=p["fg"], lw=3.75, label="", label_dx=0.0, label_dy=0.0)
+    _vector_arrow(ax, origin, proj, p, color=p["soft"], lw=3.15, label="", label_dx=0.0, label_dy=0.0)
+    _vector_arrow(ax, origin, helper_tip, p, color=p["accent"], lw=2.1, label="", label_dx=0.0, label_dy=0.0)
 
-    _vector_arrow(ax, origin, point, p, color=p["accent"], lw=3.4, label="x", label_dx=0.16, label_dy=0.08)
-    _vector_arrow(ax, origin, proj, p, color=p["soft"], lw=2.8, label="p", label_dx=0.16, label_dy=0.08)
+    # Projection construction kept, but lighter and cleaner.
+    ax.plot([point[0], proj[0]], [point[1], proj[1]], color=p["ghost"], lw=1.2, linestyle="--")
+    ax.plot([point[0], point[0]], [point[1], origin[1]], color=p["ghost"], lw=1.05, linestyle="--")
 
-    ax.add_patch(mpatches.Circle(point, 0.19, edgecolor=p["fg"], facecolor=p["accent"], lw=1.4))
+    # Dominant point marker.
+    ax.add_patch(mpatches.Circle(point, 0.21, edgecolor=p["fg"], facecolor=p["accent"], lw=1.4))
+
+    # Simple angle cue only.
     ax.add_patch(
         mpatches.Arc(
-            (3.15, 1.55),
-            1.95,
-            1.25,
+            (3.45, 1.55),
+            2.20,
+            1.38,
             angle=0,
             theta1=7,
             theta2=31,
             color=p["ghost"],
-            lw=1.2,
+            lw=1.25,
         )
     )
-    _label_text(ax, 4.05, 2.10, "α", p, size=9.0, formula=True, color=p["soft"])
+    _label_text(ax, 4.52, 2.08, "α", p, size=9.5, formula=True, color=p["soft"])
 
-    # Only a few large labels. No tiny x1/x2/x3 clutter.
-    _label_text(ax, 2.55, 4.95, "point", p, size=10.6, color=p["soft"])
-    _label_text(ax, 8.65, 4.82, "vector", p, size=10.4, color=p["soft"])
-    _label_text(ax, point[0] + 0.18, point[1] + 0.22, "p", p, size=9.2, formula=True)
+    # Only a couple of large labels.
+    _label_text(ax, point[0] + 0.20, point[1] + 0.20, "P", p, size=9.8, formula=True)
+    _label_text(ax, proj[0] + 0.16, proj[1] - 0.12, "p", p, size=9.0, formula=True)
+
+    # Reduce empty padding so the visual occupies the hero band.
+    ax.set_xlim(0.35, 10.0)
+    ax.set_ylim(0.70, 5.55)
     return _save(fig, path)
 
 
@@ -76,7 +131,6 @@ def _make_ml_norm_bridge(path: Path, variant: str) -> Path:
     return _save(fig, path)
 
 
-
 def _make_ml_dot_bridge(path: Path, variant: str) -> Path:
     p = palette_for(variant)
     fig, ax = _canvas(path, figsize=(4.6, 2.7))
@@ -87,7 +141,6 @@ def _make_ml_dot_bridge(path: Path, variant: str) -> Path:
     _label_text(ax, 6.15, 2.95, "alignment / score", p, size=8.5, color=p["soft"], ha="left")
     _label_text(ax, 6.15, 2.05, "x·y", p, size=10.5, formula=True, ha="left")
     return _save(fig, path)
-
 
 
 def _make_ml_projection_bridge(path: Path, variant: str) -> Path:
