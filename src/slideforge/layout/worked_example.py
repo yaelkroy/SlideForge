@@ -147,11 +147,15 @@ def _content_specs(
     takeaway_min_h: Unit,
     takeaway_max_h: Unit,
     min_steps_h: Unit,
+    steps_min_font: int = 11,
+    steps_max_font: int = 15,
+    result_min_font: int = 13,
+    result_max_font: int = 18,
 ) -> list[_SectionSpec]:
     return [
         _SectionSpec("explanation", explanation_text, 14, 18, 4, explanation_min_h, explanation_max_h, 1.14, 0.04, 2),
-        _SectionSpec("steps", steps_text, 11, 15, None, min_steps_h, None, 1.14, 0.06, 0),
-        _SectionSpec("result", result_text, 13, 18, 5, result_min_h, result_max_h, 1.12, 0.04, 3),
+        _SectionSpec("steps", steps_text, steps_min_font, steps_max_font, None, min_steps_h, None, 1.14, 0.06, 0),
+        _SectionSpec("result", result_text, result_min_font, result_max_font, 5, result_min_h, result_max_h, 1.12, 0.04, 3),
         _SectionSpec("takeaway", takeaway_text, 12, 15, 4, takeaway_min_h, takeaway_max_h, 1.12, 0.04, 4),
     ]
 
