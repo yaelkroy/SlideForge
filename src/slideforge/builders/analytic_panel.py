@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Mapping, Sequence
 
 from pptx import Presentation
-from pptx.enum.text import PP_ALIGN
+from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 
 from slideforge.assets.mini_visuals import add_mini_visual
 from slideforge.builders.common import new_slide
@@ -184,23 +184,23 @@ def _text_card(slide, box: Box, label: str, text: str, style: Mapping[str, Any],
     if box.w <= 0 or box.h <= 0 or not _clean(text):
         return
     _card(slide, box, style)
-    add_box_title(slide, x=box.x + 0.12, y=box.y + 0.06, w=max(0.0, box.w - 0.24), text=label, color=style["label_color"], font_size=11)
-    inner = Box(box.x + 0.16, box.y + 0.34, max(0.0, box.w - 0.32), max(0.0, box.h - 0.52))
+    add_box_title(slide, x=box.x + 0.14, y=box.y + 0.10, w=max(0.0, box.w - 0.28), text=label, color=style["label_color"], font_size=11)
+    inner = Box(box.x + 0.18, box.y + 0.40, max(0.0, box.w - 0.36), max(0.0, box.h - 0.58))
     add_textbox(slide, x=inner.x, y=inner.y, w=inner.w, h=inner.h, text=text, font_name=BODY_FONT, font_size=_fit(text, inner, min_font, max_font, max_lines), color=color, bold=bold, align=PP_ALIGN.LEFT)
 
 
 def _visual_card(slide, box: Box, content: Mapping[str, Any], style: Mapping[str, Any], *, suppress_caption: bool = False) -> None:
     _card(slide, box, style)
-    add_box_title(slide, x=box.x + 0.12, y=box.y + 0.10, w=max(0.0, box.w - 0.24), text=content["visual_label"], color=style["label_color"], font_size=11)
+    add_box_title(slide, x=box.x + 0.14, y=box.y + 0.10, w=max(0.0, box.w - 0.28), text=content["visual_label"], color=style["label_color"], font_size=11)
     caption_h = 0.0
     caption = "" if suppress_caption else content["visual_caption"]
     if caption:
-        caption_h = max(0.18, min(0.34, _estimate(caption, max(0.1, box.w - 0.28), 9, 11, 2, extra=0.02)))
-    img_box = Box(box.x + 0.10, box.y + 0.24, max(0.0, box.w - 0.20), max(0.0, box.h - 0.40 - caption_h))
+        caption_h = max(0.18, min(0.34, _estimate(caption, max(0.1, box.w - 0.40), 9, 11, 2, extra=0.02)))
+    img_box = Box(box.x + 0.18, box.y + 0.40, max(0.0, box.w - 0.36), max(0.0, box.h - 0.60 - caption_h))
     if content["mini_visual"]:
         add_mini_visual(slide, kind=content["mini_visual"], x=img_box.x, y=img_box.y, w=img_box.w, h=img_box.h, suffix="_analytic_panel", variant=style["visual_variant"])
     if caption_h > 0:
-        cap = Box(box.x + 0.12, img_box.y + img_box.h + 0.03, max(0.0, box.w - 0.24), caption_h)
+        cap = Box(box.x + 0.18, img_box.y + img_box.h + 0.04, max(0.0, box.w - 0.36), caption_h)
         add_textbox(slide, x=cap.x, y=cap.y, w=cap.w, h=cap.h, text=caption, font_name=BODY_FONT, font_size=_fit(caption, cap, 9, 11, 2), color=style["body_color"], align=PP_ALIGN.CENTER)
 
 
@@ -216,7 +216,7 @@ def _fallback_layout(outer: Box, content: Mapping[str, Any], layout: Mapping[str
         takeaway_text=content["takeaway"],
         layout_mode="two_column",
         visual_kind=content["mini_visual"],
-        force_candidates=["two_column_bottom_result_square", "two_column_bottom_result", "two_column_bottom_result_relaxed", "two_column_square_visual", "two_column_text_heavy", "two_column", "two_column_requested"],
+        force_candidates=["two_column_bottom_result_square", "two_column_bottom_result_square_relaxed", "two_column_bottom_result_balanced", "two_column_bottom_result_relaxed", "two_column_text_heavy", "two_column", "two_column_requested"],
         top_pad=float(layout.get("top_pad", 0.16)),
         bottom_pad=float(layout.get("bottom_pad", 0.14)),
         side_pad=float(layout.get("side_pad", 0.20)),
@@ -229,10 +229,6 @@ def _fallback_layout(outer: Box, content: Mapping[str, Any], layout: Mapping[str
         result_max_h=float(layout.get("result_max_h", 1.08)),
         takeaway_min_h=float(layout.get("takeaway_min_h", 0.50)),
         takeaway_max_h=float(layout.get("takeaway_max_h", 0.84)),
-        steps_min_font=int(layout.get("steps_min_font", 10)),
-        steps_max_font=int(layout.get("steps_max_font", 14)),
-        result_min_font=int(layout.get("result_min_font", 12)),
-        result_max_font=int(layout.get("result_max_font", 16)),
     )
 
 
@@ -263,38 +259,9 @@ def _prepare_layout(content: Mapping[str, Any], layout: dict[str, Any], outer: B
         result_max_h=float(layout.get("result_max_h", 1.08)),
         takeaway_min_h=float(layout.get("takeaway_min_h", 0.50)),
         takeaway_max_h=float(layout.get("takeaway_max_h", 0.84)),
-        steps_min_font=int(layout.get("steps_min_font", 10)),
-        steps_max_font=int(layout.get("steps_max_font", 14)),
-        result_min_font=int(layout.get("result_min_font", 12)),
-        result_max_font=int(layout.get("result_max_font", 16)),
     )
     return _fallback_layout(outer, content, layout, result)
 
-
-
-
-def _fitted_size(layout_result: AnalyticPanelLayoutResult, key: str, fallback: int, *, cap: int | None = None) -> int:
-    fit = layout_result.text_fits.get(key)
-    if fit is None:
-        return fallback
-    size = max(8, int(getattr(fit, "font_size", fallback)))
-    if cap is not None:
-        size = min(size, cap)
-    return max(8, size)
-
-
-def _step_font_bounds(layout_result: AnalyticPanelLayoutResult) -> tuple[int, int, int, int]:
-    fitted = _fitted_size(layout_result, "steps", 12, cap=15)
-    body_max = max(11, min(15, fitted))
-    body_min = max(10, body_max - 2)
-    formula_max = max(body_max + 1, min(17, fitted + 1))
-    formula_min = max(body_min + 1, formula_max - 2)
-    return body_min, body_max, formula_min, formula_max
-
-
-def _result_font_bounds(layout_result: AnalyticPanelLayoutResult) -> tuple[int, int]:
-    fitted = _fitted_size(layout_result, "result", 13, cap=17)
-    return max(11, fitted - 2), max(13, fitted)
 
 def _render_layout(slide, content: Mapping[str, Any], style: Mapping[str, Any], layout_result: AnalyticPanelLayoutResult) -> None:
     suppress_caption = (
@@ -310,33 +277,36 @@ def _render_layout(slide, content: Mapping[str, Any], style: Mapping[str, Any], 
 
     if layout_result.steps_box.h > 0 and content["steps"]:
         _card(slide, layout_result.steps_box, style)
-        add_box_title(slide, x=layout_result.steps_box.x + 0.14, y=layout_result.steps_box.y + 0.12, w=max(0.0, layout_result.steps_box.w - 0.28), text=content["steps_label"], color=style["label_color"], font_size=11)
-        inner = Box(layout_result.steps_box.x + 0.16, layout_result.steps_box.y + 0.36, max(0.0, layout_result.steps_box.w - 0.30), max(0.0, layout_result.steps_box.h - 0.50))
-        body_min, body_max, formula_min, formula_max = _step_font_bounds(layout_result)
+        add_box_title(slide, x=layout_result.steps_box.x + 0.14, y=layout_result.steps_box.y + 0.10, w=max(0.0, layout_result.steps_box.w - 0.28), text=content["steps_label"], color=style["label_color"], font_size=11)
+        inner = Box(layout_result.steps_box.x + 0.20, layout_result.steps_box.y + 0.40, max(0.0, layout_result.steps_box.w - 0.40), max(0.0, layout_result.steps_box.h - 0.60))
+        steps_fit = layout_result.text_fits.get("steps")
+        vertical_anchor = MSO_ANCHOR.TOP
+        if steps_fit is not None and inner.h > 0 and steps_fit.estimated_height / max(inner.h, 1e-6) < 0.72:
+            vertical_anchor = MSO_ANCHOR.MIDDLE
         render_compact_derivation_stack(
             slide,
             box=inner,
             steps=content["steps"],
             style=style["math"],
-            min_body_font=body_min,
-            max_body_font=body_max,
-            min_formula_font=formula_min,
-            max_formula_font=formula_max,
+            min_body_font=10,
+            max_body_font=13,
+            min_formula_font=11,
+            max_formula_font=15,
             final_answer="",
             emphasize_final_answer=False,
             align=PP_ALIGN.LEFT,
+            vertical_anchor=vertical_anchor,
         )
 
     if layout_result.result_box.h > 0 and content["result_lines"]:
-        result_min, result_max = _result_font_bounds(layout_result)
         render_result_callout(
             slide,
             box=layout_result.result_box,
             result_lines=content["result_lines"],
             label=content["result_label"],
             style=style["math"],
-            min_font=result_min,
-            max_font=result_max,
+            min_font=11,
+            max_font=15,
             emphasize_final_answer=True,
             align=PP_ALIGN.LEFT,
             draw_card=True,
@@ -398,17 +368,13 @@ def _render_derivation_slide(prs: Presentation, spec: dict[str, Any], bg: str, s
         "side_pad": 0.20,
         "gap": 0.10,
         "col_gap": 0.20,
-        "min_steps_h": 1.78,
+        "min_steps_h": 2.0,
         "explanation_min_h": 0.0,
         "explanation_max_h": 0.0,
-        "result_min_h": 0.62,
+        "result_min_h": 0.56,
         "result_max_h": 0.92,
         "takeaway_min_h": 0.0,
         "takeaway_max_h": 0.0,
-        "steps_min_font": 10,
-        "steps_max_font": 14,
-        "result_min_font": 12,
-        "result_max_font": 16,
     }
     derivation = _derivation_content(content, omit_takeaway=bool(content["takeaway"]))
     outer = _outer(layout, header)
@@ -420,7 +386,7 @@ def _render_derivation_slide(prs: Presentation, spec: dict[str, Any], bg: str, s
         takeaway_text=derivation["takeaway"],
         layout_mode="two_column",
         visual_kind=derivation["mini_visual"],
-        force_candidates=["two_column_bottom_result_square", "two_column_bottom_result", "two_column_bottom_result_relaxed", "two_column_square_visual", "two_column", "two_column_text_heavy", "two_column_requested"],
+        force_candidates=["two_column_bottom_result_square", "two_column_bottom_result_square_relaxed", "two_column_bottom_result_balanced", "two_column_bottom_result_relaxed", "two_column_text_heavy", "two_column", "two_column_requested"],
         **layout,
     )
     _render_layout(slide, derivation, style, layout_result)

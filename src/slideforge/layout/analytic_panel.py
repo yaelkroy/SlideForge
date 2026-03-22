@@ -133,7 +133,7 @@ _VISUAL_METADATA: dict[str, dict[str, Any]] = {
         "min_width_in": 3.8,
         "min_height_in": 2.15,
         "preferred_aspect_ratio": 0.92,
-        "label_density": "low",
+        "label_density": "medium",
         "text_bearing": False,
         "allow_top_strip": False,
     },
@@ -156,11 +156,9 @@ _ALLOWED_TWO_COLUMN_KEYS = {
     "takeaway_min_h",
     "takeaway_max_h",
     "min_diagram_h_share",
-    "steps_min_font",
-    "steps_max_font",
-    "result_min_font",
-    "result_max_font",
 }
+
+_ALLOWED_BOTTOM_RESULT_KEYS = set(_ALLOWED_TWO_COLUMN_KEYS)
 
 _ALLOWED_TOP_VISUAL_KEYS = {
     "top_pad",
@@ -177,10 +175,6 @@ _ALLOWED_TOP_VISUAL_KEYS = {
     "result_max_h",
     "takeaway_min_h",
     "takeaway_max_h",
-    "steps_min_font",
-    "steps_max_font",
-    "result_min_font",
-    "result_max_font",
 }
 
 
@@ -232,9 +226,7 @@ def _build_two_column_candidate(
     )
 
 
-
-
-def _build_bottom_result_candidate(
+def _build_two_column_bottom_result_candidate(
     outer_box: Box,
     *,
     explanation_text: str,
@@ -244,7 +236,7 @@ def _build_bottom_result_candidate(
     share_triplet: tuple[float, float, float],
     kwargs: dict[str, Any],
 ) -> WorkedExampleLayoutResult:
-    settings = _safe_kwargs(kwargs, _ALLOWED_TWO_COLUMN_KEYS)
+    settings = _safe_kwargs(kwargs, _ALLOWED_BOTTOM_RESULT_KEYS)
     settings.update(
         {
             "diagram_min_share": share_triplet[0],
@@ -260,6 +252,7 @@ def _build_bottom_result_candidate(
         takeaway_text=takeaway_text,
         **settings,
     )
+
 
 def _build_top_visual_candidate(
     outer_box: Box,
@@ -426,10 +419,13 @@ def _candidate_definitions(*, requested_mode: str, density: float, metadata: dic
     preferred_layout = str(metadata.get("preferred_layout", "either") or "either").strip().lower()
     candidates: list[tuple[str, str, tuple[float, float, float]]] = []
     derivation_only = (not explanation_text.strip()) and bool(result_text.strip()) and (not takeaway_text.strip())
-    squareish_visual = float(metadata.get("preferred_aspect_ratio", 0.0) or 0.0) <= 1.15 and float(metadata.get("preferred_aspect_ratio", 0.0) or 0.0) > 0
+    preferred_aspect = float(metadata.get("preferred_aspect_ratio", 0.0) or 0.0)
+    squareish_visual = 0.0 < preferred_aspect <= 1.15
 
     if requested_mode == "top_visual" and allow_top:
         candidates.append(("top_visual_requested", "top_visual", (0.24, 0.31, 0.40)))
+    elif requested_mode == "two_column_bottom_result":
+        candidates.append(("two_column_bottom_result_requested", "two_column_bottom_result", (0.34, 0.43, 0.54)))
     elif requested_mode == "two_column":
         candidates.append(("two_column_requested", "two_column", (0.23, 0.30, 0.39)))
 
@@ -438,13 +434,11 @@ def _candidate_definitions(*, requested_mode: str, density: float, metadata: dic
 
     if derivation_only:
         if squareish_visual:
-            candidates.append(("two_column_bottom_result_square", "two_column_bottom_result", (0.34, 0.42, 0.52)))
-            candidates.append(("two_column_bottom_result_square_relaxed", "two_column_bottom_result", (0.36, 0.46, 0.56)))
-        candidates.append(("two_column_bottom_result", "two_column_bottom_result", (0.32, 0.40, 0.50)))
-        candidates.append(("two_column_bottom_result_relaxed", "two_column_bottom_result", (0.34, 0.44, 0.54)))
-        if squareish_visual:
-            candidates.append(("two_column_square_visual", "two_column", (0.28, 0.36, 0.44)))
-            candidates.append(("two_column_square_visual_relaxed", "two_column", (0.30, 0.39, 0.47)))
+            candidates.append(("two_column_bottom_result_square", "two_column_bottom_result", (0.36, 0.46, 0.56)))
+            candidates.append(("two_column_bottom_result_square_relaxed", "two_column_bottom_result", (0.34, 0.44, 0.54)))
+        else:
+            candidates.append(("two_column_bottom_result_balanced", "two_column_bottom_result", (0.32, 0.41, 0.50)))
+            candidates.append(("two_column_bottom_result_relaxed", "two_column_bottom_result", (0.30, 0.39, 0.48)))
 
     if density >= 7.5:
         candidates.append(("two_column_text_heavy", "two_column", (0.20, 0.24, 0.30)))
@@ -471,11 +465,12 @@ def _candidate_score(base: WorkedExampleLayoutResult, *, metadata: dict[str, Any
     notes: list[str] = []
     hard: list[str] = []
     penalty = 0.0
+    candidate_mode = "top_visual" if candidate_name.startswith("top_visual") else ("two_column_bottom_result" if candidate_name.startswith("two_column_bottom_result") else "two_column")
     text_penalty, text_notes, text_hard = _text_penalty(base)
     geom_penalty, geom_notes, geom_hard = _geometry_penalty(
         base,
         metadata=metadata,
-        candidate_mode="top_visual" if candidate_name.startswith("top_visual") else "two_column",
+        candidate_mode="top_visual" if candidate_mode == "top_visual" else "two_column",
     )
     penalty += text_penalty + geom_penalty + _underfill_penalty(base)
     notes.extend(text_notes)
@@ -485,16 +480,13 @@ def _candidate_score(base: WorkedExampleLayoutResult, *, metadata: dict[str, Any
 
     if candidate_name == "two_column_text_heavy":
         penalty += abs(base.diagram_share - 0.24) * 25.0
-    elif candidate_name.startswith("two_column_bottom_result"):
-        penalty += abs(base.diagram_share - 0.42) * 10.0
-        if derivation_only:
-            penalty -= 24.0
     elif candidate_name == "two_column_visual_heavy":
         penalty += abs(base.diagram_share - 0.33) * 18.0
-    elif candidate_name == "two_column_square_visual":
-        penalty += abs(base.diagram_share - 0.36) * 14.0
-    elif candidate_name == "two_column_square_visual_relaxed":
-        penalty += abs(base.diagram_share - 0.39) * 12.0
+    elif candidate_name.startswith("two_column_bottom_result"):
+        target = 0.46 if "square" in candidate_name else 0.41
+        penalty += abs(base.diagram_share - target) * 10.0
+        if derivation_only:
+            penalty -= 18.0
     elif candidate_name.startswith("top_visual"):
         penalty += abs(base.diagram_share - 0.32) * 22.0
         if density >= 7.5:
@@ -503,12 +495,9 @@ def _candidate_score(base: WorkedExampleLayoutResult, *, metadata: dict[str, Any
     if density >= 8.5 and candidate_name == "two_column_visual_heavy":
         penalty += 12.0
 
-    if derivation_only and candidate_name.startswith("two_column_bottom_result") and base.result_box.w > 0:
-        penalty -= min(18.0, base.result_box.w * 0.9)
-
     preferred_aspect = float(metadata.get("preferred_aspect_ratio", 0.0) or 0.0)
-    if derivation_only and 0.0 < preferred_aspect <= 1.15 and base.diagram_share < 0.31:
-        penalty += (0.31 - base.diagram_share) * 220.0
+    if derivation_only and 0.0 < preferred_aspect <= 1.15 and base.diagram_share < 0.34:
+        penalty += (0.34 - base.diagram_share) * 220.0
         notes.append("diagram_share_too_small_for_square_derivation_visual")
 
     return penalty, tuple(dict.fromkeys(notes)), tuple(dict.fromkeys(hard))
@@ -556,11 +545,6 @@ def layout_analytic_panel(
     )
     requested_mode = str(layout_mode or "two_column").strip().lower()
     derivation_only = (not explanation_text.strip()) and bool(result_text.strip()) and (not takeaway_text.strip())
-    if derivation_only:
-        kwargs.setdefault("steps_min_font", 10)
-        kwargs.setdefault("steps_max_font", 14)
-        kwargs.setdefault("result_min_font", 12)
-        kwargs.setdefault("result_max_font", 16)
     candidates = _candidate_definitions(requested_mode=requested_mode, density=density, metadata=metadata, explanation_text=explanation_text, result_text=result_text, takeaway_text=takeaway_text)
     if force_candidates:
         wanted = {str(name) for name in force_candidates}
@@ -580,7 +564,7 @@ def layout_analytic_panel(
                 kwargs=kwargs,
             )
         elif family == "two_column_bottom_result":
-            base = _build_bottom_result_candidate(
+            base = _build_two_column_bottom_result_candidate(
                 outer_box,
                 explanation_text=explanation_text,
                 steps_text=steps_text,

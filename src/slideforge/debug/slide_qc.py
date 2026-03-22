@@ -554,44 +554,6 @@ def check_visual_contracts(
     return issues
 
 
-
-
-def check_analytic_panel_balance(
-    spec: Mapping[str, Any] | None,
-    *,
-    slide_title: str = "",
-) -> list[SlideQCIssue]:
-    spec = spec or {}
-    kind = _clean_text(spec.get("kind"))
-    if kind not in {"analytic_panel", "worked_example", "worked_example_panel"}:
-        return []
-    mini_visual = _clean_text(spec.get("mini_visual"))
-    metadata = _lookup_visual_metadata(mini_visual)
-    if not metadata:
-        return []
-    preferred_aspect = float(metadata.get("preferred_aspect_ratio", 0.0) or 0.0)
-    steps = list(spec.get("steps", []) or [])
-    result = spec.get("result")
-    explanation = _clean_text(spec.get("text_explanation") or spec.get("explanation"))
-    takeaway = _clean_text(spec.get("takeaway"))
-    if preferred_aspect <= 1.75 and len(steps) >= 3 and result and not explanation:
-        layout = dict(spec.get("layout", {}) or {})
-        requested = _clean_text(layout.get("worked_layout_mode") or layout.get("layout_mode") or "two_column").lower()
-        if requested == "top_visual":
-            return []
-        return [
-            SlideQCIssue(
-                code="analytic_panel_derivation_balance_review",
-                severity="warning",
-                message="Square-ish derivation visual with many steps should prefer a balanced derivation layout or full-width bottom result; narrow left visual columns are likely unreadable.",
-                slide_title=slide_title,
-                block_key="analytic_panel",
-                context={"mini_visual": mini_visual, "steps": len(steps)},
-            )
-        ]
-    return []
-
-
 def run_slide_qc(
     *,
     spec: Mapping[str, Any] | None = None,
@@ -633,7 +595,6 @@ __all__ = [
     "check_raster_symbol_health",
     "check_visual_contracts",
     "check_section_visual_box_contracts",
-    "check_analytic_panel_balance",
     "run_slide_qc",
     "summarize_qc_issues",
 ]

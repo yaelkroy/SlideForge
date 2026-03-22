@@ -226,7 +226,7 @@ def estimate_result_callout_height(
     lines = _normalize_formula_lines(result_lines)
     text = "\n".join(lines)
     fit = fit_text(text, max(0.1, width - 0.36), 10.0, min_font_size=min_font, max_font_size=max_font, max_lines=max(3, len(lines)+1), line_spacing=line_spacing)
-    return float(getattr(fit, 'estimated_height', 0.0)) + 0.46
+    return float(getattr(fit, 'estimated_height', 0.0)) + 0.34
 
 
 def render_multiline_formulas(
@@ -286,6 +286,7 @@ def render_compact_derivation_stack(
     final_answer: str = "",
     emphasize_final_answer: bool = True,
     align=PP_ALIGN.LEFT,
+    vertical_anchor=MSO_ANCHOR.TOP,
 ) -> MathBlockRenderResult:
     style = style or MathBlockStyle()
     normalized_steps = _normalize_steps(steps)
@@ -322,7 +323,7 @@ def render_compact_derivation_stack(
     result_font = max(formula_font, body_font + 1)
 
     inner = _safe_fit_box(box, pad_x=0.02, pad_top=0.02, pad_bottom=0.08)
-    _, tf = _add_text_frame(slide, box=inner)
+    _, tf = _add_text_frame(slide, box=inner, vertical_anchor=vertical_anchor)
     first = True
     for step in normalized_steps:
         _add_paragraph(tf, text=step['title'], font_name=style.body_font_name, font_size=body_font, color=style.label_color, bold=True, align=align, space_after_pt=2, line_spacing=1.06, first=first)
@@ -360,11 +361,14 @@ def render_result_callout(
     if draw_card:
         add_rounded_box(slide, box.x, box.y, box.w, box.h, line_color=style.card_line_color, fill_color=style.card_fill_color, line_width_pt=1.25)
 
-    label_box = Box(box.x + 0.18, box.y + 0.12, max(0.0, box.w - 0.36), 0.18)
+    outer_pad_x = 0.22
+    top_pad = 0.14
+    label_row_h = max(0.18, min(0.24, box.h * 0.24))
+    label_box = Box(box.x + outer_pad_x, box.y + top_pad, max(0.0, box.w - 2 * outer_pad_x), label_row_h)
     add_box_title(slide, x=label_box.x, y=label_box.y, w=label_box.w, text=label, color=style.label_color, font_size=11, bold=True, align=PP_ALIGN.LEFT)
 
-    body_box = Box(box.x + 0.18, box.y + 0.28, max(0.0, box.w - 0.36), max(0.0, box.h - 0.40))
-    # Stronger safety for result boxes, especially last line.
+    body_top = label_box.y + label_row_h + 0.04
+    body_box = Box(box.x + outer_pad_x, body_top, max(0.0, box.w - 2 * outer_pad_x), max(0.0, box.bottom - body_top - 0.12))
     font_size = _fit_font_size(
         "\n".join(lines),
         body_box,
@@ -374,13 +378,13 @@ def render_result_callout(
         line_spacing=line_spacing,
         pad_x=0.01,
         pad_top=0.01,
-        pad_bottom=0.10,
-        safety_height_ratio=0.86,
-        shrink_steps=5,
+        pad_bottom=0.06,
+        safety_height_ratio=0.90,
+        shrink_steps=4,
     )
 
-    inner = _safe_fit_box(body_box, pad_x=0.0, pad_top=0.0, pad_bottom=0.08)
-    _, tf = _add_text_frame(slide, box=inner, vertical_anchor=MSO_ANCHOR.MIDDLE)
+    inner = _safe_fit_box(body_box, pad_x=0.0, pad_top=0.0, pad_bottom=0.05)
+    _, tf = _add_text_frame(slide, box=inner, vertical_anchor=MSO_ANCHOR.TOP)
     for idx, line in enumerate(lines):
         is_last = idx == len(lines) - 1
         _add_paragraph(
