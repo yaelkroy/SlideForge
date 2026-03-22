@@ -44,7 +44,6 @@ class SlideQCThresholds:
     duplicate_min_chars: int = 10
     max_visual_aspect_ratio_over_preferred: float = 1.18
     min_visual_preferred_height_ratio: float = 0.95
-    max_visual_aspect_ratio_over_preferred: float = 1.18
 
 
 def _clean_text(value: Any) -> str:
@@ -554,6 +553,111 @@ def check_visual_contracts(
     return issues
 
 
+
+
+def check_analytic_panel_balance(
+    spec: Mapping[str, Any] | None,
+    *,
+    slide_title: str = "",
+) -> list[SlideQCIssue]:
+    spec = spec or {}
+    kind = _clean_text(spec.get("kind"))
+    if kind not in {"analytic_panel", "worked_example", "worked_example_panel"}:
+        return []
+    mini_visual = _clean_text(spec.get("mini_visual"))
+    metadata = _lookup_visual_metadata(mini_visual)
+    if not metadata:
+        return []
+    preferred_aspect = float(metadata.get("preferred_aspect_ratio", 0.0) or 0.0)
+    steps = list(spec.get("steps", []) or [])
+    result = spec.get("result")
+    explanation = _clean_text(spec.get("text_explanation") or spec.get("explanation"))
+    takeaway = _clean_text(spec.get("takeaway"))
+    if preferred_aspect <= 1.15 and len(steps) >= 3 and result and not explanation:
+        layout = dict(spec.get("layout", {}) or {})
+        requested = _clean_text(layout.get("worked_layout_mode") or layout.get("layout_mode") or "two_column").lower()
+        if requested == "top_visual":
+            return []
+        return [
+            SlideQCIssue(
+                code="analytic_panel_derivation_balance_review",
+                severity="warning",
+                message="Square-ish derivation visual with many steps should prefer a balanced derivation layout or full-width bottom result; narrow left visual columns are likely unreadable.",
+                slide_title=slide_title,
+                block_key="analytic_panel",
+                context={"mini_visual": mini_visual, "steps": len(steps)},
+            )
+        ]
+    return []
+
+
+def check_analytic_panel_balance(
+    spec: Mapping[str, Any] | None,
+    *,
+    slide_title: str = "",
+) -> list[SlideQCIssue]:
+    """Flag worked-example / analytic-panel slides that look prone to narrow-visual imbalance.
+
+    This is intentionally lightweight: it only uses slide spec metadata and visual contracts,
+    so it can run before rendering. It should never fail closed.
+    """
+    spec = spec or {}
+    issues: list[SlideQCIssue] = []
+
+    kind = _clean_text(spec.get("kind"))
+    if kind not in {"worked_example", "analytic_panel"}:
+        return issues
+
+    visual_kind = _clean_text(spec.get("mini_visual") or spec.get("visual") or spec.get("diagram"))
+    if not visual_kind:
+        return issues
+
+    steps_raw = spec.get("steps") or []
+    step_count = 0
+    if isinstance(steps_raw, Sequence) and not isinstance(steps_raw, (str, bytes, bytearray)):
+        step_count = sum(1 for item in steps_raw if _clean_text(_get_attr_or_key(item, "title")) or _clean_text(_get_attr_or_key(item, "body")) or _clean_text(_get_attr_or_key(item, "formula")))
+
+    result_block = spec.get("result") or {}
+    has_result = bool(_extract_strings(result_block))
+    explanation = _clean_text(spec.get("text_explanation") or spec.get("explanation"))
+
+    metadata = _lookup_visual_metadata(visual_kind)
+    preferred_aspect_ratio = float(metadata.get("preferred_aspect_ratio", 0.0) or 0.0)
+    min_width = float(metadata.get("min_width_in", 0.0) or 0.0)
+    min_height = float(metadata.get("min_height_in", 0.0) or 0.0)
+
+    looks_squareish = False
+    if preferred_aspect_ratio > 0:
+        looks_squareish = preferred_aspect_ratio <= 1.65
+    elif min_width > 0 and min_height > 0:
+        looks_squareish = (min_width / max(min_height, 0.01)) <= 1.65
+
+    derivation_heavy = step_count >= 3 and has_result and not explanation
+
+    if looks_squareish and derivation_heavy:
+        issues.append(
+            SlideQCIssue(
+                code="analytic_panel_balance_review",
+                severity="warning",
+                message=(
+                    f"Worked derivation may need balanced layout review: visual '{visual_kind}' looks square-ish "
+                    f"while the slide has {step_count} step blocks and a result band. Prefer a wider geometry panel "
+                    "and a full-width bottom result region."
+                ),
+                slide_title=slide_title,
+                block_key="layout",
+                context={
+                    "kind": kind,
+                    "visual_kind": visual_kind,
+                    "step_count": step_count,
+                    "preferred_aspect_ratio": preferred_aspect_ratio,
+                },
+            )
+        )
+
+    return issues
+
+
 def run_slide_qc(
     *,
     spec: Mapping[str, Any] | None = None,
@@ -572,7 +676,6 @@ def run_slide_qc(
     issues.extend(check_raster_symbol_health(raster_labels, slide_title=slide_title))
     issues.extend(check_visual_contracts(spec, slide_title=slide_title))
     issues.extend(check_section_visual_box_contracts(spec, slide_title=slide_title, thresholds=thresholds))
-    issues.extend(check_analytic_panel_balance(spec, slide_title=slide_title))
     return issues
 
 
@@ -595,6 +698,7 @@ __all__ = [
     "check_raster_symbol_health",
     "check_visual_contracts",
     "check_section_visual_box_contracts",
+    "check_analytic_panel_balance",
     "run_slide_qc",
     "summarize_qc_issues",
 ]
