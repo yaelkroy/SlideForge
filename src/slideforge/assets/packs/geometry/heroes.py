@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Any
 
@@ -21,8 +22,9 @@ VISUAL_METADATA: dict[str, dict[str, Any]] = {
     "point_vector_projection_hero": {
         "preferred_layout": "hero",
         "min_width_in": 7.6,
-        "min_height_in": 2.15,
-        "preferred_aspect_ratio": 3.8,
+        "min_height_in": 2.60,
+        "preferred_height_in": 3.70,
+        "preferred_aspect_ratio": 3.05,
         "label_density": "low",
         "text_bearing": False,
         "allow_top_strip": True,
@@ -95,20 +97,34 @@ def _make_point_vector_projection_hero(path: Path, variant: str) -> Path:
     # Dominant point marker.
     ax.add_patch(mpatches.Circle(point, 0.21, edgecolor=p["fg"], facecolor=p["accent"], lw=1.4))
 
-    # Simple angle cue only.
+    # Angle cue anchored to the two rays so α is visually attached.
+    theta_proj = math.degrees(math.atan2(proj[1] - origin[1], proj[0] - origin[0]))
+    theta_point = math.degrees(math.atan2(point[1] - origin[1], point[0] - origin[0]))
+    arc_radius = 1.58
     ax.add_patch(
         mpatches.Arc(
-            (3.45, 1.55),
-            2.20,
-            1.38,
+            origin,
+            2.0 * arc_radius,
+            2.0 * arc_radius,
             angle=0,
-            theta1=7,
-            theta2=31,
+            theta1=theta_proj + 1.2,
+            theta2=theta_point - 1.2,
             color=p["ghost"],
-            lw=1.25,
+            lw=1.38,
         )
     )
-    _label_text(ax, 4.52, 2.08, "α", p, size=9.5, formula=True, color=p["soft"])
+    mid_theta = math.radians((theta_proj + theta_point) / 2.0)
+    alpha_label_radius = arc_radius + 0.34
+    _label_text(
+        ax,
+        origin[0] + alpha_label_radius * math.cos(mid_theta),
+        origin[1] + alpha_label_radius * math.sin(mid_theta) + 0.05,
+        "α",
+        p,
+        size=9.7,
+        formula=True,
+        color=p["soft"],
+    )
 
     # Only a couple of large labels.
     _label_text(ax, point[0] + 0.20, point[1] + 0.20, "P", p, size=9.8, formula=True)

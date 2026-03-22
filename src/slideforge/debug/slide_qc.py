@@ -9,6 +9,21 @@ try:
 except Exception:  # pragma: no cover - optional dependency while bootstrapping
     get_visual_contract = None
 
+try:
+    from slideforge.assets.mini_visuals import resolve_visual_kind
+except Exception:  # pragma: no cover - optional dependency while bootstrapping
+    resolve_visual_kind = None
+
+try:
+    from slideforge.assets.packs.geometry.heroes import get_visual_metadata as _hero_visual_metadata
+except Exception:  # pragma: no cover - optional dependency while bootstrapping
+    _hero_visual_metadata = None
+
+try:
+    from slideforge.assets.packs.geometry.norms_dots_angles import get_visual_metadata as _nda_visual_metadata
+except Exception:  # pragma: no cover - optional dependency while bootstrapping
+    _nda_visual_metadata = None
+
 
 
 @dataclass(frozen=True)
@@ -27,6 +42,9 @@ class SlideQCThresholds:
     min_formula_box_height: float = 0.34
     min_result_box_height: float = 0.28
     duplicate_min_chars: int = 10
+    max_visual_aspect_ratio_over_preferred: float = 1.18
+    min_visual_preferred_height_ratio: float = 0.95
+    max_visual_aspect_ratio_over_preferred: float = 1.18
 
 
 def _clean_text(value: Any) -> str:
@@ -70,6 +88,188 @@ def _extract_strings(value: Any) -> list[str]:
             values.extend(_extract_strings(item))
         return values
     return []
+
+
+
+def _lookup_visual_metadata(kind: str) -> dict[str, Any]:
+    raw = str(kind or "").strip()
+    if not raw:
+        return {}
+    canonical = resolve_visual_kind(raw) if resolve_visual_kind is not None else raw
+    for getter in (_hero_visual_metadata, _nda_visual_metadata):
+        if getter is None:
+            continue
+        try:
+            metadata = getter(canonical)
+        except Exception:
+            metadata = {}
+        if metadata:
+            return dict(metadata)
+    return {}
+
+
+def _box_from_raw(raw: Mapping[str, Any] | None, fallback: Mapping[str, Any]) -> dict[str, float]:
+    raw = raw or {}
+    return {
+        "x": float(raw.get("x", fallback["x"])),
+        "y": float(raw.get("y", fallback["y"])),
+        "w": float(raw.get("w", fallback["w"])),
+        "h": float(raw.get("h", fallback["h"])),
+    }
+
+
+def check_section_visual_box_contracts(
+    spec: Mapping[str, Any] | None,
+    *,
+    slide_title: str = "",
+    thresholds: SlideQCThresholds | None = None,
+) -> list[SlideQCIssue]:
+    thresholds = thresholds or SlideQCThresholds()
+    spec = spec or {}
+    issues: list[SlideQCIssue] = []
+
+    if _clean_text(spec.get("kind")) != "section_divider":
+        return issues
+
+    layout = dict(spec.get("layout", {}) or {})
+    section_visual = dict(spec.get("section_visual", {}) or {})
+    elements = list(section_visual.get("elements", []) or [])
+    if not elements:
+        return issues
+
+    band_box = _box_from_raw(
+        layout.get("band_region"),
+        {"x": 0.90, "y": 3.52, "w": 11.55, "h": 1.52},
+    )
+
+    count = len(elements)
+    side_pad = float(layout.get("band_side_pad", 0.35))
+    inter_gap = float(layout.get("band_gap", 0.30))
+    usable_w = band_box["w"] - 2 * side_pad - inter_gap * max(0, count - 1)
+    default_elem_w = usable_w / count if count else usable_w
+    default_elem_h = float(layout.get("element_h", min(1.24, band_box["h"] - 0.22)))
+    label_h = float(layout.get("label_h", 0.22))
+    label_gap = float(layout.get("label_gap", 0.06))
+
+    for idx, elem in enumerate(elements):
+        kind = _clean_text(elem.get("kind"))
+        metadata = _lookup_visual_metadata(kind)
+        if not metadata:
+            continue
+
+        label = _clean_text(elem.get("label"))
+        has_explicit_box = all(key in elem for key in ("x", "y", "w", "h"))
+
+        if has_explicit_box:
+            box_w = float(elem["w"])
+            box_h = float(elem["h"])
+            source = "explicit_box"
+        elif count == 1 and not label and bool(layout.get("expand_single_hero", True)):
+            hero_pad_x = float(layout.get("hero_pad_x", 0.14))
+            hero_pad_y = float(layout.get("hero_pad_y", 0.10))
+            box_w = max(0.10, band_box["w"] - 2 * hero_pad_x)
+            box_h = max(0.10, band_box["h"] - 2 * hero_pad_y)
+            source = "hero_band"
+        else:
+            box_w = default_elem_w
+            box_h = max(0.60, default_elem_h - label_h - label_gap) if label else default_elem_h
+            source = "auto_row"
+
+        min_width = float(metadata.get("min_width_in", 0.0) or 0.0)
+        min_height = float(metadata.get("min_height_in", 0.0) or 0.0)
+        preferred_height = float(metadata.get("preferred_height_in", 0.0) or 0.0)
+        preferred_aspect_ratio = float(metadata.get("preferred_aspect_ratio", 0.0) or 0.0)
+        actual_aspect_ratio = box_w / max(box_h, 0.01)
+
+        if min_height > 0 and box_h + 1e-6 < min_height:
+            issues.append(
+                SlideQCIssue(
+                    code="visual_box_below_contract",
+                    severity="warning",
+                    message=(
+                        f"Section divider visual '{kind}' is too short for its contract "
+                        f"({box_h:.2f}in < {min_height:.2f}in, source={source})."
+                    ),
+                    slide_title=slide_title,
+                    block_key=f"section_visual.elements[{idx}]",
+                    context={
+                        "kind": kind,
+                        "source": source,
+                        "height": box_h,
+                        "min_height": min_height,
+                    },
+                )
+            )
+
+        if min_width > 0 and box_w + 1e-6 < min_width:
+            issues.append(
+                SlideQCIssue(
+                    code="visual_box_below_contract",
+                    severity="warning",
+                    message=(
+                        f"Section divider visual '{kind}' is too narrow for its contract "
+                        f"({box_w:.2f}in < {min_width:.2f}in, source={source})."
+                    ),
+                    slide_title=slide_title,
+                    block_key=f"section_visual.elements[{idx}]",
+                    context={
+                        "kind": kind,
+                        "source": source,
+                        "width": box_w,
+                        "min_width": min_width,
+                    },
+                )
+            )
+
+
+        if (
+            preferred_height > 0
+            and box_h + 1e-6 < preferred_height * thresholds.min_visual_preferred_height_ratio
+        ):
+            issues.append(
+                SlideQCIssue(
+                    code="visual_box_below_preferred_height",
+                    severity="warning",
+                    message=(
+                        f"Section divider visual '{kind}' is below its preferred readable height "
+                        f"({box_h:.2f}in < {preferred_height:.2f}in, source={source})."
+                    ),
+                    slide_title=slide_title,
+                    block_key=f"section_visual.elements[{idx}]",
+                    context={
+                        "kind": kind,
+                        "source": source,
+                        "height": box_h,
+                        "preferred_height": preferred_height,
+                    },
+                )
+            )
+
+        if (
+            preferred_aspect_ratio > 0
+            and actual_aspect_ratio > preferred_aspect_ratio * thresholds.max_visual_aspect_ratio_over_preferred
+        ):
+            issues.append(
+                SlideQCIssue(
+                    code="visual_aspect_too_wide",
+                    severity="warning",
+                    message=(
+                        f"Section divider visual '{kind}' is allocated a box with aspect ratio "
+                        f"{actual_aspect_ratio:.2f}, which is too wide for its preferred ratio "
+                        f"{preferred_aspect_ratio:.2f} (source={source})."
+                    ),
+                    slide_title=slide_title,
+                    block_key=f"section_visual.elements[{idx}]",
+                    context={
+                        "kind": kind,
+                        "source": source,
+                        "aspect_ratio": actual_aspect_ratio,
+                        "preferred_aspect_ratio": preferred_aspect_ratio,
+                    },
+                )
+            )
+
+    return issues
 
 
 def check_text_fit_thresholds(
@@ -371,6 +571,7 @@ def run_slide_qc(
     issues.extend(check_duplicate_formula_payload(spec, slide_title=slide_title, thresholds=thresholds))
     issues.extend(check_raster_symbol_health(raster_labels, slide_title=slide_title))
     issues.extend(check_visual_contracts(spec, slide_title=slide_title))
+    issues.extend(check_section_visual_box_contracts(spec, slide_title=slide_title, thresholds=thresholds))
     return issues
 
 
@@ -392,6 +593,7 @@ __all__ = [
     "check_duplicate_formula_payload",
     "check_raster_symbol_health",
     "check_visual_contracts",
+    "check_section_visual_box_contracts",
     "run_slide_qc",
     "summarize_qc_issues",
 ]

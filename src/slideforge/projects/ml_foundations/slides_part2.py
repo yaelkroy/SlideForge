@@ -130,8 +130,12 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "and measure similarity"
         ),
         "layout": {
-            "title_region": {"x": 0.92, "y": 1.76, "w": 11.40, "h": 1.02},
-            "subtitle_region": {"x": 1.14, "y": 2.82, "w": 10.96, "h": 0.42},
+            "title_region": {"x": 0.92, "y": 1.44, "w": 11.40, "h": 0.92},
+            "subtitle_region": {"x": 1.14, "y": 2.34, "w": 10.96, "h": 0.34},
+            "band_region": {"x": 0.68, "y": 2.76, "w": 11.92, "h": 4.02},
+            "expand_single_hero": True,
+            "hero_pad_x": 0.10,
+            "hero_pad_y": 0.05,
         },
         "section_visual": {
             "type": "wide_concept_band",
@@ -139,10 +143,6 @@ ML_FOUNDATIONS_PART2_SLIDES: list[dict[str, Any]] = [
             "elements": [
                 {
                     "kind": "point_vector_projection_hero",
-                    "x": 1.20,
-                    "y": 3.34,
-                    "w": 9.90,
-                    "h": 1.86,
                     "label": "",
                 },
             ],

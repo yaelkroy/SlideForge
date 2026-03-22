@@ -10,6 +10,7 @@ from typing import Any, Iterable, Mapping, Sequence
 from slideforge.app.presentation_factory import create_presentation
 from slideforge.builders.builder_registry import BUILDERS
 from slideforge.config.paths import OUTPUT_FILE, ensure_runtime_dirs
+from slideforge.debug.slide_qc import run_slide_qc
 from slideforge.io.backgrounds import validate_backgrounds
 
 
@@ -119,6 +120,20 @@ def apply_theme_overrides(
     ]
 
 
+
+
+def _emit_slide_qc_issues(
+    slide_index: int,
+    spec: Mapping[str, Any],
+) -> None:
+    slide_title = str(spec.get("title") or spec.get("slide_title") or f"Slide {slide_index}").strip()
+    issues = run_slide_qc(spec=spec, slide_title=slide_title)
+    for issue in issues:
+        print(
+            f"[slideqc][{issue.severity}] slide {slide_index} '{slide_title}': {issue.message}"
+        )
+
+
 def build_deck(
     slides: Sequence[dict[str, Any]],
     output_file: str | Path = OUTPUT_FILE,
@@ -139,6 +154,7 @@ def build_deck(
         kind = str(spec.get("kind", "")).strip()
         if kind not in BUILDERS:
             raise ValueError(f"Unknown slide kind on slide {idx}: {kind!r}")
+        _emit_slide_qc_issues(idx, spec)
         BUILDERS[kind](prs, spec, counters)
 
     output_path = Path(output_file).expanduser().resolve()
