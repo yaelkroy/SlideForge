@@ -8,6 +8,53 @@ from slideforge.io.backgrounds import ensure_background_exists
 from slideforge.utils.units import inches, pt
 
 
+_ALIGN_LOOKUP = {
+    "left": PP_ALIGN.LEFT,
+    "l": PP_ALIGN.LEFT,
+    "center": PP_ALIGN.CENTER,
+    "centre": PP_ALIGN.CENTER,
+    "c": PP_ALIGN.CENTER,
+    "right": PP_ALIGN.RIGHT,
+    "r": PP_ALIGN.RIGHT,
+    "justify": PP_ALIGN.JUSTIFY,
+    "justified": PP_ALIGN.JUSTIFY,
+    "distributed": PP_ALIGN.DISTRIBUTE,
+    "distribute": PP_ALIGN.DISTRIBUTE,
+}
+
+_VERTICAL_ANCHOR_LOOKUP = {
+    "top": MSO_ANCHOR.TOP,
+    "middle": MSO_ANCHOR.MIDDLE,
+    "center": MSO_ANCHOR.MIDDLE,
+    "centre": MSO_ANCHOR.MIDDLE,
+    "bottom": MSO_ANCHOR.BOTTOM,
+}
+
+
+def _normalize_align(align):
+    if align is None:
+        return PP_ALIGN.LEFT
+    if isinstance(align, str):
+        return _ALIGN_LOOKUP.get(align.strip().lower(), PP_ALIGN.LEFT)
+    try:
+        return PP_ALIGN(align)
+    except Exception:
+        return PP_ALIGN.LEFT
+
+
+
+def _normalize_vertical_anchor(vertical_anchor):
+    if vertical_anchor is None:
+        return MSO_ANCHOR.TOP
+    if isinstance(vertical_anchor, str):
+        return _VERTICAL_ANCHOR_LOOKUP.get(vertical_anchor.strip().lower(), MSO_ANCHOR.TOP)
+    try:
+        return MSO_ANCHOR(vertical_anchor)
+    except Exception:
+        return MSO_ANCHOR.TOP
+
+
+
 def _configure_text_frame(
     text_frame,
     *,
@@ -16,7 +63,7 @@ def _configure_text_frame(
 ) -> None:
     text_frame.clear()
     text_frame.word_wrap = word_wrap
-    text_frame.vertical_anchor = vertical_anchor
+    text_frame.vertical_anchor = _normalize_vertical_anchor(vertical_anchor)
 
 
 
@@ -49,7 +96,7 @@ def _add_single_paragraph_text(
     first: bool = True,
 ):
     paragraph = text_frame.paragraphs[0] if first else text_frame.add_paragraph()
-    paragraph.alignment = align
+    paragraph.alignment = _normalize_align(align)
     if space_after_pt is not None:
         paragraph.space_after = pt(space_after_pt)
     if line_spacing is not None:

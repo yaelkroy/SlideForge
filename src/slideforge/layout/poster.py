@@ -26,6 +26,7 @@ class _PosterModeConfig:
     keep_readable_keys: tuple[str, ...] = ("explanation", "takeaway")
     visual_inset_x: float = 0.06
     visual_width_inset: float = 0.12
+    band_gap: float = 0.08
 
 
 def _clean(text: str) -> str:
@@ -152,7 +153,7 @@ def _estimate_reserved_text_height(
     for spec in specs:
         if not _clean(spec.text):
             continue
-        if reserve_formula_first and spec.key == "formulas" or spec.key in readable:
+        if (reserve_formula_first and spec.key == "formulas") or spec.key in readable:
             heights.append(_estimate_block_height(spec, width))
         else:
             heights.append(max(line_height_inches(spec.min_font_size, spec.line_spacing) + 0.04, 0.16))
@@ -288,6 +289,113 @@ def _layout_poster(
     )
 
 
+def _compact_specs(
+    *,
+    explanation: str,
+    bullets_text: str,
+    formulas_text: str,
+    note_text: str,
+    takeaway_text: str,
+) -> list[TextBlockSpec]:
+    specs: list[TextBlockSpec] = []
+    if _clean(explanation):
+        specs.append(TextBlockSpec("explanation", _clean(explanation), min_font_size=15, max_font_size=18, max_lines=2, line_spacing=1.12))
+    if _clean(formulas_text):
+        max_lines = 3 if "\n" in formulas_text else 1
+        specs.append(TextBlockSpec("formulas", _clean(formulas_text), min_font_size=12, max_font_size=15, max_lines=max_lines, line_spacing=1.08))
+    if _clean(bullets_text):
+        specs.append(TextBlockSpec("bullets", _clean(bullets_text), min_font_size=12, max_font_size=14, max_lines=2, line_spacing=1.10))
+    if _clean(note_text):
+        specs.append(TextBlockSpec("note", _clean(note_text), min_font_size=11, max_font_size=13, max_lines=1, line_spacing=1.08))
+    if _clean(takeaway_text):
+        specs.append(TextBlockSpec("takeaway", _clean(takeaway_text), min_font_size=12, max_font_size=14, max_lines=2, line_spacing=1.10, bold=True))
+    return specs
+
+
+def _layout_compact_bands(
+    outer_box: Box,
+    *,
+    explanation: str,
+    bullets_text: str,
+    formulas_text: str,
+    note_text: str,
+    takeaway_text: str,
+    top_pad: Unit,
+    bottom_pad: Unit,
+    gap: Unit,
+    side_pad: Unit,
+    visual_min_share: float,
+    visual_max_share: float,
+    preferred_visual_share: float,
+) -> PosterLayoutResult:
+    usable_h = max(0.0, outer_box.h - top_pad - bottom_pad)
+    if usable_h <= 0:
+        return _empty_result(outer_box, top_pad=top_pad, side_pad=side_pad)
+
+    specs = _compact_specs(
+        explanation=explanation,
+        bullets_text=bullets_text,
+        formulas_text=formulas_text,
+        note_text=note_text,
+        takeaway_text=takeaway_text,
+    )
+    inner_w = max(0.0, outer_box.w - 2 * side_pad)
+    compact_gap = min(gap, 0.055)
+    reserved = _estimate_reserved_text_height(
+        specs,
+        width=inner_w,
+        gap=compact_gap,
+        reserve_formula_first=True,
+        keep_readable_keys=("explanation", "formulas", "takeaway"),
+    )
+
+    min_visual_h = usable_h * clamp(visual_min_share, 0.0, 1.0)
+    max_visual_h = usable_h * clamp(visual_max_share, 0.0, 1.0)
+    preferred = usable_h * preferred_visual_share
+    visual_h = clamp(usable_h - reserved - compact_gap, min_visual_h, max_visual_h)
+    visual_h = clamp((visual_h * 0.7) + (preferred * 0.3), min_visual_h, max_visual_h)
+
+    text_box = Box(
+        outer_box.x + side_pad,
+        outer_box.y + top_pad + visual_h + compact_gap,
+        inner_w,
+        max(0.0, usable_h - visual_h - compact_gap),
+    )
+    stack = layout_vertical_stack(text_box, specs, gap=compact_gap, top_pad=0.0, bottom_pad=0.0)
+
+    # If formulas did not fit, protect them by trimming the visual more aggressively.
+    if stack.text_fits.get("formulas") is not None and not stack.text_fits["formulas"].fits:
+        protected_reserved = _estimate_reserved_text_height(
+            specs,
+            width=inner_w,
+            gap=compact_gap,
+            reserve_formula_first=True,
+            keep_readable_keys=("explanation", "formulas", "bullets", "takeaway"),
+        )
+        visual_h = clamp(usable_h - protected_reserved - compact_gap, min_visual_h * 0.92, max_visual_h)
+        text_box = Box(
+            outer_box.x + side_pad,
+            outer_box.y + top_pad + visual_h + compact_gap,
+            inner_w,
+            max(0.0, usable_h - visual_h - compact_gap),
+        )
+        stack = layout_vertical_stack(text_box, specs, gap=compact_gap, top_pad=0.0, bottom_pad=0.0)
+
+    visual_box = Box(
+        outer_box.x + side_pad,
+        outer_box.y + top_pad,
+        inner_w,
+        visual_h,
+    )
+    return PosterLayoutResult(
+        outer_box=outer_box,
+        visual_box=visual_box,
+        text_boxes=stack.boxes,
+        text_fits=stack.text_fits,
+        visual_share=visual_box.h / max(usable_h, 1e-6),
+    )
+
+
 def layout_worked_math_poster(
     outer_box: Box,
     *,
@@ -344,36 +452,24 @@ def layout_compact_concept_poster(
     bottom_pad: Unit = 0.11,
     gap: Unit = 0.055,
     side_pad: Unit = 0.18,
-    visual_min_share: float = 0.66,
-    visual_max_share: float = 0.84,
-    preferred_visual_share: float = 0.74,
+    visual_min_share: float = 0.60,
+    visual_max_share: float = 0.80,
+    preferred_visual_share: float = 0.69,
 ) -> PosterLayoutResult:
-    cfg = _PosterModeConfig(
-        compact_concept=True,
-        formulas_before_bullets=True,
-        keep_readable_keys=("explanation", "formulas"),
-        visual_inset_x=0.04,
-        visual_width_inset=0.08,
-    )
-    specs = _make_text_specs(
+    return _layout_compact_bands(
+        outer_box,
         explanation=explanation,
         bullets_text=bullets_text,
         formulas_text=formulas_text,
         note_text=note_text,
         takeaway_text=takeaway_text,
-        cfg=cfg,
-    )
-    return _layout_poster(
-        outer_box,
-        specs=specs,
         top_pad=top_pad,
         bottom_pad=bottom_pad,
-        side_pad=side_pad,
         gap=gap,
+        side_pad=side_pad,
         visual_min_share=visual_min_share,
         visual_max_share=visual_max_share,
         preferred_visual_share=preferred_visual_share,
-        cfg=cfg,
     )
 
 
@@ -423,8 +519,8 @@ def layout_concept_poster(
         )
 
     if compact_mode:
-        compact_min = max(visual_min_share, 0.66)
-        compact_max = max(compact_min + 0.08, min(visual_max_share, 0.86))
+        compact_min = max(0.58, min(visual_min_share, 0.72))
+        compact_max = min(0.82, max(compact_min + 0.08, visual_max_share))
         return layout_compact_concept_poster(
             outer_box,
             explanation=explanation,

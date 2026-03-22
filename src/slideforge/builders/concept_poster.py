@@ -80,7 +80,16 @@ def _legacy_dense(formulas: list[str], bullets: list[str], explanation: str, tak
 
 def _legacy_compact(formulas: list[str], bullets: list[str], explanation: str, takeaway: str, note: str, mini_visual: str) -> bool:
     char_load = len(explanation) + len(takeaway) + len(note) + sum(len(x) for x in formulas) + sum(len(x) for x in bullets)
-    return bool(mini_visual) and char_load <= 240 and len(_clean_items(bullets)) <= 2 and len(_clean_items(formulas)) <= 2
+    return bool(mini_visual) and char_load <= 260 and len(_clean_items(bullets)) <= 2 and len(_clean_items(formulas)) <= 2
+
+
+def _compact_inline_formulas(formulas: list[str]) -> bool:
+    cleaned = _clean_items(formulas)
+    if not cleaned:
+        return False
+    if len(cleaned) > 2:
+        return False
+    return max(len(item) for item in cleaned) <= 18 and sum(len(item) for item in cleaned) <= 34
 
 
 def _profile(spec: Mapping[str, Any], layout: Mapping[str, Any], *, formulas: list[str], bullets: list[str], explanation: str, takeaway: str, note: str, mini_visual: str) -> dict[str, Any]:
@@ -115,7 +124,12 @@ def _profile(spec: Mapping[str, Any], layout: Mapping[str, Any], *, formulas: li
         profile = "text_first" if prioritize_text else ("dense_math" if dense else ("compact_concept" if compact else "concept"))
 
     explicit_stack = layout.get("stack_formulas", spec.get("stack_formulas"))
-    stack = _bool(explicit_stack) if explicit_stack is not None else prioritize_text or dense or len(_clean_items(formulas)) > 1
+    if explicit_stack is not None:
+        stack = _bool(explicit_stack)
+    elif compact:
+        stack = not _compact_inline_formulas(formulas)
+    else:
+        stack = prioritize_text or dense or len(_clean_items(formulas)) > 1
 
     if prioritize_text:
         shares = (
@@ -131,9 +145,9 @@ def _profile(spec: Mapping[str, Any], layout: Mapping[str, Any], *, formulas: li
         )
     elif compact:
         shares = (
-            float(layout.get("compact_visual_min_share", 0.66)),
-            float(layout.get("compact_visual_max_share", 0.84)),
-            float(layout.get("compact_preferred_visual_share", 0.74)),
+            float(layout.get("compact_visual_min_share", 0.60)),
+            float(layout.get("compact_visual_max_share", 0.80)),
+            float(layout.get("compact_preferred_visual_share", 0.69)),
         )
     else:
         shares = (
@@ -238,7 +252,7 @@ def _score(variant: Mapping[str, str], poster_layout: Any, profile: Mapping[str,
     if profile["dense_math_mode"]:
         return kept * 12 + fits * 4 + text_share * 55 + min(chars, 600) * 0.012 + poster_layout.visual_share * 18 - bad * 14
     if profile["compact_concept_mode"]:
-        return poster_layout.visual_share * 115 + fits * 5 + kept * 5 - visual_distance * 45 - bad * 16
+        return poster_layout.visual_share * 112 + fits * 8 + kept * 6 - visual_distance * 40 - bad * 18
     return poster_layout.visual_share * 100 + kept * 3 + fits * 2 - visual_distance * 24 - bad * 12
 
 
@@ -252,7 +266,7 @@ def _good_enough(variant: Mapping[str, str], poster_layout: Any, profile: Mappin
             poster_layout.visual_share >= profile["preferred_visual_share"] and fits >= max(1, kept - 1)
         )
     if profile["compact_concept_mode"]:
-        return fits >= max(1, kept) and abs(poster_layout.visual_share - profile["preferred_visual_share"]) <= 0.05
+        return fits >= max(1, kept) and abs(poster_layout.visual_share - profile["preferred_visual_share"]) <= 0.08
     return poster_layout.visual_share >= profile["preferred_visual_share"] and fits >= max(1, kept - 1)
 
 
@@ -270,14 +284,27 @@ def _pick_variant(outer_box: Box, base: Mapping[str, str], profile: Mapping[str,
 
 def _draw_text(slide, box: Box, text: str, *, font_name: str, font_size: int, color, bold: bool = False, align=PP_ALIGN.CENTER) -> None:
     if text.strip() and box.w > 0 and box.h > 0:
-        add_textbox(slide, x=box.x, y=box.y, w=box.w, h=box.h, text=text, font_name=font_name, font_size=font_size, color=color, bold=bold, align=align)
+        add_textbox(
+            slide,
+            x=box.x,
+            y=box.y,
+            w=box.w,
+            h=box.h,
+            text=text,
+            font_name=font_name,
+            font_size=font_size,
+            color=color,
+            bold=bold,
+            align=align,
+        )
 
 
 def _render_blocks(slide, variant: Mapping[str, str], poster_layout: Any, profile: Mapping[str, Any], layout: Mapping[str, Any], style: Mapping[str, Any]) -> None:
+    formula_align_default = PP_ALIGN.CENTER if profile["compact_concept_mode"] else (PP_ALIGN.LEFT if profile["stack_formulas"] else PP_ALIGN.CENTER)
     text_specs = [
         ("explanation", BODY_FONT, "explanation_min_font", 15, style["explanation_color"], False, layout.get("explanation_align", PP_ALIGN.CENTER)),
         ("bullets", BODY_FONT, "bullets_min_font", 13, style["bullets_color"], _bool(layout.get("bullets_bold", False)), layout.get("bullets_align", PP_ALIGN.CENTER)),
-        ("formulas", FORMULA_FONT, "formulas_min_font", 12, style["formulas_color"], False, layout.get("formulas_align", PP_ALIGN.LEFT if profile["stack_formulas"] else PP_ALIGN.CENTER)),
+        ("formulas", FORMULA_FONT, "formulas_min_font", 12, style["formulas_color"], False, layout.get("formulas_align", formula_align_default)),
         ("note", BODY_FONT, "note_min_font", 12, style["note_color"], _bool(layout.get("note_bold", False)), layout.get("note_align", PP_ALIGN.CENTER)),
         ("takeaway", BODY_FONT, "takeaway_min_font", 12, style["takeaway_color"], True, layout.get("takeaway_align", PP_ALIGN.CENTER)),
     ]
@@ -318,7 +345,16 @@ def build_concept_poster_slide(prs: Presentation, spec: dict[str, Any], counters
     )
     outer_box = _box(layout["poster_box"], fallback_outer) if isinstance(layout.get("poster_box"), Mapping) else fallback_outer
 
-    add_rounded_box(slide, outer_box.x, outer_box.y, outer_box.w, outer_box.h, line_color=style["poster_line_color"], fill_color=style["poster_fill_color"], line_width_pt=style["poster_line_width_pt"])
+    add_rounded_box(
+        slide,
+        outer_box.x,
+        outer_box.y,
+        outer_box.w,
+        outer_box.h,
+        line_color=style["poster_line_color"],
+        fill_color=style["poster_fill_color"],
+        line_width_pt=style["poster_line_width_pt"],
+    )
     variant, poster_layout = _pick_variant(
         outer_box,
         base,
@@ -332,7 +368,16 @@ def build_concept_poster_slide(prs: Presentation, spec: dict[str, Any], counters
 
     visual_box = _box(layout["visual_box"], poster_layout.visual_box) if isinstance(layout.get("visual_box"), Mapping) else poster_layout.visual_box
     if mini_visual:
-        add_mini_visual(slide, kind=mini_visual, x=visual_box.x, y=visual_box.y, w=visual_box.w, h=visual_box.h, suffix="_concept_poster", variant=style["visual_variant"])
+        add_mini_visual(
+            slide,
+            kind=mini_visual,
+            x=visual_box.x,
+            y=visual_box.y,
+            w=visual_box.w,
+            h=visual_box.h,
+            suffix="_concept_poster",
+            variant=style["visual_variant"],
+        )
 
     _render_blocks(slide, variant, poster_layout, profile, layout, style)
     add_footer(slide, dark=style["footer_dark"], color=style["footer_color"])
