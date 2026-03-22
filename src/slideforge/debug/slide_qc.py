@@ -24,12 +24,6 @@ try:
 except Exception:  # pragma: no cover - optional dependency while bootstrapping
     _nda_visual_metadata = None
 
-try:
-    from slideforge.layout.analytic_panel import layout_analytic_panel
-    from slideforge.layout.autofit import Box as _QCBox
-except Exception:  # pragma: no cover - optional dependency while bootstrapping
-    layout_analytic_panel = None
-    _QCBox = None
 
 
 @dataclass(frozen=True)
@@ -562,111 +556,41 @@ def check_visual_contracts(
 
 
 
-def _qc_clean_steps_text(spec: Mapping[str, Any]) -> str:
-    blocks: list[str] = []
-    for idx, step in enumerate(spec.get("steps") or [], start=1):
-        if isinstance(step, Mapping):
-            parts = [
-                _clean_text(step.get("title") or step.get("label") or f"Step {idx}"),
-                _clean_text(step.get("body") or step.get("text") or step.get("explanation")),
-                _clean_text(step.get("formula") or step.get("equation") or step.get("result")),
-                _clean_text(step.get("note")),
-            ]
-        else:
-            parts = [f"Step {idx}", _clean_text(step)]
-        block = "\n".join(part for part in parts if part)
-        if block:
-            blocks.append(block)
-    return "\n\n".join(blocks)
-
-
 def check_analytic_panel_balance(
     spec: Mapping[str, Any] | None,
     *,
     slide_title: str = "",
 ) -> list[SlideQCIssue]:
-    if not spec or layout_analytic_panel is None or _QCBox is None:
-        return []
-
+    spec = spec or {}
     kind = _clean_text(spec.get("kind"))
     if kind not in {"analytic_panel", "worked_example", "worked_example_panel"}:
         return []
-
-    layout = dict(spec.get("layout", {}) or {})
-    content_box = dict(layout.get("content_box", {}) or {})
-    outer = _QCBox(
-        float(content_box.get("x", 0.86)),
-        float(content_box.get("y", 1.34)),
-        float(content_box.get("w", 11.30)),
-        float(content_box.get("h", 5.18)),
-    )
-
-    explanation = _clean_text(spec.get("text_explanation") or spec.get("explanation"))
-    result = spec.get("result")
-    if isinstance(result, Mapping):
-        result_text = "\n".join([part for part in [
-            _clean_text(result.get("body") or result.get("text") or result.get("explanation")),
-            _clean_text(result.get("formula") or result.get("equation")),
-            _clean_text(result.get("note")),
-        ] if part])
-    else:
-        result_text = _clean_text(result)
-    steps_text = _qc_clean_steps_text(spec)
-    takeaway = _clean_text(spec.get("takeaway"))
-
-    result_layout = layout_analytic_panel(
-        outer,
-        explanation_text=explanation,
-        steps_text=steps_text,
-        result_text=result_text,
-        takeaway_text=takeaway,
-        layout_mode=_clean_text(layout.get("worked_layout_mode") or layout.get("layout_mode") or "two_column") or "two_column",
-        visual_kind=_clean_text(spec.get("mini_visual")),
-        top_pad=float(layout.get("top_pad", 0.16)),
-        bottom_pad=float(layout.get("bottom_pad", 0.14)),
-        side_pad=float(layout.get("side_pad", 0.20)),
-        gap=float(layout.get("gap", 0.10)),
-        col_gap=float(layout.get("col_gap", layout.get("column_gap", 0.20))),
-        min_steps_h=float(layout.get("min_steps_h", 2.0)),
-        explanation_min_h=float(layout.get("explanation_min_h", 0.34)),
-        explanation_max_h=float(layout.get("explanation_max_h", 0.62)),
-        result_min_h=float(layout.get("result_min_h", 0.72)),
-        result_max_h=float(layout.get("result_max_h", 1.08)),
-        takeaway_min_h=float(layout.get("takeaway_min_h", 0.50)),
-        takeaway_max_h=float(layout.get("takeaway_max_h", 0.84)),
-    )
-
-    issues: list[SlideQCIssue] = []
-    metadata = _lookup_visual_metadata(_clean_text(spec.get("mini_visual")))
+    mini_visual = _clean_text(spec.get("mini_visual"))
+    metadata = _lookup_visual_metadata(mini_visual)
+    if not metadata:
+        return []
     preferred_aspect = float(metadata.get("preferred_aspect_ratio", 0.0) or 0.0)
-    derivation_like = (not explanation) and bool(result_text.strip()) and (not takeaway)
-    if derivation_like and 0.0 < preferred_aspect <= 1.15 and result_layout.diagram_share < 0.31:
-        issues.append(
+    steps = list(spec.get("steps", []) or [])
+    result = spec.get("result")
+    explanation = _clean_text(spec.get("text_explanation") or spec.get("explanation"))
+    takeaway = _clean_text(spec.get("takeaway"))
+    if preferred_aspect <= 1.15 and len(steps) >= 3 and result and not explanation:
+        layout = dict(spec.get("layout", {}) or {})
+        requested = _clean_text(layout.get("worked_layout_mode") or layout.get("layout_mode") or "two_column").lower()
+        if requested == "top_visual":
+            return []
+        return [
             SlideQCIssue(
-                code="analytic_panel_diagram_share_too_small",
+                code="analytic_panel_derivation_balance_review",
                 severity="warning",
-                message=(
-                    f"Analytic-panel visual '{_clean_text(spec.get('mini_visual'))}' is likely too narrow "
-                    f"for a derivation layout (diagram share {result_layout.diagram_share:.2f})."
-                ),
+                message="Square-ish derivation visual with many steps should prefer a balanced derivation layout or full-width bottom result; narrow left visual columns are likely unreadable.",
                 slide_title=slide_title,
-                context={"diagram_share": result_layout.diagram_share, "candidate": result_layout.candidate_name},
+                block_key="analytic_panel",
+                context={"mini_visual": mini_visual, "steps": len(steps)},
             )
-        )
-    if any(note in {"diagram_share_too_small_for_square_derivation_visual", "hard_diagram_aspect_far_from_preference"} for note in result_layout.notes):
-        issues.append(
-            SlideQCIssue(
-                code="analytic_panel_layout_balance_risk",
-                severity="warning",
-                message=(
-                    "Analytic-panel layout has a diagram/text balance risk; consider giving the visual more width "
-                    "or relaxing the text column density."
-                ),
-                slide_title=slide_title,
-                context={"candidate": result_layout.candidate_name, "notes": list(result_layout.notes)},
-            )
-        )
-    return issues
+        ]
+    return []
+
 
 def run_slide_qc(
     *,
@@ -686,7 +610,6 @@ def run_slide_qc(
     issues.extend(check_raster_symbol_health(raster_labels, slide_title=slide_title))
     issues.extend(check_visual_contracts(spec, slide_title=slide_title))
     issues.extend(check_section_visual_box_contracts(spec, slide_title=slide_title, thresholds=thresholds))
-    issues.extend(check_analytic_panel_balance(spec, slide_title=slide_title))
     return issues
 
 
@@ -709,7 +632,6 @@ __all__ = [
     "check_raster_symbol_health",
     "check_visual_contracts",
     "check_section_visual_box_contracts",
-    "check_analytic_panel_balance",
     "run_slide_qc",
     "summarize_qc_issues",
 ]
